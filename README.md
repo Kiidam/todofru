@@ -1,33 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TodoFru - Sistema de Gestión Empresarial
 
-## Getting Started
+TodoFru es una aplicación web para la gestión empresarial de negocios de frutas y verduras, que incluye módulos para gestión de clientes, inventarios, facturación y cuentas por cobrar.
 
-First, run the development server:
+## Características
+
+- **Sistema de autenticación**: Login seguro con roles de usuario
+- **Gestión de clientes**: Registro y administración de clientes
+- **Control de inventarios**: Gestión de productos y existencias
+- **Facturación**: Creación y gestión de facturas
+- **Cuentas por cobrar**: Seguimiento de pagos pendientes
+
+## Tecnologías utilizadas
+
+- Next.js 15 (App Router)
+- TypeScript
+- Tailwind CSS
+- NextAuth.js para autenticación
+- Prisma ORM
+- PostgreSQL
+- Zustand para gestión de estado
+
+## Requisitos previos
+
+- Node.js 18.0 o superior
+- PostgreSQL
+
+## Configuración inicial
+
+1. Instala las dependencias:
+
+```bash
+npm install
+```
+
+2. Configura las variables de entorno:
+
+Asegúrate de que el archivo `.env` en la raíz del proyecto tenga el siguiente contenido:
+
+```
+DATABASE_URL="postgresql://usuario:contraseña@localhost:5432/todofru?schema=public"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="tu-secreto-seguro"
+```
+
+Asegúrate de reemplazar `usuario`, `contraseña` y `tu-secreto-seguro` con tus propios valores.
+
+3. Configura la base de datos:
+
+```bash
+npm run setup-db
+```
+
+Este comando ejecutará las migraciones de Prisma y creará un usuario administrador inicial:
+
+- Email: admin@todofru.com
+- Contraseña: admin123
+
+## Ejecución del proyecto
+
+Para iniciar el servidor de desarrollo:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+La aplicación estará disponible en [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Estructura del proyecto
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+/src
+  /app                    # Rutas y páginas de la aplicación
+    /(auth)               # Rutas de autenticación
+    /(dashboard)          # Rutas del panel de control
+    /api                  # API routes
+  /components             # Componentes reutilizables
+    /auth                 # Componentes de autenticación
+    /dashboard            # Componentes del panel de control
+    /ui                   # Componentes de UI genéricos
+  /hooks                  # Custom hooks
+  /lib                    # Utilidades y configuraciones
+  /types                  # Definiciones de tipos
+  /utils                  # Funciones de utilidad
+/prisma                   # Esquema y migraciones de Prisma
+```
 
-## Learn More
+## Licencia
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Este proyecto está bajo la Licencia MIT.
 
 ## Deploy on Vercel
 
