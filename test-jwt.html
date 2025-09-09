@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test JWT - TodoFru</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #cce7ff; border-color: #b8daff; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .status { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🔐 Test de JWT Authentication - TodoFru</h1>
+    
+    <div class="test-section info">
+        <h3>Estado del Sistema</h3>
+        <p id="system-status">Verificando...</p>
+    </div>
+
+    <div class="test-section">
+        <h3>1. Test de Proveedores de Auth</h3>
+        <button onclick="testProviders()">Verificar Proveedores</button>
+        <div id="providers-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. Test de Sesión Actual</h3>
+        <button onclick="testSession()">Verificar Sesión</button>
+        <div id="session-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Test de Login</h3>
+        <input type="email" id="email" placeholder="admin@todofru.com" value="admin@todofru.com">
+        <input type="password" id="password" placeholder="admin123" value="admin123">
+        <button onclick="testLogin()">Probar Login</button>
+        <div id="login-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>4. Test de CSRF Token</h3>
+        <button onclick="testCSRF()">Verificar CSRF</button>
+        <div id="csrf-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>5. Test de Logout</h3>
+        <button onclick="testLogout()">Probar Logout</button>
+        <div id="logout-result"></div>
+    </div>
+
+    <script>
+        // Función para mostrar resultados
+        function showResult(elementId, success, message, data = null) {
+            const element = document.getElementById(elementId);
+            element.className = success ? 'success' : 'error';
+            element.innerHTML = `
+                <p class="status">${success ? '✅ ÉXITO' : '❌ ERROR'}: ${message}</p>
+                ${data ? `<pre>${JSON.stringify(data, null, 2)}</pre>` : ''}
+            `;
+        }
+
+        // Verificar estado del sistema
+        async function checkSystemStatus() {
+            try {
+                const response = await fetch('/api/auth/providers');
+                if (response.ok) {
+                    document.getElementById('system-status').innerHTML = '✅ <strong>Sistema NextAuth funcionando correctamente</strong>';
+                } else {
+                    document.getElementById('system-status').innerHTML = '❌ <strong>Error en el sistema NextAuth</strong>';
+                }
+            } catch (error) {
+                document.getElementById('system-status').innerHTML = '❌ <strong>No se puede conectar al servidor</strong>';
+            }
+        }
+
+        // Test 1: Proveedores
+        async function testProviders() {
+            try {
+                const response = await fetch('/api/auth/providers');
+                const data = await response.json();
+                
+                if (response.ok && data.credentials) {
+                    showResult('providers-result', true, 'Proveedores cargados correctamente', data);
+                } else {
+                    showResult('providers-result', false, 'No se encontraron proveedores', data);
+                }
+            } catch (error) {
+                showResult('providers-result', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test 2: Sesión
+        async function testSession() {
+            try {
+                const response = await fetch('/api/auth/session');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.user) {
+                        showResult('session-result', true, 'Usuario autenticado encontrado', data);
+                    } else {
+                        showResult('session-result', true, 'No hay sesión activa (normal si no has hecho login)', data);
+                    }
+                } else {
+                    showResult('session-result', false, 'Error al verificar sesión', data);
+                }
+            } catch (error) {
+                showResult('session-result', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test 3: Login
+        async function testLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                // Primero obtener CSRF token
+                const csrfResponse = await fetch('/api/auth/csrf');
+                const csrfData = await csrfResponse.json();
+                
+                if (!csrfData.csrfToken) {
+                    showResult('login-result', false, 'No se pudo obtener CSRF token');
+                    return;
+                }
+
+                // Hacer login
+                const formData = new FormData();
+                formData.append('email', email);
+                formData.append('password', password);
+                formData.append('csrfToken', csrfData.csrfToken);
+
+                const response = await fetch('/api/auth/callback/credentials', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    // Verificar que se creó la sesión
+                    const sessionResponse = await fetch('/api/auth/session');
+                    const sessionData = await sessionResponse.json();
+                    
+                    if (sessionData.user) {
+                        showResult('login-result', true, 'Login exitoso y sesión creada', sessionData);
+                    } else {
+                        showResult('login-result', false, 'Login exitoso pero no se creó sesión');
+                    }
+                } else {
+                    const errorData = await response.text();
+                    showResult('login-result', false, 'Credenciales incorrectas o error en login', errorData);
+                }
+            } catch (error) {
+                showResult('login-result', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test 4: CSRF
+        async function testCSRF() {
+            try {
+                const response = await fetch('/api/auth/csrf');
+                const data = await response.json();
+                
+                if (response.ok && data.csrfToken) {
+                    showResult('csrf-result', true, 'CSRF Token generado correctamente', data);
+                } else {
+                    showResult('csrf-result', false, 'Error al generar CSRF token', data);
+                }
+            } catch (error) {
+                showResult('csrf-result', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test 5: Logout
+        async function testLogout() {
+            try {
+                // Obtener CSRF token para logout
+                const csrfResponse = await fetch('/api/auth/csrf');
+                const csrfData = await csrfResponse.json();
+                
+                const formData = new FormData();
+                formData.append('csrfToken', csrfData.csrfToken);
+
+                const response = await fetch('/api/auth/signout', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    // Verificar que se eliminó la sesión
+                    const sessionResponse = await fetch('/api/auth/session');
+                    const sessionData = await sessionResponse.json();
+                    
+                    if (!sessionData.user) {
+                        showResult('logout-result', true, 'Logout exitoso - sesión eliminada', sessionData);
+                    } else {
+                        showResult('logout-result', false, 'Logout procesado pero sesión aún existe');
+                    }
+                } else {
+                    showResult('logout-result', false, 'Error en logout');
+                }
+            } catch (error) {
+                showResult('logout-result', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Verificar estado al cargar la página
+        window.onload = function() {
+            checkSystemStatus();
+        };
+    </script>
+</body>
+</html>

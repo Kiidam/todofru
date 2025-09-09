@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn, getSession } from 'next-auth/react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -15,14 +16,24 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
 
-    // Validar credenciales
-    if (email === 'admin' && password === 'admin123') {
-      // Simular autenticación exitosa
-      localStorage.setItem('isAuthenticated', 'true');
-      localStorage.setItem('user', JSON.stringify({ email: 'admin', name: 'Administrador' }));
-      router.push('/dashboard');
-    } else {
-      setError('Credenciales incorrectas. Use admin/admin123');
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError('Credenciales incorrectas');
+      } else {
+        // Verificar que la sesión se creó correctamente
+        const session = await getSession();
+        if (session) {
+          router.push('/dashboard');
+        }
+      }
+    } catch (error) {
+      setError('Error al iniciar sesión');
     }
     
     setIsLoading(false);
@@ -66,7 +77,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 text-gray-900 placeholder-gray-500 font-medium"
-              placeholder="admin"
+              placeholder="admin@todofru.com"
               required
             />
           </div>

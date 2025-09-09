@@ -1,10 +1,7 @@
+// NextAuth configuration for TodoFru
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { PrismaClient } from '@prisma/client';
-import { compare } from 'bcryptjs';
 import NextAuth from 'next-auth/next';
-
-const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -29,6 +26,11 @@ export const authOptions: NextAuthOptions = {
           };
         }
 
+        // Por ahora, solo permitir el usuario admin hardcodeado
+        return null;
+
+        /*
+        // Código de Prisma comentado temporalmente
         try {
           const user = await prisma.user.findUnique({
             where: {
@@ -59,6 +61,7 @@ export const authOptions: NextAuthOptions = {
           console.error('Auth error:', error);
           return null;
         }
+        */
       }
     })
   ],

@@ -1,37 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
+  const { data: session, status } = useSession();
 
-  useEffect(() => {
-    // Verificar autenticación
-    const isAuthenticated = localStorage.getItem('isAuthenticated');
-    const userData = localStorage.getItem('user');
-    
-    if (!isAuthenticated || isAuthenticated !== 'true') {
-      router.push('/login');
-      return;
-    }
-    
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-    
-    setIsLoading(false);
-  }, [router]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('user');
-    router.push('/login');
+  const handleLogout = async () => {
+    await signOut({ 
+      redirect: true,
+      callbackUrl: '/login'
+    });
   };
 
-  if (isLoading) {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -107,7 +88,7 @@ export default function DashboardPage() {
             
             <div className="mt-8 p-4 bg-green-50 rounded-lg">
               <p className="text-green-800">
-                <strong>¡Login exitoso!</strong> Has iniciado sesión correctamente con las credenciales admin/admin123.
+                <strong>¡Login exitoso!</strong> Has iniciado sesión correctamente con JWT. Usuario: {session?.user?.email}
               </p>
             </div>
           </div>

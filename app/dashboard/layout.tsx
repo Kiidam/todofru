@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 
 interface DashboardLayoutProps {
@@ -9,34 +10,42 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [user, setUser] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    // Verificar autenticación
-    const isAuthenticated = localStorage.getItem('isAuthenticated');
-    const userData = localStorage.getItem('user');
+    if (status === 'loading') return; // Aún cargando
     
-    if (!isAuthenticated || isAuthenticated !== 'true') {
+    if (status === 'unauthenticated') {
       router.push('/login');
-      return;
     }
-    
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-    
-    setIsLoading(false);
-  }, [router]);
+  }, [status, router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('user');
-    router.push('/login');
+  const handleLogout = async () => {
+    await signOut({ 
+      redirect: true,
+      callbackUrl: '/login'
+    });
   };
+
+  // Mostrar loading mientras se verifica la sesión
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no está autenticado, no mostrar nada (se redirigirá)
+  if (status === 'unauthenticated') {
+    return null;
+  }
 
   const navigation = [
     {
@@ -151,17 +160,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Cargando...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
@@ -224,7 +222,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </h1>
               </div>
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-600">Bienvenido, {user?.name || 'Admin'}</span>
+                <span className="text-sm text-gray-600">Bienvenido, {session?.user?.name || session?.user?.email || 'Admin'}</span>
                 <button
                   onClick={handleLogout}
                   className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm transition-colors"
