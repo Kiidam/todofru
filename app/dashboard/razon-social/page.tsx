@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
 interface BusinessName {
   id: string;
@@ -333,138 +336,187 @@ export default function RazonSocialPage() {
         </div>
 
         {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-lg shadow-xl">
-              <h2 className="text-xl font-bold mb-4">
+          <Modal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            ariaLabel={editingBusinessName ? 'Editar razón social' : 'Crear nueva razón social'}
+          >
+            <div className="modal-header">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">
                 {editingBusinessName ? 'Editar Razón Social' : 'Crear Nueva Razón Social'}
               </h2>
-              
-              <form onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nombre / Razón Social
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      NIT / Cédula
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.taxId}
-                      onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tipo
-                    </label>
-                    <select
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value as 'individual' | 'company' | 'corporation' })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                      <option value="individual">Persona Natural</option>
-                      <option value="company">Empresa</option>
-                      <option value="corporation">Corporación</option>
-                    </select>
-                  </div>
-                  
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Dirección
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Teléfono (opcional)
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email (opcional)
-                    </label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Sitio Web (opcional)
-                    </label>
-                    <input
-                      type="url"
-                      value={formData.website}
-                      onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      placeholder="https://ejemplo.com"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Estado
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                      <option value="active">Activa</option>
-                      <option value="inactive">Inactiva</option>
-                    </select>
-                  </div>
+            </div>
+            
+            <form onSubmit={handleSubmit}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label htmlFor="business-name" className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre / Razón Social
+                  </label>
+                  <input
+                    id="business-name"
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Ingrese el nombre o razón social"
+                    required
+                    aria-describedby="business-name-help"
+                  />
+                  <span id="business-name-help" className="text-xs text-gray-500">
+                    Nombre completo de la persona o empresa
+                  </span>
                 </div>
                 
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    {editingBusinessName ? 'Actualizar' : 'Crear'}
-                  </button>
+                <div>
+                  <label htmlFor="business-taxid" className="block text-sm font-medium text-gray-700 mb-2">
+                    NIT / Cédula
+                  </label>
+                  <input
+                    id="business-taxid"
+                    type="text"
+                    value={formData.taxId}
+                    onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono"
+                    placeholder="123456789-0"
+                    required
+                    aria-describedby="business-taxid-help"
+                  />
+                  <span id="business-taxid-help" className="text-xs text-gray-500">
+                    Número de identificación tributaria
+                  </span>
                 </div>
-              </form>
-            </div>
-          </div>
+                
+                <div>
+                  <label htmlFor="business-type" className="block text-sm font-medium text-gray-700 mb-2">
+                    Tipo
+                  </label>
+                  <select
+                    id="business-type"
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as 'individual' | 'company' | 'corporation' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    aria-describedby="business-type-help"
+                  >
+                    <option value="individual">Persona Natural</option>
+                    <option value="company">Empresa</option>
+                    <option value="corporation">Corporación</option>
+                  </select>
+                  <span id="business-type-help" className="text-xs text-gray-500">
+                    Tipo de entidad legal
+                  </span>
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label htmlFor="business-address" className="block text-sm font-medium text-gray-700 mb-2">
+                    Dirección
+                  </label>
+                  <input
+                    id="business-address"
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Calle 123 #45-67, Ciudad"
+                    required
+                    aria-describedby="business-address-help"
+                  />
+                  <span id="business-address-help" className="text-xs text-gray-500">
+                    Dirección física completa
+                  </span>
+                </div>
+                
+                <div>
+                  <label htmlFor="business-phone" className="block text-sm font-medium text-gray-700 mb-2">
+                    Teléfono (opcional)
+                  </label>
+                  <input
+                    id="business-phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="+57 1 234 5678"
+                    aria-describedby="business-phone-help"
+                  />
+                  <span id="business-phone-help" className="text-xs text-gray-500">
+                    Número de teléfono de contacto
+                  </span>
+                </div>
+                
+                <div>
+                  <label htmlFor="business-email" className="block text-sm font-medium text-gray-700 mb-2">
+                    Email (opcional)
+                  </label>
+                  <input
+                    id="business-email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="correo@empresa.com"
+                    aria-describedby="business-email-help"
+                  />
+                  <span id="business-email-help" className="text-xs text-gray-500">
+                    Dirección de correo electrónico
+                  </span>
+                </div>
+                
+                <div>
+                  <label htmlFor="business-website" className="block text-sm font-medium text-gray-700 mb-2">
+                    Sitio Web (opcional)
+                  </label>
+                  <input
+                    id="business-website"
+                    type="url"
+                    value={formData.website}
+                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="https://ejemplo.com"
+                    aria-describedby="business-website-help"
+                  />
+                  <span id="business-website-help" className="text-xs text-gray-500">
+                    URL del sitio web de la empresa
+                  </span>
+                </div>
+                
+                <div>
+                  <label htmlFor="business-status" className="block text-sm font-medium text-gray-700 mb-2">
+                    Estado
+                  </label>
+                  <select
+                    id="business-status"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    aria-describedby="business-status-help"
+                  >
+                    <option value="active">Activa</option>
+                    <option value="inactive">Inactiva</option>
+                  </select>
+                  <span id="business-status-help" className="text-xs text-gray-500">
+                    Estado actual de la razón social
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  {editingBusinessName ? 'Actualizar' : 'Crear'}
+                </button>
+              </div>
+            </form>
+          </Modal>
         )}
       </div>
     </div>

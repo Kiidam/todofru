@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
 interface Document {
   id: string;
@@ -239,28 +242,38 @@ export default function DocumentosPage() {
               />
             </div>
             <div className="flex gap-2 flex-wrap">
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as any)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="all">Todos los tipos</option>
-                <option value="invoice">Facturas</option>
-                <option value="receipt">Recibos</option>
-                <option value="contract">Contratos</option>
-                <option value="report">Reportes</option>
-                <option value="other">Otros</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="all">Todos los estados</option>
-                <option value="active">Activos</option>
-                <option value="archived">Archivados</option>
-                <option value="deleted">Eliminados</option>
-              </select>
+              <div>
+                <label htmlFor="type-filter" className="sr-only">Filtrar por tipo de documento</label>
+                <select
+                  id="type-filter"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value as any)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  aria-label="Filtrar por tipo de documento"
+                >
+                  <option value="all">Todos los tipos</option>
+                  <option value="invoice">Facturas</option>
+                  <option value="receipt">Recibos</option>
+                  <option value="contract">Contratos</option>
+                  <option value="report">Reportes</option>
+                  <option value="other">Otros</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="status-filter" className="sr-only">Filtrar por estado de documento</label>
+                <select
+                  id="status-filter"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  aria-label="Filtrar por estado de documento"
+                >
+                  <option value="all">Todos los estados</option>
+                  <option value="active">Activos</option>
+                  <option value="archived">Archivados</option>
+                  <option value="deleted">Eliminados</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -371,130 +384,172 @@ export default function DocumentosPage() {
         </div>
 
         {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-lg shadow-xl">
-              <h2 className="text-xl font-bold mb-4">
+          <Modal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            ariaLabel={editingDocument ? 'Editar documento' : 'Subir nuevo documento'}
+          >
+            <div className="modal-header">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">
                 {editingDocument ? 'Editar Documento' : 'Subir Nuevo Documento'}
               </h2>
-              
-              <form onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nombre del Documento
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tipo
-                    </label>
-                    <select
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                      <option value="invoice">Factura</option>
-                      <option value="receipt">Recibo</option>
-                      <option value="contract">Contrato</option>
-                      <option value="report">Reporte</option>
-                      <option value="other">Otro</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Estado
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                      <option value="active">Activo</option>
-                      <option value="archived">Archivado</option>
-                    </select>
-                  </div>
-                  
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Descripción
-                    </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Entidad Relacionada (opcional)
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.relatedEntity}
-                      onChange={(e) => setFormData({ ...formData, relatedEntity: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tipo de Entidad
-                    </label>
-                    <select
-                      value={formData.relatedEntityType}
-                      onChange={(e) => setFormData({ ...formData, relatedEntityType: e.target.value as any })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                      <option value="client">Cliente</option>
-                      <option value="supplier">Proveedor</option>
-                      <option value="product">Producto</option>
-                    </select>
-                  </div>
-                  
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Etiquetas (separadas por comas)
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.tags}
-                      onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      placeholder="factura, venta, mayorista"
-                    />
-                  </div>
+            </div>
+            
+            <form onSubmit={handleSubmit}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label htmlFor="document-name" className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre del Documento
+                  </label>
+                  <input
+                    id="document-name"
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Factura_001_TodoFru.pdf"
+                    required
+                    aria-describedby="document-name-help"
+                  />
+                  <span id="document-name-help" className="text-xs text-gray-500">
+                    Nombre descriptivo del archivo del documento
+                  </span>
                 </div>
                 
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                <div>
+                  <label htmlFor="document-type" className="block text-sm font-medium text-gray-700 mb-2">
+                    Tipo
+                  </label>
+                  <select
+                    id="document-type"
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    aria-describedby="document-type-help"
                   >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    {editingDocument ? 'Actualizar' : 'Subir'}
-                  </button>
+                    <option value="invoice">Factura</option>
+                    <option value="receipt">Recibo</option>
+                    <option value="contract">Contrato</option>
+                    <option value="report">Reporte</option>
+                    <option value="other">Otro</option>
+                  </select>
+                  <span id="document-type-help" className="text-xs text-gray-500">
+                    Categoría del documento
+                  </span>
                 </div>
-              </form>
-            </div>
-          </div>
+                
+                <div>
+                  <label htmlFor="document-status" className="block text-sm font-medium text-gray-700 mb-2">
+                    Estado
+                  </label>
+                  <select
+                    id="document-status"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    aria-describedby="document-status-help"
+                  >
+                    <option value="active">Activo</option>
+                    <option value="archived">Archivado</option>
+                  </select>
+                  <span id="document-status-help" className="text-xs text-gray-500">
+                    Estado actual del documento
+                  </span>
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label htmlFor="document-description" className="block text-sm font-medium text-gray-700 mb-2">
+                    Descripción
+                  </label>
+                  <textarea
+                    id="document-description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Descripción del contenido del documento"
+                    required
+                    aria-describedby="document-description-help"
+                  />
+                  <span id="document-description-help" className="text-xs text-gray-500">
+                    Descripción detallada del contenido y propósito del documento
+                  </span>
+                </div>
+                
+                <div>
+                  <label htmlFor="document-entity" className="block text-sm font-medium text-gray-700 mb-2">
+                    Entidad Relacionada (opcional)
+                  </label>
+                  <input
+                    id="document-entity"
+                    type="text"
+                    value={formData.relatedEntity}
+                    onChange={(e) => setFormData({ ...formData, relatedEntity: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Nombre del cliente, proveedor o producto"
+                    aria-describedby="document-entity-help"
+                  />
+                  <span id="document-entity-help" className="text-xs text-gray-500">
+                    Cliente, proveedor o producto relacionado con el documento
+                  </span>
+                </div>
+                
+                <div>
+                  <label htmlFor="document-entity-type" className="block text-sm font-medium text-gray-700 mb-2">
+                    Tipo de Entidad
+                  </label>
+                  <select
+                    id="document-entity-type"
+                    value={formData.relatedEntityType}
+                    onChange={(e) => setFormData({ ...formData, relatedEntityType: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    aria-describedby="document-entity-type-help"
+                  >
+                    <option value="client">Cliente</option>
+                    <option value="supplier">Proveedor</option>
+                    <option value="product">Producto</option>
+                  </select>
+                  <span id="document-entity-type-help" className="text-xs text-gray-500">
+                    Tipo de entidad relacionada con el documento
+                  </span>
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label htmlFor="document-tags" className="block text-sm font-medium text-gray-700 mb-2">
+                    Etiquetas (separadas por comas)
+                  </label>
+                  <input
+                    id="document-tags"
+                    type="text"
+                    value={formData.tags}
+                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="factura, venta, mayorista"
+                    aria-describedby="document-tags-help"
+                  />
+                  <span id="document-tags-help" className="text-xs text-gray-500">
+                    Etiquetas para facilitar la búsqueda del documento
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  {editingDocument ? 'Actualizar' : 'Subir'}
+                </button>
+              </div>
+            </form>
+          </Modal>
         )}
       </div>
     </div>

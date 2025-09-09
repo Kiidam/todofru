@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
 interface UnitOfMeasure {
   id: string;
@@ -325,116 +328,131 @@ export default function UnidadMedidaPage() {
           </div>
         </div>
 
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-              <h2 className="text-xl font-bold mb-4">
-                {editingUnit ? 'Editar Unidad' : 'Crear Nueva Unidad'}
-              </h2>
-              
-              <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Abreviación
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.abbreviation}
-                    onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono"
-                    required
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tipo
-                  </label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as 'weight' | 'volume' | 'length' | 'unit' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="weight">Peso</option>
-                    <option value="volume">Volumen</option>
-                    <option value="length">Longitud</option>
-                    <option value="unit">Unidad</option>
-                  </select>
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Unidad Base (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.baseUnit}
-                    onChange={(e) => setFormData({ ...formData, baseUnit: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="ej: kg, L"
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Factor de Conversión (opcional)
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={formData.conversionFactor}
-                    onChange={(e) => setFormData({ ...formData, conversionFactor: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="ej: 0.001"
-                  />
-                </div>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Estado
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="active">Activa</option>
-                    <option value="inactive">Inactiva</option>
-                  </select>
-                </div>
-                
-                <div className="flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    {editingUnit ? 'Actualizar' : 'Crear'}
-                  </button>
-                </div>
-              </form>
-            </div>
+        <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingUnit(null); }} ariaLabel={editingUnit ? 'Editar Unidad' : 'Crear Nueva Unidad'}>
+          <div className="mb-6">
+            <h3 className="text-xl font-bold text-gray-900">
+              {editingUnit ? 'Editar Unidad' : 'Crear Nueva Unidad'}
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              {editingUnit ? 'Modifica los datos de la unidad seleccionada' : 'Completa los datos para crear una nueva unidad de medida'}
+            </p>
           </div>
-        )}
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="unit-name">
+                  Nombre
+                </label>
+                <input
+                  id="unit-name"
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                  placeholder="Ej: Kilogramo"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="unit-abbreviation">
+                  Abreviación
+                </label>
+                <input
+                  id="unit-abbreviation"
+                  type="text"
+                  value={formData.abbreviation}
+                  onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value })}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500 font-mono"
+                  placeholder="Ej: kg"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="unit-type">
+                Tipo
+              </label>
+              <select
+                id="unit-type"
+                aria-label="Tipo de unidad de medida"
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as 'weight' | 'volume' | 'length' | 'unit' })}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900"
+              >
+                <option value="weight">Peso</option>
+                <option value="volume">Volumen</option>
+                <option value="length">Longitud</option>
+                <option value="unit">Unidad</option>
+              </select>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="unit-base">
+                  Unidad Base (opcional)
+                </label>
+                <input
+                  id="unit-base"
+                  type="text"
+                  value={formData.baseUnit}
+                  onChange={(e) => setFormData({ ...formData, baseUnit: e.target.value })}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                  placeholder="ej: kg, L"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="unit-conversion">
+                  Factor de Conversión (opcional)
+                </label>
+                <input
+                  id="unit-conversion"
+                  type="number"
+                  step="any"
+                  value={formData.conversionFactor}
+                  onChange={(e) => setFormData({ ...formData, conversionFactor: e.target.value })}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                  placeholder="ej: 0.001"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="unit-status">
+                Estado
+              </label>
+              <select
+                id="unit-status"
+                aria-label="Estado de la unidad"
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900"
+              >
+                <option value="active">Activa</option>
+                <option value="inactive">Inactiva</option>
+              </select>
+            </div>
+            
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => { setIsModalOpen(false); setEditingUnit(null); }}
+                className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+              >
+                {editingUnit ? 'Actualizar Unidad' : 'Crear Unidad'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </div>
   );

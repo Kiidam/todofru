@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
 interface Brand {
   id: string;
@@ -256,86 +259,94 @@ export default function MarcasPage() {
           </div>
         </div>
 
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-              <h2 className="text-xl font-bold mb-4">
-                {editingBrand ? 'Editar Marca' : 'Crear Nueva Marca'}
-              </h2>
-              
-              <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Descripción
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sitio Web (opcional)
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.website}
-                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="https://ejemplo.com"
-                  />
-                </div>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Estado
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="active">Activa</option>
-                    <option value="inactive">Inactiva</option>
-                  </select>
-                </div>
-                
-                <div className="flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    {editingBrand ? 'Actualizar' : 'Crear'}
-                  </button>
-                </div>
-              </form>
-            </div>
+        <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingBrand(null); }} ariaLabel={editingBrand ? 'Editar Marca' : 'Crear Nueva Marca'}>
+          <div className="mb-6">
+            <h3 className="text-xl font-bold text-gray-900">
+              {editingBrand ? 'Editar Marca' : 'Crear Nueva Marca'}
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              {editingBrand ? 'Modifica los datos de la marca seleccionada' : 'Completa los datos para crear una nueva marca'}
+            </p>
           </div>
-        )}
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="brand-name">
+                Nombre
+              </label>
+              <input
+                id="brand-name"
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                placeholder="Ej: FreshFruit Co."
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="brand-description">
+                Descripción
+              </label>
+              <textarea
+                id="brand-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                placeholder="Descripción de la marca..."
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="brand-website">
+                Sitio Web (opcional)
+              </label>
+              <input
+                id="brand-website"
+                type="url"
+                value={formData.website}
+                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                placeholder="https://ejemplo.com"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="brand-status">
+                Estado
+              </label>
+              <select
+                id="brand-status"
+                aria-label="Estado de la marca"
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900"
+              >
+                <option value="active">Activa</option>
+                <option value="inactive">Inactiva</option>
+              </select>
+            </div>
+            
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => { setIsModalOpen(false); setEditingBrand(null); }}
+                className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+              >
+                {editingBrand ? 'Actualizar Marca' : 'Crear Marca'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+
+const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 // Using simple text icons instead of heroicons for now
 
 interface Producto {
@@ -267,6 +270,7 @@ export default function ProductosPage() {
             <div className="sm:w-64">
               <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por categoría</label>
               <select
+                aria-label="Filtrar por categoría"
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
@@ -375,114 +379,131 @@ export default function ProductosPage() {
         </div>
 
       {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-          <div className="relative mx-auto p-6 border w-full max-w-md shadow-xl rounded-lg bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {editingProduct ? 'Editar Producto' : 'Crear Nuevo Producto'}
-              </h3>
-              <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre del Producto
-                  </label>
-                  <input
-                    type="text"
-                    name="nombre"
-                    value={formData.nombre}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    SKU
-                  </label>
-                  <input
-                    type="text"
-                    name="sku"
-                    value={formData.sku}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Descripción
-                  </label>
-                  <input
-                    type="text"
-                    name="descripcion"
-                    value={formData.descripcion}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Precio (S/)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    name="precio"
-                    value={formData.precio}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Categoría
-                  </label>
-                  <input
-                    type="text"
-                    name="categoria"
-                    value={formData.categoria}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stock
-                  </label>
-                  <input
-                    type="number"
-                    name="stock"
-                    value={formData.stock}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-
-                <div className="flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors"
-                  >
-                    {editingProduct ? 'Actualizar' : 'Crear'}
-                  </button>
-                </div>
-              </form>
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); resetForm(); }} ariaLabel={editingProduct ? 'Editar Producto' : 'Crear Nuevo Producto'}>
+        <div className="mb-6">
+          <h3 className="text-xl font-bold text-gray-900">
+            {editingProduct ? 'Editar Producto' : 'Crear Nuevo Producto'}
+          </h3>
+          <p className="text-sm text-gray-600 mt-1">
+            {editingProduct ? 'Modifica los datos del producto seleccionado' : 'Completa los datos para crear un nuevo producto'}
+          </p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="nombre">
+                Nombre del Producto
+              </label>
+              <input
+                id="nombre"
+                type="text"
+                name="nombre"
+                value={formData.nombre}
+                onChange={handleInputChange}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                placeholder="Ej: Manzana Red Delicious"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="sku">
+                SKU
+              </label>
+              <input
+                id="sku"
+                type="text"
+                name="sku"
+                value={formData.sku}
+                onChange={handleInputChange}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                placeholder="Ej: MRD12345"
+                required
+              />
             </div>
           </div>
-        </div>
-      )}
+          
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="descripcion">
+              Descripción
+            </label>
+            <input
+              id="descripcion"
+              type="text"
+              name="descripcion"
+              value={formData.descripcion}
+              onChange={handleInputChange}
+              className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+              placeholder="Descripción detallada del producto"
+              required
+            />
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="precio">
+                Precio (S/)
+              </label>
+              <input
+                id="precio"
+                type="number"
+                step="0.01"
+                name="precio"
+                value={formData.precio}
+                onChange={handleInputChange}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                placeholder="0.00"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="categoria">
+                Categoría
+              </label>
+              <input
+                id="categoria"
+                type="text"
+                name="categoria"
+                value={formData.categoria}
+                onChange={handleInputChange}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                placeholder="Ej: Frutas"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="stock">
+                Stock
+              </label>
+              <input
+                id="stock"
+                type="number"
+                name="stock"
+                value={formData.stock}
+                onChange={handleInputChange}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
+                placeholder="0"
+                required
+              />
+            </div>
+          </div>
+          
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={() => { setShowModal(false); resetForm(); }}
+              className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+            >
+              {editingProduct ? 'Actualizar Producto' : 'Crear Producto'}
+            </button>
+          </div>
+        </form>
+      </Modal>
       </div>
     </div>
   );

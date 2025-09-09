@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
 interface ClientGroup {
   id: string;
@@ -257,88 +260,114 @@ export default function GrupoClientePage() {
         </div>
 
         {/* Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-              <h2 className="text-xl font-bold mb-4">
-                {editingGroup ? 'Editar Grupo' : 'Crear Nuevo Grupo'}
-              </h2>
-              
-              <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Descripción
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Descuento (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.discount}
-                    onChange={(e) => setFormData({ ...formData, discount: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Estado
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="active">Activo</option>
-                    <option value="inactive">Inactivo</option>
-                  </select>
-                </div>
-                
-                <div className="flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    {editingGroup ? 'Actualizar' : 'Crear'}
-                  </button>
-                </div>
-              </form>
-            </div>
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          ariaLabel={editingGroup ? 'Editar grupo de clientes' : 'Crear nuevo grupo de clientes'}
+        >
+          <div className="modal-header">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">
+              {editingGroup ? 'Editar Grupo' : 'Crear Nuevo Grupo'}
+            </h2>
           </div>
-        )}
+          
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6">
+            <div>
+              <label htmlFor="grupo-name" className="block text-sm font-medium text-gray-700 mb-2">
+                Nombre
+              </label>
+              <input
+                id="grupo-name"
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                placeholder="Ingrese el nombre del grupo"
+                required
+                aria-describedby="grupo-name-help"
+              />
+              <span id="grupo-name-help" className="text-xs text-gray-500">
+                Nombre único para identificar el grupo de clientes
+              </span>
+            </div>
+            
+            <div>
+              <label htmlFor="grupo-description" className="block text-sm font-medium text-gray-700 mb-2">
+                Descripción
+              </label>
+              <textarea
+                id="grupo-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                placeholder="Describa las características del grupo"
+                required
+                aria-describedby="grupo-description-help"
+              />
+              <span id="grupo-description-help" className="text-xs text-gray-500">
+                Descripción detallada del tipo de clientes del grupo
+              </span>
+            </div>
+            
+            <div>
+              <label htmlFor="grupo-discount" className="block text-sm font-medium text-gray-700 mb-2">
+                Descuento (%)
+              </label>
+              <input
+                id="grupo-discount"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={formData.discount}
+                onChange={(e) => setFormData({ ...formData, discount: Number(e.target.value) })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                placeholder="0.0"
+                required
+                aria-describedby="grupo-discount-help"
+              />
+              <span id="grupo-discount-help" className="text-xs text-gray-500">
+                Porcentaje de descuento para este grupo (0-100%)
+              </span>
+            </div>
+            
+            <div>
+              <label htmlFor="grupo-status" className="block text-sm font-medium text-gray-700 mb-2">
+                Estado
+              </label>
+              <select
+                id="grupo-status"
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                aria-describedby="grupo-status-help"
+              >
+                <option value="active">Activo</option>
+                <option value="inactive">Inactivo</option>
+              </select>
+              <span id="grupo-status-help" className="text-xs text-gray-500">
+                Estado actual del grupo en el sistema
+              </span>
+            </div>
+            
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                {editingGroup ? 'Actualizar' : 'Crear'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </div>
   );
