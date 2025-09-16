@@ -23,6 +23,15 @@ model User {
   updatedAt     DateTime  @updatedAt
   accounts      Account[]
   sessions      Session[]
+  
+  // Relaciones con módulos TODAFRU
+  movimientosInventario MovimientoInventario[]
+  pedidosCompra         PedidoCompra[]
+  pedidosVenta          PedidoVenta[]
+  cuentasPorPagar       CuentaPorPagar[]
+  cuentasPorCobrar      CuentaPorCobrar[]
+  pagosCuentasPorPagar  PagoCuentaPorPagar[]
+  pagosCuentasPorCobrar PagoCuentaPorCobrar[]
 }
 
 model Account {
@@ -63,4 +72,476 @@ model VerificationToken {
 enum Role {
   USER
   ADMIN
+}
+
+// Modelos del sistema TODAFRU
+
+// Categorías de productos
+model Categoria {
+  id        String    @id @default(cuid())
+  nombre    String    @unique
+  descripcion String?
+  activo    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  productos Producto[]
+}
+
+// Unidades de medida
+model UnidadMedida {
+  id        String    @id @default(cuid())
+  nombre    String    @unique // kg, und, docena, caja, etc.
+  simbolo   String    @unique // kg, un, dz, cja, etc.
+  activo    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  // Relaciones actualizadas
+  productos              Producto[]
+  productosUnidadCosteo  Producto[] @relation("ProductoUnidadCosteo")
+}
+
+// Proveedores
+model Proveedor {
+  id           String    @id @default(cuid())
+  nombre       String
+  ruc          String?   @unique
+  telefono     String?
+  email        String?
+  direccion    String?
+  contacto     String?   // nombre del contacto principal
+  activo       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  pedidosCompra PedidoCompra[]
+  cuentasPorPagar CuentaPorPagar[]
+}
+
+// Clientes
+model Cliente {
+  id           String    @id @default(cuid())
+  nombre       String
+  ruc          String?   @unique
+  telefono     String?
+  email        String?
+  direccion    String?
+  contacto     String?   // nombre del contacto principal
+  tipoCliente  TipoCliente @default(MINORISTA)
+  activo       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  pedidosVenta PedidoVenta[]
+  cuentasPorCobrar CuentaPorCobrar[]
+}
+
+// Productos (frutas y verduras) - ACTUALIZADO CON CAMPOS COMPLETOS
+model Producto {
+  id               String     @id @default(cuid())
+  nombre           String
+  sku              String?    @unique
+  descripcion      String?
+  
+  // Relaciones con entidades de clasificación
+  categoriaId      String?
+  tipoArticuloId   String?
+  familiaId        String?
+  subfamiliaId     String?
+  unidadMedidaId   String
+  unidadCosteoId   String?
+  marcaId          String?
+  agrupadorId      String?
+  
+  // Precios y costos
+  precio           Float      @default(0)
+  porcentajeMerma  Float      @default(0) // % de merma esperada
+  
+  // Inventario
+  stock            Float      @default(0)
+  stockMinimo      Float      @default(0)
+  
+  // Características del producto
+  perecedero       Boolean    @default(true)
+  diasVencimiento  Int?       // días de vida útil
+  tieneIGV         Boolean    @default(true) // Si aplica IGV
+  
+  // Estado y metadata
+  activo           Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  
+  // Relaciones principales
+  categoria        Categoria?  @relation(fields: [categoriaId], references: [id])
+  tipoArticulo     TipoArticulo? @relation(fields: [tipoArticuloId], references: [id])
+  familia          Familia?    @relation(fields: [familiaId], references: [id])
+  subfamilia       Subfamilia? @relation(fields: [subfamiliaId], references: [id])
+  unidadMedida     UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
+  unidadCosteo     UnidadMedida? @relation("ProductoUnidadCosteo", fields: [unidadCosteoId], references: [id])
+  marca            Marca?      @relation(fields: [marcaId], references: [id])
+  agrupador        AgrupadorProducto? @relation(fields: [agrupadorId], references: [id])
+  
+  // Relaciones many-to-many
+  razonSocialProductos ProductoRazonSocial[]
+  
+  // Relaciones de inventario y movimientos
+  movimientos      MovimientoInventario[]
+  itemsPedidoCompra PedidoCompraItem[]
+  itemsPedidoVenta PedidoVentaItem[]
+  
+  // Precios específicos por razón social
+  preciosRazonSocial ProductoPrecioRazonSocial[]
+}
+
+// Tipos de artículo
+model TipoArticulo {
+  id          String    @id @default(cuid())
+  nombre      String    @unique
+  descripcion String?
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  productos   Producto[]
+}
+
+// Familias de productos
+model Familia {
+  id          String    @id @default(cuid())
+  nombre      String    @unique
+  descripcion String?
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  productos   Producto[]
+  subfamilias Subfamilia[]
+}
+
+// Subfamilias de productos
+model Subfamilia {
+  id          String    @id @default(cuid())
+  nombre      String    @unique
+  familiaId   String
+  descripcion String?
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  familia     Familia   @relation(fields: [familiaId], references: [id])
+  productos   Producto[]
+}
+
+// Marcas de productos
+model Marca {
+  id          String    @id @default(cuid())
+  nombre      String    @unique
+  descripcion String?
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  productos   Producto[]
+}
+
+// Agrupadores de productos
+model AgrupadorProducto {
+  id          String    @id @default(cuid())
+  nombre      String    @unique
+  descripcion String?
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  productos   Producto[]
+}
+
+// Tabla intermedia para productos y razones sociales (many-to-many)
+model ProductoRazonSocial {
+  id            String      @id @default(cuid())
+  productoId    String
+  razonSocialId String
+  activo        Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  
+  producto      Producto    @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  razonSocial   RazonSocial @relation(fields: [razonSocialId], references: [id], onDelete: Cascade)
+  
+  @@unique([productoId, razonSocialId])
+}
+
+// Movimientos de inventario (entradas y salidas)
+model MovimientoInventario {
+  id            String           @id @default(cuid())
+  productoId    String
+  tipo          TipoMovimiento
+  cantidad      Float
+  cantidadAnterior Float
+  cantidadNueva Float
+  precio        Float?           // precio unitario del movimiento
+  motivo        String?          // descripción del movimiento
+  numeroGuia    String?          // número de guía de remisión
+  archivoGuia   String?          // ruta del archivo de la guía
+  pedidoCompraId String?         // referencia a pedido de compra si aplica
+  pedidoVentaId String?          // referencia a pedido de venta si aplica
+  usuarioId     String
+  createdAt     DateTime         @default(now())
+  
+  producto      Producto         @relation(fields: [productoId], references: [id])
+  usuario       User             @relation(fields: [usuarioId], references: [id])
+  pedidoCompra  PedidoCompra?    @relation(fields: [pedidoCompraId], references: [id])
+  pedidoVenta   PedidoVenta?     @relation(fields: [pedidoVentaId], references: [id])
+}
+
+// Pedidos de compra (a proveedores)
+model PedidoCompra {
+  id             String              @id @default(cuid())
+  numero         String              @unique // número de pedido
+  proveedorId    String
+  fecha          DateTime            @default(now())
+  fechaEntrega   DateTime?
+  subtotal       Float               @default(0)
+  impuestos      Float               @default(0)
+  total          Float               @default(0)
+  estado         EstadoPedido        @default(PENDIENTE)
+  observaciones  String?
+  numeroGuia     String?             // número de guía de remisión
+  archivoGuia    String?             // ruta del archivo de la guía
+  usuarioId      String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  
+  proveedor      Proveedor           @relation(fields: [proveedorId], references: [id])
+  usuario        User                @relation(fields: [usuarioId], references: [id])
+  items          PedidoCompraItem[]
+  movimientos    MovimientoInventario[]
+  cuentasPorPagar CuentaPorPagar[]
+}
+
+// Items de pedidos de compra
+model PedidoCompraItem {
+  id            String       @id @default(cuid())
+  pedidoId      String
+  productoId    String
+  cantidad      Float
+  precio        Float        // precio unitario
+  subtotal      Float        // cantidad * precio
+  
+  pedido        PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  producto      Producto     @relation(fields: [productoId], references: [id])
+  
+  @@unique([pedidoId, productoId])
+}
+
+// Pedidos de venta (a clientes)
+model PedidoVenta {
+  id             String              @id @default(cuid())
+  numero         String              @unique // número de pedido
+  clienteId      String
+  razonSocialId  String?             // Nueva relación: razón social utilizada
+  fecha          DateTime            @default(now())
+  fechaEntrega   DateTime?
+  subtotal       Float               @default(0)
+  impuestos      Float               @default(0)
+  total          Float               @default(0)
+  estado         EstadoPedido        @default(PENDIENTE)
+  observaciones  String?
+  numeroGuia     String?             // número de guía de remisión
+  archivoGuia    String?             // ruta del archivo de la guía
+  usuarioId      String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  
+  cliente        Cliente             @relation(fields: [clienteId], references: [id])
+  razonSocial    RazonSocial?        @relation(fields: [razonSocialId], references: [id])
+  usuario        User                @relation(fields: [usuarioId], references: [id])
+  items          PedidoVentaItem[]
+  movimientos    MovimientoInventario[]
+  cuentasPorCobrar CuentaPorCobrar[]
+}
+
+// Items de pedidos de venta
+model PedidoVentaItem {
+  id            String      @id @default(cuid())
+  pedidoId      String
+  productoId    String
+  cantidad      Float
+  precio        Float       // precio unitario
+  subtotal      Float       // cantidad * precio
+  
+  pedido        PedidoVenta @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  producto      Producto    @relation(fields: [productoId], references: [id])
+  
+  @@unique([pedidoId, productoId])
+}
+
+// Cuentas por pagar (lo que TODAFRU debe a proveedores)
+model CuentaPorPagar {
+  id               String         @id @default(cuid())
+  numero           String         @unique
+  proveedorId      String
+  pedidoCompraId   String?        // vinculado a un pedido de compra
+  monto            Float
+  montoAbonado     Float          @default(0)
+  saldo            Float          // monto - montoAbonado
+  fechaEmision     DateTime       @default(now())
+  fechaVencimiento DateTime
+  estado           EstadoCuenta   @default(PENDIENTE)
+  observaciones    String?
+  usuarioId        String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  
+  proveedor        Proveedor      @relation(fields: [proveedorId], references: [id])
+  pedidoCompra     PedidoCompra?  @relation(fields: [pedidoCompraId], references: [id])
+  usuario          User           @relation(fields: [usuarioId], references: [id])
+  pagos            PagoCuentaPorPagar[]
+}
+
+// Cuentas por cobrar (lo que clientes deben a TODAFRU)
+model CuentaPorCobrar {
+  id               String         @id @default(cuid())
+  numero           String         @unique
+  clienteId        String
+  razonSocialId    String?        // Nueva relación: razón social utilizada
+  pedidoVentaId    String?        // vinculado a un pedido de venta
+  monto            Float
+  montoAbonado     Float          @default(0)
+  saldo            Float          // monto - montoAbonado
+  fechaEmision     DateTime       @default(now())
+  fechaVencimiento DateTime
+  estado           EstadoCuenta   @default(PENDIENTE)
+  observaciones    String?
+  usuarioId        String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  
+  cliente          Cliente        @relation(fields: [clienteId], references: [id])
+  razonSocial      RazonSocial?   @relation(fields: [razonSocialId], references: [id])
+  pedidoVenta      PedidoVenta?   @relation(fields: [pedidoVentaId], references: [id])
+  usuario          User           @relation(fields: [usuarioId], references: [id])
+  pagos            PagoCuentaPorCobrar[]
+}
+
+// Pagos realizados a cuentas por pagar
+model PagoCuentaPorPagar {
+  id                 String         @id @default(cuid())
+  cuentaPorPagarId   String
+  monto              Float
+  fechaPago          DateTime       @default(now())
+  metodoPago         MetodoPago
+  numeroTransaccion  String?        // número de transferencia, cheque, etc.
+  observaciones      String?
+  usuarioId          String
+  createdAt          DateTime       @default(now())
+  
+  cuentaPorPagar     CuentaPorPagar @relation(fields: [cuentaPorPagarId], references: [id])
+  usuario            User           @relation(fields: [usuarioId], references: [id])
+}
+
+// Pagos recibidos de cuentas por cobrar
+model PagoCuentaPorCobrar {
+  id                 String         @id @default(cuid())
+  cuentaPorCobrarId  String
+  monto              Float
+  fechaPago          DateTime       @default(now())
+  metodoPago         MetodoPago
+  numeroTransaccion  String?        // número de transferencia, cheque, etc.
+  observaciones      String?
+  usuarioId          String
+  createdAt          DateTime       @default(now())
+  
+  cuentaPorCobrar    CuentaPorCobrar @relation(fields: [cuentaPorCobrarId], references: [id])
+  usuario            User            @relation(fields: [usuarioId], references: [id])
+}
+
+// Enums para el sistema
+enum TipoCliente {
+  MAYORISTA
+  MINORISTA
+}
+
+enum TipoMovimiento {
+  ENTRADA     // compra, ajuste positivo
+  SALIDA      // venta, ajuste negativo
+  AJUSTE      // ajuste de inventario
+}
+
+enum EstadoPedido {
+  PENDIENTE
+  CONFIRMADO
+  EN_PROCESO
+  COMPLETADO
+  ANULADO
+}
+
+enum EstadoCuenta {
+  PENDIENTE
+  PARCIAL     // pagado parcialmente
+  PAGADO
+  VENCIDO
+  ANULADO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  CHEQUE
+  TARJETA
+  YAPE
+  PLIN
+  OTRO
+}
+
+// Razones sociales de la empresa
+model RazonSocial {
+  id          String    @id @default(cuid())
+  nombre      String    @unique // Nombre de la razón social
+  ruc         String?   @unique // RUC de la razón social
+  direccion   String?
+  telefono    String?
+  email       String?
+  website     String?
+  tipoEmpresa TipoEmpresa @default(COMPANY)
+  sector      String?   // Sector objetivo (A, B, Premium, etc.)
+  descripcion String?   // Descripción del sector/mercado objetivo
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relaciones
+  preciosProductos ProductoPrecioRazonSocial[]
+  pedidosVenta     PedidoVenta[]
+  cuentasPorCobrar CuentaPorCobrar[]
+  productosAsociados ProductoRazonSocial[] // Relación many-to-many con productos
+}
+
+// Tabla de precios por producto y razón social
+model ProductoPrecioRazonSocial {
+  id            String      @id @default(cuid())
+  productoId    String
+  razonSocialId String
+  precio        Float       // Precio específico para esta razón social
+  precioMinimo  Float?      // Precio mínimo permitido
+  descuento     Float?      // Descuento por defecto (%)
+  margen        Float?      // Margen de ganancia (%)
+  activo        Boolean     @default(true)
+  vigenciaDesde DateTime?   // Fecha desde la cual es válido
+  vigenciaHasta DateTime?   // Fecha hasta la cual es válido
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  // Relaciones
+  producto      Producto    @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  razonSocial   RazonSocial @relation(fields: [razonSocialId], references: [id], onDelete: Cascade)
+  
+  // Índice único para evitar duplicados
+  @@unique([productoId, razonSocialId])
+}
+
+enum TipoEmpresa {
+  INDIVIDUAL    // Persona Natural
+  COMPANY       // Empresa
+  CORPORATION   // Corporación
 }

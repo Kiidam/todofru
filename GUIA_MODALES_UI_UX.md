@@ -2,7 +2,16 @@
 
 Esta guía documenta los cambios, buenas prácticas y requerimientos implementados en la plataforma TodoFrut para la gestión de formularios modales, contraste de textos y consistencia visual en todos los módulos.
 
-**✅ Estado: COMPLETADO - Todos los módulos unificados (Septiembre 2025)**
+**⚠️ Estado: EN REPARACIÓN - Errores críticos detectados (Enero 2025)**
+
+## 🚨 ALERTA CRÍTICA - Estado Actual del Sistema
+
+**Problemas Detectados**: 1242+ errores de compilación TypeScript  
+**Módulos Afectados**: 
+- `app/dashboard/pedidos-compra/page.tsx` - Errores de referencia null
+- `src/app/(dashboard)/cuentas-cobrar/page.tsx` - Corrupción severa de archivo (ELIMINADO)
+
+**⚠️ ADVERTENCIA**: No realizar ediciones masivas de archivos hasta resolver los errores actuales.
 
 ---
 
@@ -330,6 +339,31 @@ select:focus {
 
 ## 7. Estado Final del Proyecto
 
+### Módulos Con Estado Crítico ⚠️
+
+| Módulo | Estado | Errores | Acción Requerida |
+|--------|--------|---------|------------------|
+| **Pedidos de Compra** | 🔴 Crítico | Null reference errors | Recrear con validaciones |
+| **Cuentas por Cobrar** | 🔴 Eliminado | Corrupción total | Recrear desde cero |
+| Productos | ✅ | 0 | Funcional |
+| Agrupador de Productos | ✅ | 0 | Funcional |
+| Clientes | ✅ | 0 | Funcional |
+| Proveedores | ✅ | 0 | Funcional |
+| Marcas | ✅ | 0 | Funcional |
+| Unidad de Medida | ✅ | 0 | Funcional |
+| Tipo de Artículo | ✅ | 0 | Funcional |
+| Grupo de Cliente | ✅ | 0 | Funcional |
+| Razón Social | ✅ | 0 | Funcional |
+| Documentos | ✅ | 0 | Funcional |
+
+### Protocolo de Recuperación 🔧
+
+1. **PASO 1**: Limpiar archivos corruptos completamente
+2. **PASO 2**: Recrear módulos desde plantilla funcional (usar Productos como referencia)
+3. **PASO 3**: Implementar validaciones null/undefined estrictas
+4. **PASO 4**: Probar cada módulo individualmente antes de integración
+5. **PASO 5**: **NO realizar ediciones masivas** - Una a la vez
+
 ### Módulos Completados ✅
 
 | Módulo | Estado | Accesibilidad | Modal Component |
@@ -349,22 +383,53 @@ select:focus {
 
 - **Next.js 15.5.2** con Turbopack
 - **React 18** con Hooks
-- **TypeScript** para tipado estricto
+- **TypeScript** para tipado estricto ⚠️ **(ERRORES ACTIVOS)**
 - **Tailwind CSS** para estilos
 - **React Portals** para modales
 - **Dynamic Imports** para SSR optimization
 
-### Beneficios Alcanzados
+### Estado Actual - Enero 2025 🚨
 
-1. **🎯 Consistencia**: Todos los modales siguen el mismo patrón
-2. **♿ Accesibilidad**: Cumple estándares WCAG 2.1
-3. **📱 Responsive**: Funciona perfectamente en todos los dispositivos
-4. **⚡ Performance**: Optimizado con dynamic imports y portals
-5. **🔧 Mantenible**: Componente reutilizable y documentado
-6. **🎨 UX Mejorada**: Microinteracciones y transiciones suaves
+1. **⚠️ Sistema Comprometido**: 1,242+ errores de compilación
+2. **🔴 Módulos Afectados**: Pedidos de Compra, Cuentas por Cobrar
+3. **🔧 En Reparación**: Limpieza y recreación en progreso
+4. **✅ Módulos Funcionales**: 10 de 12 módulos operativos
+5. **📋 Protocolo Actualizado**: Nuevas medidas de seguridad implementadas
+6. **⏱️ Prioridad**: Resolver errores antes de nuevas funcionalidades
 
 ---
 
-**Fecha de Finalización**: Septiembre 9, 2025  
-**Estado**: ✅ PROYECTO COMPLETADO  
-**Mantenedor**: Equipo TodoFrut
+## Protocolo de Seguridad para Futuras Modificaciones
+
+### ⚠️ ADVERTENCIAS CRÍTICAS:
+
+1. **NO** realizar ediciones masivas de archivos
+2. **NO** modificar múltiples módulos simultáneamente  
+3. **SIEMPRE** verificar compilación después de cada cambio
+4. **USAR** módulo de Productos como plantilla de referencia
+5. **IMPLEMENTAR** validaciones null/undefined estrictas
+
+### Pasos Obligatorios Antes de Editar:
+
+```bash
+# 1. Verificar estado actual
+npm run build
+
+# 2. Backup del archivo (si la compilación pasa)
+cp archivo-original.tsx archivo-original.backup.tsx
+
+# 3. Editar UNO a la vez
+# 4. Verificar inmediatamente
+npm run build
+
+# 5. Si hay errores, revertir inmediatamente
+```
+
+---
+
+**Fecha de Actualización**: Enero 2025  
+**Estado**: 🚨 SISTEMA EN REPARACIÓN CRÍTICA  
+**Prioridad**: MÁXIMA - Estabilización del sistema  
+**Responsable**: Equipo TodoFrut
+
+**⚠️ ESTE DOCUMENTO REFLEJA EL ESTADO REAL ACTUAL DEL SISTEMA**

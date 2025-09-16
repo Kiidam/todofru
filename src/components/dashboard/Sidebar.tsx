@@ -14,7 +14,12 @@ import {
   Ruler, 
   Calculator, 
   Settings,
-  LogOut
+  LogOut,
+  Warehouse,
+  ShoppingCart,
+  TrendingUp,
+  CreditCard,
+  Activity
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -44,8 +49,21 @@ export default function Sidebar() {
   
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+    
+    // Módulo de Inventario
+    { href: '/dashboard/inventarios', label: 'Inventarios', icon: <Warehouse size={20} /> },
     { href: '/dashboard/productos', label: 'Productos', icon: <Package size={20} /> },
     { href: '/dashboard/agrupador-productos', label: 'Agrupador de Productos', icon: <Package size={20} /> },
+    
+    // Módulo de Pedidos
+    { href: '/dashboard/pedidos-compra', label: 'Pedidos de Compra', icon: <ShoppingCart size={20} /> },
+    { href: '/dashboard/pedidos-venta', label: 'Pedidos de Venta', icon: <TrendingUp size={20} /> },
+    
+    // Módulo de Cuentas
+    { href: '/dashboard/cuentas-cobrar', label: 'Cuentas por Cobrar', icon: <CreditCard size={20} /> },
+    { href: '/dashboard/cuentas-pagar', label: 'Cuentas por Pagar', icon: <Activity size={20} /> },
+    
+    // Módulos existentes
     { href: '/dashboard/proveedores', label: 'Proveedores', icon: <Truck size={20} /> },
     { href: '/dashboard/clientes', label: 'Clientes', icon: <Users size={20} /> },
     { href: '/dashboard/grupo-cliente', label: 'Grupo de Cliente', icon: <UserCheck size={20} /> },
