@@ -96,6 +96,15 @@
 - ✅ **UI/UX:** Modales con contraste perfecto
 - ✅ **Superposición:** Todos los modales se superponen correctamente
 
+#### **🔄 MIGRACIÓN A MYSQL COMPLETADA (16 Enero 2025)**
+- ✅ **Base de datos:** Migrada completamente de SQLite a MySQL
+- ✅ **Esquema:** 27 tablas creadas en MySQL
+- ✅ **Datos:** Seed completo ejecutado (10 productos, 14 movimientos)
+- ✅ **Funcionalidad:** Todas las operaciones CRUD verificadas
+- ✅ **Performance:** Consultas optimizadas para MySQL
+- ✅ **Documentación:** `MYSQL-MIGRATION-REPORT.md` disponible
+- ✅ **Scripts:** Verificación automática con `scripts/verify-mysql.js`
+
 #### **🎯 PARA FUTURAS IMPLEMENTACIONES:**
 1. **USAR PLANTILLA OBLIGATORIA** definida en sección UI/UX
 2. **VALIDAR CONTRASTE** antes de aprobar cualquier modal
@@ -577,7 +586,7 @@ npm install
 Crear archivo `.env` en la raíz del proyecto:
 
 ```env
-# Base de datos
+# Base de datos MySQL
 DATABASE_URL="mysql://root:martin@localhost:3306/todofru"
 
 # NextAuth
@@ -585,17 +594,26 @@ NEXTAUTH_SECRET="tu-secreto-super-seguro-cambiar-en-produccion"
 NEXTAUTH_URL="http://localhost:3000"
 ```
 
-### 3. CONFIGURAR BASE DE DATOS
+**IMPORTANTE:** El sistema ahora requiere MySQL. Asegúrate de tener MySQL Server instalado y ejecutándose.
+
+### 3. CONFIGURAR BASE DE DATOS MYSQL
+
+**Prerequisitos:**
+- MySQL Server 8.0+ instalado y ejecutándose
+- Base de datos `todofru` creada
 
 ```bash
-# Generar cliente Prisma
+# Crear base de datos en MySQL (ejecutar en cliente MySQL)
+CREATE DATABASE todofru;
+
+# Generar cliente Prisma para MySQL
 npx prisma generate
 
-# Sincronizar esquema con base de datos
-npx prisma db push
+# Crear migraciones y tablas
+npx prisma migrate dev --name init
 
-# Poblar con datos de prueba
-npx tsx prisma/seed.ts
+# Poblar con datos de prueba completos
+npm run db:seed
 ```
 
 ### 4. INICIAR SERVIDOR DE DESARROLLO
@@ -696,10 +714,17 @@ npm run dev              # Iniciar servidor de desarrollo
 npm run build           # Construir para producción
 npm run start           # Iniciar servidor de producción
 
-# Base de datos
+# Base de datos MySQL
 npx prisma studio       # Interfaz visual de la base de datos
 npx prisma generate     # Regenerar cliente Prisma
-npx prisma db push      # Sincronizar esquema
+npx prisma migrate dev  # Crear nueva migración
+npm run db:seed         # Poblar con datos de prueba
+node scripts/verify-mysql.js  # Verificar conexión MySQL
+
+# Utilidades MySQL
+npx prisma db push      # Sincronizar esquema (solo desarrollo)
+npx prisma migrate reset # Resetear migraciones (CUIDADO)
+npx prisma migrate deploy # Aplicar migraciones (producción)
 npx tsx prisma/seed.ts  # Ejecutar seed
 
 # Calidad de código
