@@ -91,7 +91,7 @@
 #### **⚡ SISTEMA VERIFICADO:**
 - ✅ **Servidor:** Ejecutándose en `http://localhost:3003`
 - ✅ **Autenticación:** admin@todafru.com / admin123
-- ✅ **Base de datos:** Prisma + SQLite operativa
+- ✅ **Base de datos:** Prisma + MySQL operativa
 - ✅ **APIs:** Todos los endpoints funcionando
 - ✅ **UI/UX:** Modales con contraste perfecto
 - ✅ **Superposición:** Todos los modales se superponen correctamente
@@ -431,7 +431,7 @@ export default function ComponentName({ }: Props) {
 - **Tailwind CSS 4** - Framework de estilos moderno
 - **NextAuth.js 4.24.11** - Autenticación robusta
 - **Prisma 6.15.0** - ORM avanzado
-- **SQLite** - Base de datos integrada
+- **MySQL** - Base de datos robusta para producción
 - **Zustand** - Gestión de estado global
 - **Lucide React** - Iconografía moderna
 - **Zod** - Validación de datos
@@ -578,7 +578,7 @@ Crear archivo `.env` en la raíz del proyecto:
 
 ```env
 # Base de datos
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="mysql://root:martin@localhost:3306/todofru"
 
 # NextAuth
 NEXTAUTH_SECRET="tu-secreto-super-seguro-cambiar-en-produccion"
