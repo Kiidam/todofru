@@ -109,7 +109,8 @@ export default function TipoArticuloPage() {
   const openModal = () => {
     setEditingType(null);
     setFormData({ name: '', description: '', code: '', status: 'active' });
-    setIsModalOpen(true);
+          // Módulo inactivo temporalmente
+          return null;
   };
 
   return (

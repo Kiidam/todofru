@@ -1,17 +1,483 @@
-# Guía de Modales y Mejora de UI/UX en TodoFrut
+# Guía de Desarrollo de Módulos TodoFrut - v2.0
 
-Esta guía documenta los cambios, buenas prácticas y requerimientos implementados en la plataforma TodoFrut para la gestión de formularios modales, contraste de textos y consistencia visual en todos los módulos.
+Esta guía establece los estándares y mejores prácticas para el desarrollo de módulos en la plataforma TodoFrut, garantizando consistencia visual, accesibilidad y funcionalidad óptima.
 
-**⚠️ Estado: EN REPARACIÓN - Errores críticos detectados (Enero 2025)**
+## 🎯 **OBJETIVO PRINCIPAL**
+Asegurar que **TODOS** los módulos nuevos y existentes tengan características consistentes, texto legible y funcionalidad uniforme.
 
-## 🚨 ALERTA CRÍTICA - Estado Actual del Sistema
+---
 
-**Problemas Detectados**: 1242+ errores de compilación TypeScript  
-**Módulos Afectados**: 
-- `app/dashboard/pedidos-compra/page.tsx` - Errores de referencia null
-- `src/app/(dashboard)/cuentas-cobrar/page.tsx` - Corrupción severa de archivo (ELIMINADO)
+## 📋 **CHECKLIST OBLIGATORIO - TODO MÓDULO NUEVO**
 
-**⚠️ ADVERTENCIA**: No realizar ediciones masivas de archivos hasta resolver los errores actuales.
+### ✅ **1. LEGIBILIDAD DE TEXTO (CRÍTICO)**
+- [ ] **Todos los textos tienen color `text-gray-900` (negro casi absoluto)**
+- [ ] **Backgrounds de formularios son `bg-white` (blanco puro)**
+- [ ] **Labels usan `text-sm font-medium text-gray-900`**
+- [ ] **Placeholders usan color `#6B7280` (gray-500)**
+- [ ] **NO usar colores claros como gray-400, gray-300 para texto principal**
+
+### ✅ **2. ESTRUCTURA DE MODAL ESTÁNDAR**
+- [ ] Importación dinámica: `const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });`
+- [ ] Ancho mínimo 600px en desktop, 90vw en móvil
+- [ ] Header con título claro y descriptivo
+- [ ] Formulario estructurado con grid layout
+- [ ] Botones de acción alineados a la derecha
+- [ ] Soporte completo para teclado (Escape, Tab navigation)
+
+### ✅ **3. FORMULARIOS ACCESIBLES**
+- [ ] Cada input tiene `id` único y `label` asociado con `htmlFor`
+- [ ] Labels descriptivos y claros
+- [ ] Placeholders informativos pero no como única descripción
+- [ ] Estados de error claramente visibles
+- [ ] Validación en tiempo real
+- [ ] Soporte completo para navegación con teclado
+
+### ✅ **4. CONSISTENCIA VISUAL**
+- [ ] Colores del sistema: Verde `#10B981` para primary, Rojo `#EF4444` para danger
+- [ ] Tipografía: Inter font stack
+- [ ] Espaciado consistente: padding y margin usando múltiplos de 4px
+- [ ] Bordes redondeados: `rounded-lg` (8px) para modales, `rounded-md` (6px) para inputs
+- [ ] Sombras estándar para modales
+
+### ✅ **5. FUNCIONALIDAD ESTÁNDAR**
+- [ ] CRUD completo (Create, Read, Update, Delete)
+- [ ] Búsqueda y filtrado
+- [ ] Paginación si hay más de 10 elementos
+- [ ] Estados de carga visibles
+- [ ] Manejo de errores con mensajes claros
+- [ ] Validación tanto frontend como backend
+
+### **❌ PROBLEMA #4: SIDEBAR DUPLICADO**
+
+**NUNCA tengas layouts duplicados** en las carpetas `app/` y `src/app/` porque causan renderizado múltiple de componentes.
+
+#### **❌ INCORRECTO:**
+```
+├── app/
+│   ├── layout.tsx                    ❌ Layout duplicado
+│   └── dashboard/
+│       └── layout.tsx                ❌ Layout duplicado
+└── src/
+    └── app/
+        ├── layout.tsx                ❌ CAUSA PROBLEMAS
+        └── (dashboard)/
+            └── layout.tsx            ❌ CAUSA SIDEBAR DOBLE
+```
+
+#### **✅ CORRECTO:**
+```
+├── app/                              ✅ Solo una carpeta app
+│   ├── layout.tsx                    ✅ Un solo layout principal
+│   └── dashboard/
+│       └── layout.tsx                ✅ Un solo layout de dashboard
+└── src/
+    ├── components/                   ✅ Solo componentes en src
+    ├── lib/
+    └── utils/
+```
+
+**REGLA:** Solo debe existir UNA carpeta `app/` en la raíz del proyecto. La carpeta `src/` debe contener únicamente componentes, utilidades y configuraciones, NUNCA layouts o páginas.
+
+---
+
+## 🎨 **GUÍA DE COLORES Y TIPOGRAFÍA**
+
+### **Colores para Texto (OBLIGATORIO)**
+```css
+/* USAR SIEMPRE para texto principal */
+.text-primary { color: #111827; }      /* text-gray-900 - MUY OSCURO */
+.text-secondary { color: #374151; }    /* text-gray-700 - OSCURO */
+.text-muted { color: #6B7280; }        /* text-gray-500 - SOLO PARA AYUDA */
+
+/* NUNCA USAR para texto principal */
+.text-light { color: #D1D5DB; }        /* text-gray-300 - MUY CLARO */
+.text-very-light { color: #F3F4F6; }   /* text-gray-100 - ILEGIBLE */
+```
+
+### **Backgrounds Obligatorios**
+```css
+.modal-bg { background: #FFFFFF; }     /* bg-white - SIEMPRE para modales */
+.input-bg { background: #FFFFFF; }     /* bg-white - SIEMPRE para inputs */
+.page-bg { background: #F9FAFB; }      /* bg-gray-50 - Para páginas */
+```
+
+---
+
+## 🔧 **PLANTILLA DE MÓDULO ESTÁNDAR**
+
+### **1. Estructura de Archivo Base**
+```typescript
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
+
+interface TuEntidad {
+  id: string;
+  nombre: string;
+  // ... otros campos
+  activo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface FormData {
+  nombre: string;
+  // ... otros campos
+}
+
+export default function TuModuloPage() {
+  // Estados estándar
+  const [entidades, setEntidades] = useState<TuEntidad[]>([]);
+  const [filteredEntidades, setFilteredEntidades] = useState<TuEntidad[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingEntity, setEditingEntity] = useState<TuEntidad | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState<FormData>({
+    nombre: '',
+    // ... otros campos
+  });
+
+  // Efectos y funciones...
+}
+```
+
+### **2. Modal con Texto Legible (OBLIGATORIO)**
+```typescript
+<Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} ariaLabel="Gestionar Entidad">
+  <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg max-h-[90vh] overflow-y-auto">
+    {/* HEADER CON TEXTO OSCURO */}
+    <div className="px-6 py-4 border-b border-gray-200">
+      <h3 className="text-xl font-bold text-gray-900">
+        {editingEntity ? 'Editar' : 'Crear Nueva'} Entidad
+      </h3>
+      <p className="text-sm text-gray-600 mt-1">
+        {editingEntity ? 'Modifica los datos de la entidad' : 'Completa los datos para crear una nueva entidad'}
+      </p>
+    </div>
+    
+    {/* FORMULARIO CON CONTRASTE ALTO */}
+    <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      <div>
+        <label htmlFor="nombre" className="block text-sm font-medium text-gray-900 mb-2">
+          Nombre *
+        </label>
+        <input
+          id="nombre"
+          type="text"
+          value={formData.nombre}
+          onChange={(e) => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          placeholder="Ingrese el nombre de la entidad"
+          required
+        />
+      </div>
+      
+      {/* MÁS CAMPOS... */}
+      
+      {/* BOTONES CON CONTRASTE ALTO */}
+      <div className="flex justify-end space-x-3 pt-4 border-t">
+        <button
+          type="button"
+          onClick={() => setIsModalOpen(false)}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
+        >
+          {editingEntity ? 'Actualizar' : 'Crear'}
+        </button>
+      </div>
+    </form>
+  </div>
+</Modal>
+```
+
+---
+
+## 🎯 **CLASES CSS ESTÁNDAR OBLIGATORIAS**
+
+### **Para Labels (SIEMPRE usar esto)**
+```css
+.label-standard {
+  @apply block text-sm font-medium text-gray-900 mb-2;
+}
+```
+
+### **Para Inputs (SIEMPRE usar esto)**
+```css
+.input-standard {
+  @apply w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white 
+         focus:ring-2 focus:ring-green-500 focus:border-transparent
+         placeholder:text-gray-500;
+}
+```
+
+### **Para Botones Primarios**
+```css
+.btn-primary {
+  @apply px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 
+         rounded-md transition-colors focus:ring-2 focus:ring-green-500 focus:ring-offset-2;
+}
+```
+
+### **Para Botones Secundarios**
+```css
+.btn-secondary {
+  @apply px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 
+         rounded-md transition-colors focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+}
+```
+
+---
+
+## 📱 **RESPONSIVIDAD OBLIGATORIA**
+
+### **Breakpoints Estándar**
+```css
+/* Mobile First Approach */
+.modal-content {
+  @apply w-full max-w-[90vw] p-4;
+}
+
+/* Tablet */
+@media (min-width: 768px) {
+  .modal-content {
+    @apply max-w-2xl p-6;
+  }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  .modal-content {
+    @apply max-w-4xl;
+  }
+}
+```
+
+---
+
+## 🔍 **TESTING OBLIGATORIO**
+
+### **Checklist de Pruebas**
+- [ ] **Contraste**: Texto claramente legible en todos los tamaños
+- [ ] **Navegación por teclado**: Tab, Enter, Escape funcionan correctamente
+- [ ] **Responsive**: Funciona en móvil (375px), tablet (768px) y desktop (1024px+)
+- [ ] **Estados**: Loading, error, success se muestran correctamente
+- [ ] **CRUD**: Crear, leer, actualizar y eliminar funcionan sin errores
+- [ ] **Validación**: Frontend y backend validan correctamente
+- [ ] **Accesibilidad**: Screen readers pueden navegar el formulario
+
+---
+
+## 🚨 **ERRORES CRÍTICOS A EVITAR**
+
+### **❌ PROBLEMA #1: DOBLE X EN MODALES**
+
+**NUNCA agregues un botón X manual en el header del modal**. El componente Modal ya incluye automáticamente un botón X.
+
+#### **❌ INCORRECTO (causa doble X):**
+```typescript
+// ❌ NUNCA hacer esto - causa doble X
+<Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+  <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+    <h3>Título</h3>
+    <button onClick={() => setIsModalOpen(false)}>×</button>  {/* ❌ X DUPLICADA */}
+  </div>
+</Modal>
+```
+
+#### **✅ CORRECTO (sin doble X):**
+```typescript
+// ✅ SIEMPRE usar así - sin X manual
+<Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+  <div className="px-6 py-4 border-b border-gray-200">
+    <h3 className="text-lg font-bold text-gray-900">Título del Modal</h3>
+    <p className="text-sm text-gray-600 mt-1">Descripción del modal</p>
+  </div>
+  {/* El componente Modal ya maneja el botón X automáticamente */}
+</Modal>
+```
+
+### **❌ PROBLEMA #2: TEXTO ILEGIBLE**
+
+#### **❌ INCORRECTO:**
+```typescript
+// ❌ Texto muy claro - ILEGIBLE
+<label className="text-gray-400">Nombre</label>
+<input className="text-gray-300" />
+```
+
+#### **✅ CORRECTO:**
+```typescript
+// ✅ Texto oscuro y legible
+<label className="block text-sm font-medium text-gray-900 mb-2">Nombre</label>
+<input className="text-gray-900 bg-white" />
+```
+
+### **❌ PROBLEMA #3: FALTA DE ESTRUCTURA**
+
+#### **❌ INCORRECTO:**
+```typescript
+// ❌ Sin estructura clara
+<Modal>
+  <input placeholder="Nombre" />
+  <button>Guardar</button>
+</Modal>
+```
+
+#### **✅ CORRECTO:**
+```typescript
+// ✅ Estructura completa y clara
+<Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} ariaLabel="Crear entidad">
+  <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg max-h-[90vh] overflow-y-auto">
+    {/* HEADER */}
+    <div className="px-6 py-4 border-b border-gray-200">
+      <h3 className="text-lg font-bold text-gray-900">Crear Nueva Entidad</h3>
+      <p className="text-sm text-gray-600 mt-1">Completa los datos para crear una nueva entidad</p>
+    </div>
+    
+    {/* FORMULARIO */}
+    <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      <div>
+        <label htmlFor="nombre" className="block text-sm font-medium text-gray-900 mb-2">
+          Nombre *
+        </label>
+        <input
+          id="nombre"
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-green-500"
+          required
+        />
+      </div>
+      
+      {/* BOTONES */}
+      <div className="flex justify-end space-x-3 pt-4 border-t">
+        <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">
+          Cancelar
+        </button>
+        <button type="submit" className="btn-primary">
+          Crear
+        </button>
+      </div>
+    </form>
+  </div>
+</Modal>
+```
+
+---
+
+## 📚 **EJEMPLOS DE REFERENCIA**
+
+### **Módulos Implementados Correctamente:**
+1. **app/dashboard/productos/page.tsx** - ⭐ PLANTILLA DE REFERENCIA
+2. **app/dashboard/clientes/page.tsx** - Ejemplo completo con CRUD
+3. **app/dashboard/proveedores/page.tsx** - Ejemplo con validaciones
+
+### **Para copiar estructura:**
+```bash
+# Usar como base para nuevos módulos
+cp app/dashboard/productos/page.tsx app/dashboard/nuevo-modulo/page.tsx
+```
+
+---
+
+## 🎯 **PROTOCOLO DE IMPLEMENTACIÓN**
+
+### **Pasos Obligatorios para Nuevos Módulos:**
+
+1. **📋 PLANIFICACIÓN**
+   - Definir entidad y campos requeridos
+   - Crear interfaces TypeScript
+   - Diseñar API endpoints necesarios
+
+2. **🏗️ ESTRUCTURA BASE**
+   - Copiar plantilla de módulo de referencia
+   - Adaptar interfaces y tipos
+   - Configurar estados básicos
+
+3. **🎨 IMPLEMENTACIÓN UI**
+   - Aplicar clases CSS estándar obligatorias
+   - Verificar contraste de texto (usar herramientas como Contrast Checker)
+   - Implementar responsive design
+
+4. **⚡ FUNCIONALIDAD**
+   - Implementar CRUD completo
+   - Agregar validaciones frontend y backend
+   - Manejar estados de error y loading
+
+5. **🧪 TESTING**
+   - Probar en todos los breakpoints
+   - Verificar navegación por teclado
+   - Validar accesibilidad con screen reader
+   - Testear todas las funciones CRUD
+
+6. **📝 DOCUMENTACIÓN**
+   - Actualizar este archivo con nuevos módulos
+   - Documentar cualquier patrón especial implementado
+
+---
+
+## 🔧 **HERRAMIENTAS RECOMENDADAS**
+
+### **Para Verificar Contraste:**
+- [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/)
+- [Colour Contrast Analyser](https://www.tpgi.com/color-contrast-checker/)
+
+### **Para Testing de Accesibilidad:**
+- [axe DevTools](https://www.deque.com/axe/devtools/) (Extensión Chrome)
+- [WAVE Web Accessibility Evaluator](https://wave.webaim.org/)
+
+### **Para Testing Responsive:**
+- Chrome DevTools Device Mode
+- [ResponsiveDesignChecker](https://responsivedesignchecker.com/)
+
+---
+
+## 📊 **ESTADO ACTUAL DE MÓDULOS**
+
+| Módulo | Legibilidad | Modal | Responsive | CRUD | Testing | Estado |
+|--------|-------------|-------|------------|------|---------|--------|
+| Productos | ✅ | ✅ | ✅ | ✅ | ✅ | ⭐ REFERENCIA |
+| Clientes | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Proveedores | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Inventarios | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Pedidos-Compra | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Marcas | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Categorías | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Unidad Medida | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Tipo Artículo | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Grupo Cliente | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Razón Social | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Documentos | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+| Cuentas Cobrar | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ COMPLETO |
+
+---
+
+## 🎯 **CONCLUSIÓN**
+
+**REGLA DE ORO**: Si un módulo no pasa el test de legibilidad (texto claramente visible sin esfuerzo), NO está listo para producción.
+
+**EVERY MODULE MUST HAVE**:
+- ✅ Texto negro/oscuro (`text-gray-900`)
+- ✅ Background blanco en formularios (`bg-white`)
+- ✅ Modal estructurado según plantilla
+- ✅ Funcionalidad CRUD completa
+- ✅ Responsive design
+- ✅ Accesibilidad básica (labels, keyboard nav)
+
+---
+
+**Fecha de Actualización**: Septiembre 2025  
+**Estado**: ✅ SISTEMA ESTABLE Y FUNCIONAL  
+**Prioridad**: MANTENER ESTÁNDARES DE CALIDAD  
+**Responsable**: Equipo TodoFrut
 
 ---
 

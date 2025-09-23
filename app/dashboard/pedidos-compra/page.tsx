@@ -693,16 +693,8 @@ export default function PedidosCompraPage() {
       {/* Modal de nuevo pedido */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} ariaLabel="Crear Nuevo Pedido">
         <div className="w-full max-w-4xl mx-auto bg-white rounded-lg shadow-lg">
-          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <div className="px-6 py-4 border-b border-gray-200">
             <h3 className="text-lg font-bold text-gray-900">Crear Nuevo Pedido</h3>
-            <button
-              type="button"
-              onClick={() => setShowModal(false)}
-              className="text-gray-400 hover:text-gray-600"
-              aria-label="Cerrar modal"
-            >
-              <X className="h-6 w-6" />
-            </button>
           </div>
             
             <form onSubmit={handleSubmit} className="p-6 space-y-6">

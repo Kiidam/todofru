@@ -67,7 +67,7 @@ export default function Sidebar() {
     { href: '/dashboard/proveedores', label: 'Proveedores', icon: <Truck size={20} /> },
     { href: '/dashboard/clientes', label: 'Clientes', icon: <Users size={20} /> },
     { href: '/dashboard/grupo-cliente', label: 'Grupo de Cliente', icon: <UserCheck size={20} /> },
-    { href: '/dashboard/tipo-articulo', label: 'Tipo de Artículo', icon: <FileText size={20} /> },
+  // { href: '/dashboard/tipo-articulo', label: 'Tipo de Artículo', icon: <FileText size={20} /> },
     { href: '/dashboard/marcas', label: 'Marcas', icon: <Star size={20} /> },
     { href: '/dashboard/unidad-medida', label: 'Unidad de Medida', icon: <Ruler size={20} /> },
     { href: '/dashboard/razon-social', label: 'Razón Social', icon: <Calculator size={20} /> },

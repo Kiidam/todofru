@@ -1,116 +1,137 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
+interface GrupoCliente {
+  id: string;
+  nombre: string;
+}
+
 interface Client {
   id: string;
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  country: string;
-  clientType: 'individual' | 'business';
-  status: 'active' | 'inactive';
+  nombre: string;
+  ruc?: string;
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  contacto?: string;
+  tipoCliente: 'MAYORISTA' | 'MINORISTA';
+  activo: boolean;
+  grupoClienteId?: string;
+  metodoPago?: string;
+  website?: string;
+  mensajePersonalizado?: string;
   createdAt: string;
   totalOrders: number;
   totalSpent: number;
 }
 
 export default function ClientesPage() {
+// ...existing code...
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [clients, setClients] = useState<Client[]>([
     {
       id: '1',
-      name: 'Restaurante El Jardín',
-      email: 'pedidos@eljardin.com',
-      phone: '+34 123 456 789',
-      address: 'Calle Mayor 123',
-      city: 'Madrid',
-      country: 'España',
-      clientType: 'business',
-      status: 'active',
-      createdAt: '2024-01-15',
-      totalOrders: 45,
-      totalSpent: 12500.50
+      nombre: 'Restaurante El Jardín',
+      ruc: '12345678901',
+      telefono: '+34 123 456 789',
+      email: 'jardin@restaurante.com',
+      direccion: 'Calle Mayor 123',
+      contacto: 'Ana Pérez',
+      tipoCliente: 'MAYORISTA',
+      activo: true,
+      grupoClienteId: '',
+      metodoPago: 'TRANSFERENCIA',
+      website: 'https://eljardin.com',
+      mensajePersonalizado: 'Gracias por confiar en nosotros.',
+      createdAt: '2025-09-01',
+      totalOrders: 12,
+      totalSpent: 1500.50
     },
     {
       id: '2',
-      name: 'María García López',
-      email: 'maria.garcia@email.com',
-      phone: '+34 987 654 321',
-      address: 'Avenida Central 456',
-      city: 'Barcelona',
-      country: 'España',
-      clientType: 'individual',
-      status: 'active',
-      createdAt: '2024-01-10',
-      totalOrders: 12,
-      totalSpent: 850.25
+      nombre: 'Frutería La Esquina',
+      ruc: '98765432109',
+      telefono: '+34 987 654 321',
+      email: 'contacto@laesquina.com',
+      direccion: 'Avenida Central 45',
+      contacto: 'Luis Gómez',
+      tipoCliente: 'MINORISTA',
+      activo: true,
+      grupoClienteId: '',
+      metodoPago: 'EFECTIVO',
+      website: '',
+      mensajePersonalizado: '',
+      createdAt: '2025-08-15',
+      totalOrders: 5,
+      totalSpent: 320.00
     },
     {
       id: '3',
-      name: 'Supermercado Fresh',
-      email: 'compras@fresh.com',
-      phone: '+34 555 123 456',
-      address: 'Plaza del Mercado 789',
-      city: 'Valencia',
-      country: 'España',
-      clientType: 'business',
-      status: 'inactive',
-      createdAt: '2024-01-05',
-      totalOrders: 28,
-      totalSpent: 8750.00
-    },
-    {
-      id: '4',
-      name: 'Carlos Rodríguez',
-      email: 'carlos.rodriguez@email.com',
-      phone: '+34 666 789 012',
-      address: 'Calle de la Paz 321',
-      city: 'Sevilla',
-      country: 'España',
-      clientType: 'individual',
-      status: 'active',
-      createdAt: '2024-01-08',
-      totalOrders: 8,
-      totalSpent: 425.75
+      nombre: 'Supermercado Central',
+      ruc: '11223344556',
+      telefono: '+34 555 666 777',
+      email: 'compras@supercentral.com',
+      direccion: 'Plaza Mayor 1',
+      contacto: 'Marta Ruiz',
+      tipoCliente: 'MAYORISTA',
+      activo: false,
+      grupoClienteId: '',
+      metodoPago: 'CHEQUE',
+      website: 'https://supercentral.com',
+      mensajePersonalizado: '',
+      createdAt: '2025-07-10',
+      totalOrders: 20,
+      totalSpent: 5000.00
     }
   ]);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'individual' | 'business'>('all');
 
   const [formData, setFormData] = useState({
-    name: '',
+    nombre: '',
+    ruc: '',
+    telefono: '',
     email: '',
-    phone: '',
-    address: '',
-    city: '',
-    country: '',
-    clientType: 'individual' as 'individual' | 'business',
-    status: 'active' as 'active' | 'inactive'
+    direccion: '',
+    contacto: '',
+    tipoCliente: 'MINORISTA' as 'MAYORISTA' | 'MINORISTA',
+    activo: true,
+    grupoClienteId: '',
+    metodoPago: '',
+    website: '',
+    mensajePersonalizado: ''
   });
 
-  const filteredClients = clients.filter(client => {
-    const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         client.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || client.status === statusFilter;
-    const matchesType = typeFilter === 'all' || client.clientType === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
+  const [grupos, setGrupos] = useState<GrupoCliente[]>([]);
+
+  useEffect(() => {
+    fetch('/api/grupo-cliente')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setGrupos(data.data);
+      });
+  }, []);
+
+  const filteredClients = clients.filter((client: Client): boolean => {
+    const matchesSearch = client.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+    // Puedes agregar más filtros aquí si es necesario
+    return matchesSearch;
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
     
     if (editingClient) {
-      setClients(prev => prev.map(client => 
-        client.id === editingClient.id 
+      setClients((prev: Client[]) => prev.map((client: Client) =>
+        client.id === editingClient.id
           ? { ...client, ...formData }
           : client
       ));
@@ -122,55 +143,67 @@ export default function ClientesPage() {
         totalSpent: 0,
         createdAt: new Date().toISOString().split('T')[0]
       };
-      setClients(prev => [...prev, newClient]);
+      setClients((prev: Client[]) => [...prev, newClient]);
     }
     
     setIsModalOpen(false);
     setEditingClient(null);
     setFormData({
-      name: '',
+      nombre: '',
+      ruc: '',
+      telefono: '',
       email: '',
-      phone: '',
-      address: '',
-      city: '',
-      country: '',
-      clientType: 'individual',
-      status: 'active'
+      direccion: '',
+      contacto: '',
+      tipoCliente: 'MINORISTA',
+      activo: true,
+      grupoClienteId: '',
+      metodoPago: '',
+      website: '',
+      mensajePersonalizado: ''
     });
   };
 
   const handleEdit = (client: Client) => {
     setEditingClient(client);
     setFormData({
-      name: client.name,
-      email: client.email,
-      phone: client.phone,
-      address: client.address,
-      city: client.city,
-      country: client.country,
-      clientType: client.clientType,
-      status: client.status
+      nombre: client.nombre,
+      ruc: client.ruc || '',
+      telefono: client.telefono || '',
+      email: client.email || '',
+      direccion: client.direccion || '',
+      contacto: client.contacto || '',
+      tipoCliente: client.tipoCliente,
+      activo: client.activo,
+      grupoClienteId: client.grupoClienteId || '',
+      metodoPago: client.metodoPago || '',
+      website: client.website || '',
+      mensajePersonalizado: client.mensajePersonalizado || ''
     });
     setIsModalOpen(true);
   };
 
   const handleDelete = (id: string) => {
     if (confirm('¿Estás seguro de que quieres eliminar este cliente?')) {
-      setClients(prev => prev.filter(client => client.id !== id));
+      setClients((prev: Client[]) => prev.filter((client: Client) => client.id !== id));
     }
   };
 
   const openModal = () => {
     setEditingClient(null);
     setFormData({
-      name: '',
+      nombre: '',
+      ruc: '',
+      telefono: '',
       email: '',
-      phone: '',
-      address: '',
-      city: '',
-      country: '',
-      clientType: 'individual',
-      status: 'active'
+      direccion: '',
+      contacto: '',
+      tipoCliente: 'MINORISTA',
+      activo: true,
+      grupoClienteId: '',
+      metodoPago: '',
+      website: '',
+      mensajePersonalizado: ''
     });
     setIsModalOpen(true);
   };
@@ -289,27 +322,27 @@ export default function ClientesPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredClients.map((client) => (
+                {filteredClients.map((client: Client) => (
                   <tr key={client.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
                       <div>
-                        <div className="font-medium text-gray-900">{client.name}</div>
+                        <div className="font-medium text-gray-900">{client.nombre}</div>
                         <div className="text-sm text-gray-500">{client.email}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{client.phone}</div>
+                      <div className="text-gray-600">{client.telefono}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{client.city}, {client.country}</div>
+                      <div className="text-gray-600">{client.direccion}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        client.clientType === 'business'
+                        client.tipoCliente === 'MAYORISTA'
                           ? 'bg-purple-100 text-purple-800'
                           : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {client.clientType === 'business' ? 'Empresa' : 'Individual'}
+                        {client.tipoCliente === 'MAYORISTA' ? 'Mayorista' : 'Minorista'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
@@ -320,11 +353,11 @@ export default function ClientesPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        client.status === 'active'
+                        client.activo
                           ? 'bg-green-100 text-green-800'
                           : 'bg-red-100 text-red-800'
                       }`}>
-                        {client.status === 'active' ? 'Activo' : 'Inactivo'}
+                        {client.activo ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -364,146 +397,85 @@ export default function ClientesPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="client-name">
-                  Nombre
-                </label>
-                <input
-                  id="client-name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                  placeholder="Ej: Restaurante El Jardín"
-                  required
-                />
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="nombre">Nombre</label>
+                <input id="nombre" type="text" value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="Ej: Restaurante El Jardín" required />
               </div>
-              
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="client-type">
-                  Tipo de Cliente
-                </label>
-                <select
-                  id="client-type"
-                  aria-label="Tipo de cliente"
-                  value={formData.clientType}
-                  onChange={(e) => setFormData({ ...formData, clientType: e.target.value as 'individual' | 'business' })}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900"
-                >
-                  <option value="individual">Individual</option>
-                  <option value="business">Empresa</option>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="ruc">RUC</label>
+                <input id="ruc" type="text" value={formData.ruc} onChange={e => setFormData({ ...formData, ruc: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="RUC" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="telefono">Teléfono</label>
+                <input id="telefono" type="tel" value={formData.telefono} onChange={e => setFormData({ ...formData, telefono: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="+34 123 456 789" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="email">Email</label>
+                <input id="email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="correo@ejemplo.com" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="direccion">Dirección</label>
+                <input id="direccion" type="text" value={formData.direccion} onChange={e => setFormData({ ...formData, direccion: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="Calle Mayor 123" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="contacto">Contacto</label>
+                <input id="contacto" type="text" value={formData.contacto} onChange={e => setFormData({ ...formData, contacto: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="Nombre del contacto" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="tipoCliente">Tipo de Cliente</label>
+                <select id="tipoCliente" value={formData.tipoCliente} onChange={e => setFormData({ ...formData, tipoCliente: e.target.value as 'MAYORISTA' | 'MINORISTA' })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900">
+                  <option value="MAYORISTA">Mayorista</option>
+                  <option value="MINORISTA">Minorista</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="grupoClienteId">Grupo de Cliente</label>
+                <select id="grupoClienteId" value={formData.grupoClienteId} onChange={e => setFormData({ ...formData, grupoClienteId: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900">
+                  <option value="">Sin grupo</option>
+                  {grupos.map(grupo => (
+                    <option key={grupo.id} value={grupo.id}>{grupo.nombre}</option>
+                  ))}
                 </select>
               </div>
             </div>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="client-email">
-                  Email
-                </label>
-                <input
-                  id="client-email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                  placeholder="correo@ejemplo.com"
-                  required
-                />
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="metodoPago">Tipo de Pago</label>
+                <select id="metodoPago" value={formData.metodoPago} onChange={e => setFormData({ ...formData, metodoPago: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900">
+                  <option value="">Seleccione</option>
+                  <option value="EFECTIVO">Efectivo</option>
+                  <option value="TRANSFERENCIA">Transferencia</option>
+                  <option value="CHEQUE">Cheque</option>
+                  <option value="TARJETA">Tarjeta</option>
+                  <option value="YAPE">Yape</option>
+                  <option value="PLIN">Plin</option>
+                  <option value="OTRO">Otro</option>
+                </select>
               </div>
-              
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="client-phone">
-                  Teléfono
-                </label>
-                <input
-                  id="client-phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                  placeholder="+34 123 456 789"
-                  required
-                />
+                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="website">Sitio Web</label>
+                <input id="website" type="text" value={formData.website} onChange={e => setFormData({ ...formData, website: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="https://" />
               </div>
             </div>
-            
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="client-address">
-                Dirección
-              </label>
-              <input
-                id="client-address"
-                type="text"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                placeholder="Calle Mayor 123"
-                required
-              />
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="mensajePersonalizado">Mensaje Personalizado para Correos</label>
+              <textarea id="mensajePersonalizado" value={formData.mensajePersonalizado} onChange={e => setFormData({ ...formData, mensajePersonalizado: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="Mensaje personalizado..." rows={2} />
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="client-city">
-                  Ciudad
-                </label>
-                <input
-                  id="client-city"
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                  placeholder="Ej: Madrid"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="client-country">
-                  País
-                </label>
-                <input
-                  id="client-country"
-                  type="text"
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                  placeholder="Ej: España"
-                  required
-                />
-              </div>
-            </div>
-            
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="client-status">
-                Estado
-              </label>
-              <select
-                id="client-status"
-                aria-label="Estado del cliente"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900"
-              >
-                <option value="active">Activo</option>
-                <option value="inactive">Inactivo</option>
+              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="activo">Estado</label>
+              <select id="activo" value={formData.activo ? 'activo' : 'inactivo'} onChange={e => setFormData({ ...formData, activo: e.target.value === 'activo' })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900">
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
               </select>
             </div>
-            
             <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={() => { setIsModalOpen(false); setEditingClient(null); }}
-                className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-sm"
-              >
-                {editingClient ? 'Actualizar Cliente' : 'Crear Cliente'}
-              </button>
+              <button type="button" onClick={() => { setIsModalOpen(false); setEditingClient(null); }} className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Cancelar</button>
+              <button type="submit" className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-sm">{editingClient ? 'Actualizar Cliente' : 'Crear Cliente'}</button>
             </div>
           </form>
         </Modal>

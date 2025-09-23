@@ -130,11 +130,28 @@ model Cliente {
   contacto     String?   // nombre del contacto principal
   tipoCliente  TipoCliente @default(MINORISTA)
   activo       Boolean   @default(true)
+  grupoClienteId String? // Relación con GrupoCliente
+  grupoCliente   GrupoCliente? @relation("GrupoClienteClientes", fields: [grupoClienteId], references: [id])
+  metodoPago   MetodoPago? // Enum de métodos de pago
+  website      String? // Sitio web del cliente
+  mensajePersonalizado String? // Mensaje personalizado para correos
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   
   pedidosVenta PedidoVenta[]
   cuentasPorCobrar CuentaPorCobrar[]
+}
+// Grupo de clientes
+model GrupoCliente {
+  id          String    @id @default(cuid())
+  nombre      String    @unique
+  descripcion String?
+  descuento   Float?    // Porcentaje de descuento para el grupo
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  clientes    Cliente[] @relation("GrupoClienteClientes")
 }
 
 // Productos (frutas y verduras) - ACTUALIZADO CON CAMPOS COMPLETOS

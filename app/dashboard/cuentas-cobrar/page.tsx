@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { CreditCard, Plus, Search, AlertTriangle, DollarSign, Calendar } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
 interface Cliente {
   id: string;
@@ -398,116 +401,93 @@ export default function CuentasPorCobrarPage() {
       </div>
 
       {/* Modal para agregar nueva cuenta */}
-      {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md bg-white">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Nueva Cuenta por Cobrar</h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <span className="text-2xl">&times;</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="cliente" className="block text-sm font-medium text-gray-900">
-                    Cliente *
-                  </label>
-                  <select
-                    id="cliente"
-                    name="clienteId"
-                    required
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 bg-white"
-                  >
-                    <option value="">Seleccionar cliente</option>
-                    {clientes.map((cliente) => (
-                      <option key={cliente.id} value={cliente.id}>
-                        {cliente.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="numero" className="block text-sm font-medium text-gray-900">
-                    Número de Cuenta *
-                  </label>
-                  <input
-                    type="text"
-                    id="numero"
-                    name="numero"
-                    required
-                    placeholder="CC-001"
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="monto" className="block text-sm font-medium text-gray-900">
-                    Monto *
-                  </label>
-                  <input
-                    type="number"
-                    id="monto"
-                    name="monto"
-                    required
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="fechaVencimiento" className="block text-sm font-medium text-gray-900">
-                    Fecha de Vencimiento *
-                  </label>
-                  <input
-                    type="date"
-                    id="fechaVencimiento"
-                    name="fechaVencimiento"
-                    required
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 bg-white"
-                  />
-                </div>
-              </div>
-
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} ariaLabel="Nueva Cuenta por Cobrar">
+        <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg max-h-[90vh] overflow-y-auto">
+          {/* HEADER */}
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-bold text-gray-900">Nueva Cuenta por Cobrar</h2>
+            <p className="text-sm text-gray-600 mt-1">Completa los datos para registrar una nueva cuenta</p>
+          </div>
+          {/* FORMULARIO */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="observaciones" className="block text-sm font-medium text-gray-900">
-                  Observaciones
-                </label>
-                <textarea
-                  id="observaciones"
-                  name="observaciones"
-                  rows={3}
-                  placeholder="Observaciones adicionales..."
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 bg-white"
+                <label htmlFor="cliente" className="block text-sm font-medium text-gray-900 mb-2">Cliente *</label>
+                <select
+                  id="cliente"
+                  name="clienteId"
+                  required
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">Seleccionar cliente</option>
+                  {clientes.map((cliente) => (
+                    <option key={cliente.id} value={cliente.id}>{cliente.nombre}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="numero" className="block text-sm font-medium text-gray-900 mb-2">Número de Cuenta *</label>
+                <input
+                  type="text"
+                  id="numero"
+                  name="numero"
+                  required
+                  placeholder="CC-001"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-green-500"
                 />
               </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600"
-                >
-                  Crear Cuenta
-                </button>
+              <div>
+                <label htmlFor="monto" className="block text-sm font-medium text-gray-900 mb-2">Monto *</label>
+                <input
+                  type="number"
+                  id="monto"
+                  name="monto"
+                  required
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-green-500"
+                />
               </div>
-            </form>
-          </div>
+              <div>
+                <label htmlFor="fechaVencimiento" className="block text-sm font-medium text-gray-900 mb-2">Fecha de Vencimiento *</label>
+                <input
+                  type="date"
+                  id="fechaVencimiento"
+                  name="fechaVencimiento"
+                  required
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="observaciones" className="block text-sm font-medium text-gray-900 mb-2">Observaciones</label>
+              <textarea
+                id="observaciones"
+                name="observaciones"
+                rows={3}
+                placeholder="Observaciones adicionales..."
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+              >
+                Guardar
+              </button>
+            </div>
+          </form>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

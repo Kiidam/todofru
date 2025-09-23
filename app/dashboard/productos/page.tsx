@@ -180,7 +180,49 @@ export default function ProductosPage() {
   const fetchProductos = async () => {
     setLoading(true);
     try {
-      // Mock data por ahora
+      const response = await fetch('/api/productos?limit=100');
+      const data = await response.json();
+      
+      if (data.success) {
+        // Los datos de la API ya vienen en el formato correcto
+        setProductos(data.data);
+      } else {
+        console.error('Error en la respuesta de la API:', data.error);
+        // Fallback a datos mock solo si la API falla
+        const mockProductos: Producto[] = [
+          {
+            id: '1',
+            nombre: 'Manzana Fuji Premium',
+            sku: 'FRU-CIT-MAN-001',
+            descripcion: 'Manzana Fuji de primera calidad, importada',
+            precio: 8.50,
+            stock: 150,
+            stockMinimo: 20,
+            porcentajeMerma: 5,
+            perecedero: true,
+            diasVencimiento: 15,
+            tieneIGV: true,
+            activo: true,
+            categoria: { id: '1', nombre: 'Frutas Citricas' },
+            tipoArticulo: { id: '1', nombre: 'Producto Natural' },
+            familia: { id: '1', nombre: 'Frutas' },
+            subfamilia: { id: '1', nombre: 'Citricos' },
+            unidadMedida: { id: '1', nombre: 'Kilogramo', simbolo: 'kg' },
+            unidadCosteo: { id: '1', nombre: 'Kilogramo', simbolo: 'kg' },
+            marca: { id: '1', nombre: 'TODAFRU Premium' },
+            agrupador: { id: '1', nombre: 'Alta Rotacion' },
+            razonSocialProductos: [
+              { razonSocial: { id: '1', nombre: 'Supermercados Wong S.A.' } },
+              { razonSocial: { id: '2', nombre: 'Metro S.A.' } }
+            ]
+          }
+        ];
+        
+        setProductos(mockProductos);
+      }
+    } catch (error) {
+      console.error('Error al cargar productos:', error);
+      // En caso de error de red, usar datos mock
       const mockProductos: Producto[] = [
         {
           id: '1',
@@ -211,8 +253,6 @@ export default function ProductosPage() {
       ];
       
       setProductos(mockProductos);
-    } catch (error) {
-      console.error('Error al cargar productos:', error);
     } finally {
       setLoading(false);
     }
@@ -529,10 +569,10 @@ export default function ProductosPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
                       <button 
                         onClick={() => handleSort('nombre')}
-                        className="flex items-center gap-1 hover:text-gray-700"
+                        className="flex items-center gap-1 hover:text-gray-900"
                       >
                         Producto
                         {sortField === 'nombre' && (
@@ -540,13 +580,13 @@ export default function ProductosPage() {
                         )}
                       </button>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Clasificacion
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
+                      Clasificación
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
                       <button 
                         onClick={() => handleSort('precio')}
-                        className="flex items-center gap-1 hover:text-gray-700"
+                        className="flex items-center gap-1 hover:text-gray-900"
                       >
                         Precio/Stock
                         {sortField === 'precio' && (
@@ -554,13 +594,13 @@ export default function ProductosPage() {
                         )}
                       </button>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Caracteristicas
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
+                      Características
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
                       Razones Sociales
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
                       Acciones
                     </th>
                   </tr>
@@ -755,22 +795,17 @@ export default function ProductosPage() {
       </div>
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} ariaLabel={editingProduct ? "Editar Producto" : "Crear Nuevo Producto"}>
-        <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg max-h-[90vh] overflow-y-auto">
-          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg max-h-screen flex flex-col">
+          <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <h3 className="text-lg font-bold text-gray-900">
               {editingProduct ? 'Editar Producto' : 'Crear Nuevo Producto'}
             </h3>
-            <button
-              type="button"
-              onClick={() => setShowModal(false)}
-              className="text-gray-400 hover:text-gray-600"
-              aria-label="Cerrar modal"
-            >
-              ×
-            </button>
+            <p className="text-sm text-gray-600 mt-1">
+              {editingProduct ? 'Modifica los datos del producto seleccionado' : 'Completa los datos para crear un nuevo producto'}
+            </p>
           </div>
-          
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="overflow-y-auto flex-1">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
             <div>
               <label htmlFor="nombre" className="block text-sm font-medium text-gray-900 mb-2">
                 Nombre del Producto *
@@ -1100,7 +1135,8 @@ export default function ProductosPage() {
                 {loading ? 'Guardando...' : (editingProduct ? 'Actualizar' : 'Crear')} Producto
               </button>
             </div>
-          </form>
+            </form>
+          </div>
         </div>
       </Modal>
     </div>
