@@ -9,13 +9,13 @@ interface ConfigSection {
   settings: ConfigSetting[];
 }
 
-interface ConfigSetting {
+interface ConfigSetting<T = string | number | boolean> {
   id: string;
   name: string;
   description: string;
   type: 'text' | 'number' | 'boolean' | 'select' | 'email' | 'url';
-  value: any;
-  options?: { label: string; value: any }[];
+  value: T;
+  options?: { label: string; value: T }[];
   required?: boolean;
 }
 
@@ -223,7 +223,7 @@ export default function ConfiguracionPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [activeSection, setActiveSection] = useState('general');
 
-  const handleSettingChange = (sectionId: string, settingId: string, value: any) => {
+  const handleSettingChange = <T extends string | number | boolean>(sectionId: string, settingId: string, value: T) => {
     setConfigSections(prev => prev.map(section => 
       section.id === sectionId 
         ? {
@@ -261,12 +261,12 @@ export default function ConfiguracionPage() {
           <div className="flex items-center">
             <input
               type="checkbox"
-              checked={setting.value}
+              checked={!!setting.value}
               onChange={(e) => handleSettingChange(sectionId, setting.id, e.target.checked)}
               className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
             />
             <span className="ml-3 text-base text-gray-700 font-medium">
-              {setting.value ? 'Activado' : 'Desactivado'}
+              {Boolean(setting.value) ? 'Activado' : 'Desactivado'}
             </span>
           </div>
         );
@@ -274,12 +274,12 @@ export default function ConfiguracionPage() {
       case 'select':
         return (
           <select
-            value={setting.value}
+            value={String(setting.value)}
             onChange={(e) => handleSettingChange(sectionId, setting.id, e.target.value)}
             className={commonClasses}
           >
             {setting.options?.map(option => (
-              <option key={option.value} value={option.value}>
+              <option key={String(option.value)} value={String(option.value)}>
                 {option.label}
               </option>
             ))}
@@ -290,7 +290,7 @@ export default function ConfiguracionPage() {
         return (
           <input
             type="number"
-            value={setting.value}
+            value={Number(setting.value)}
             onChange={(e) => handleSettingChange(sectionId, setting.id, parseFloat(e.target.value) || 0)}
             className={commonClasses}
             required={setting.required}
@@ -301,7 +301,7 @@ export default function ConfiguracionPage() {
         return (
           <input
             type="email"
-            value={setting.value}
+            value={String(setting.value)}
             onChange={(e) => handleSettingChange(sectionId, setting.id, e.target.value)}
             className={commonClasses}
             required={setting.required}
@@ -312,7 +312,7 @@ export default function ConfiguracionPage() {
         return (
           <input
             type="url"
-            value={setting.value}
+            value={String(setting.value)}
             onChange={(e) => handleSettingChange(sectionId, setting.id, e.target.value)}
             className={commonClasses}
             required={setting.required}
@@ -323,7 +323,7 @@ export default function ConfiguracionPage() {
         return (
           <input
             type="text"
-            value={setting.value}
+            value={String(setting.value)}
             onChange={(e) => handleSettingChange(sectionId, setting.id, e.target.value)}
             className={commonClasses}
             required={setting.required}
@@ -374,7 +374,7 @@ export default function ConfiguracionPage() {
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-yellow-800">
-                    Tienes cambios sin guardar. No olvides hacer clic en "Guardar Cambios" para aplicar las modificaciones.
+                    Tienes cambios sin guardar. No olvides hacer clic en &quot;Guardar Cambios&quot; para aplicar las modificaciones.
                   </p>
                 </div>
               </div>

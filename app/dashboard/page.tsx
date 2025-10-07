@@ -1,16 +1,10 @@
 'use client';
 
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
 
-  const handleLogout = async () => {
-    await signOut({ 
-      redirect: true,
-      callbackUrl: '/login'
-    });
-  };
 
   if (status === 'loading') {
     return (

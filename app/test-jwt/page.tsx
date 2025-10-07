@@ -3,13 +3,21 @@
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useState } from 'react';
 
+interface TestResult {
+  success: boolean;
+  status?: number;
+  data?: unknown;
+  error?: string;
+  message?: string;
+}
+
 export default function JWTTestPage() {
   const { data: session, status } = useSession();
-  const [testResults, setTestResults] = useState<Record<string, any>>({});
+  const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [loading, setLoading] = useState<string>('');
 
-  const updateResult = (test: string, result: any) => {
-    setTestResults((prev: Record<string, any>) => ({ ...prev, [test]: result }));
+  const updateResult = (test: string, result: TestResult) => {
+    setTestResults((prev: Record<string, TestResult>) => ({ ...prev, [test]: result }));
   };
 
   const testProviders = async () => {
@@ -22,10 +30,11 @@ export default function JWTTestPage() {
         status: res.status, 
         data 
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
       updateResult('providers', { 
         success: false, 
-        error: error?.message || 'Error desconocido'
+        error: message
       });
     }
     setLoading('');
@@ -41,10 +50,11 @@ export default function JWTTestPage() {
         status: res.status, 
         data 
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
       updateResult('csrf', { 
         success: false, 
-        error: error?.message || 'Error desconocido'
+        error: message
       });
     }
     setLoading('');
@@ -62,10 +72,11 @@ export default function JWTTestPage() {
         success: !result?.error, 
         data: result 
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
       updateResult('login', { 
         success: false, 
-        error: error?.message || 'Error desconocido'
+        error: message
       });
     }
     setLoading('');
@@ -79,10 +90,11 @@ export default function JWTTestPage() {
         success: true, 
         message: 'Logout ejecutado' 
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
       updateResult('logout', { 
         success: false, 
-        error: error?.message || 'Error desconocido'
+        error: message
       });
     }
     setLoading('');

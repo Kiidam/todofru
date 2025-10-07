@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Package, AlertTriangle, TrendingUp, TrendingDown, Search, Filter, Plus, Eye, RotateCcw, ShieldAlert } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Package, AlertTriangle, TrendingUp, TrendingDown, Search, Eye, RotateCcw, ShieldAlert } from 'lucide-react';
 
 interface SyncValidationResult {
   isValid: boolean;
@@ -62,17 +62,14 @@ export default function InventariosPage() {
     valorTotal: 0
   });
 
-  useEffect(() => {
-    fetchProductos();
-    fetchMovimientos();
-    validateSync();
-  }, []);
+  // Initialization effect moved below after fetchProductos, fetchMovimientos, and validateSync are declared
 
-  useEffect(() => {
-    filterProductos();
-  }, [productos, searchTerm, stockFilter]);
+  // Moved below after filterProductos is defined to avoid temporal dead zone error
+  // useEffect(() => {
+  //   filterProductos();
+  // }, [filterProductos]);
 
-  const validateSync = async () => {
+  const validateSync = useCallback(async () => {
     try {
       const response = await fetch('/api/inventarios?action=sync-validation');
       if (!response.ok) {
@@ -88,7 +85,7 @@ export default function InventariosPage() {
     } catch (error) {
       console.error('Error al validar sincronización:', error);
     }
-  };
+  }, []);
 
   const executeSyncAction = async (action: 'migrate' | 'clean') => {
     if (!confirm(`¿Estás seguro de que deseas ${action === 'migrate' ? 'migrar' : 'limpiar'} los productos huérfanos?\n\n${action === 'clean' ? '⚠️ ADVERTENCIA: Esta acción es IRREVERSIBLE y eliminará todos los movimientos de productos huérfanos.' : 'Esta acción creará entradas en el catálogo para productos huérfanos.'}`)) {
@@ -123,7 +120,7 @@ export default function InventariosPage() {
     }
   };
 
-  const fetchProductos = async () => {
+  const fetchProductos = useCallback(async () => {
     try {
       const response = await fetch('/api/inventarios?action=productos');
       if (!response.ok) {
@@ -141,9 +138,9 @@ export default function InventariosPage() {
           sku: p.sku || undefined,
           stock: p.stock,
           stockMinimo: p.stockMinimo,
-          precio: 0, // Se obtendría de otra fuente o cálculo
+          precio: typeof p.precio === 'number' ? p.precio : 0,
           categoria: p.categoria || { nombre: 'Sin categoría' },
-          unidadMedida: p.unidadMedida
+          unidadMedida: p.unidadMedida as { simbolo: string }
         }));
         
         setProductos(productosFormateados);
@@ -157,9 +154,9 @@ export default function InventariosPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchMovimientos = async () => {
+  const fetchMovimientos = useCallback(async () => {
     try {
       const response = await fetch('/api/inventarios?action=movimientos');
       
@@ -180,7 +177,7 @@ export default function InventariosPage() {
       // En caso de error, usar array vacío para que no falle la UI
       setMovimientos([]);
     }
-  };
+  }, []);
 
   const calculateStats = (productos: Producto[]) => {
     const totalProductos = productos.length;
@@ -196,7 +193,7 @@ export default function InventariosPage() {
     });
   };
 
-  const filterProductos = () => {
+  const filterProductos = useCallback(() => {
     let filtered = productos;
 
     // Filtro por búsqueda
@@ -219,7 +216,18 @@ export default function InventariosPage() {
     }
 
     setFilteredProductos(filtered);
-  };
+  }, [productos, searchTerm, stockFilter]);
+
+  useEffect(() => {
+    filterProductos();
+  }, [filterProductos]);
+
+  // Initialization effect after stable callbacks
+  useEffect(() => {
+    fetchProductos();
+    fetchMovimientos();
+    validateSync();
+  }, [fetchProductos, fetchMovimientos, validateSync]);
 
   const getStockStatus = (producto: Producto) => {
     if (producto.stock === 0) return { status: 'Agotado', color: 'text-red-600 bg-red-100' };

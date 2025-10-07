@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 
 // Esquema de validación para pagos
 const pagoSchema = z.object({
@@ -14,7 +15,7 @@ const pagoSchema = z.object({
 // POST /api/cuentas-por-pagar/[id]/pagos - Registrar pago
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession();
@@ -22,12 +23,13 @@ export async function POST(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const validatedData = pagoSchema.parse(body);
 
     // Verificar que la cuenta existe y está en estado válido
     const cuenta = await prisma.cuentaPorPagar.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         proveedor: { select: { nombre: true } }
       }
@@ -63,11 +65,11 @@ export async function POST(
     }
 
     // Registrar pago y actualizar cuenta en transacción
-    const resultado = await prisma.$transaction(async (tx) => {
+    const resultado = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Crear el pago
       const pago = await tx.pagoCuentaPorPagar.create({
         data: {
-          cuentaPorPagarId: params.id,
+          cuentaPorPagarId: id,
           monto: validatedData.monto,
           metodoPago: validatedData.metodoPago,
           numeroTransaccion: validatedData.numeroTransaccion,
@@ -89,7 +91,7 @@ export async function POST(
 
       // Actualizar la cuenta
       const cuentaActualizada = await tx.cuentaPorPagar.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           montoAbonado: nuevoMontoAbonado,
           saldo: nuevoSaldo,
@@ -102,7 +104,7 @@ export async function POST(
 
     // Obtener la cuenta actualizada con sus relaciones
     const cuentaCompleta = await prisma.cuentaPorPagar.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         proveedor: { select: { id: true, nombre: true } },
         pedidoCompra: { select: { id: true, numero: true } },

@@ -11,7 +11,7 @@ const categoriaSchema = z.object({
 // GET /api/categorias/[id] - Obtener categoría por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession();
@@ -19,8 +19,9 @@ export async function GET(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
     const categoria = await prisma.categoria.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         productos: {
           where: { activo: true },
@@ -57,7 +58,7 @@ export async function GET(
 // PUT /api/categorias/[id] - Actualizar categoría
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession();
@@ -65,12 +66,13 @@ export async function PUT(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const validatedData = categoriaSchema.parse(body);
 
     // Verificar que la categoría existe
     const existingCategoria = await prisma.categoria.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!existingCategoria) {
@@ -85,7 +87,7 @@ export async function PUT(
       where: { 
         nombre: validatedData.nombre,
         activo: true,
-        id: { not: params.id }
+        id: { not: id }
       }
     });
 
@@ -97,7 +99,7 @@ export async function PUT(
     }
 
     const categoria = await prisma.categoria.update({
-      where: { id: params.id },
+      where: { id },
       data: validatedData
     });
 
@@ -125,7 +127,7 @@ export async function PUT(
 // DELETE /api/categorias/[id] - Eliminar categoría (soft delete)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession();
@@ -133,9 +135,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
+
     // Verificar que la categoría existe
     const existingCategoria = await prisma.categoria.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         _count: {
           select: { productos: { where: { activo: true } } }
@@ -159,7 +163,7 @@ export async function DELETE(
     }
 
     await prisma.categoria.update({
-      where: { id: params.id },
+      where: { id },
       data: { activo: false }
     });
 

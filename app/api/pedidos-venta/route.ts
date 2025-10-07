@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { EstadoPedido, Prisma } from '@prisma/client';
 
 // Esquema de validación para pedidos de venta
 const itemSchema = z.object({
@@ -54,8 +55,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      ...(estado && { estado }),
+    const where = {
+      ...(estado && { estado: estado as EstadoPedido }),
       ...(clienteId && { clienteId }),
       ...(fechaDesde || fechaHasta) && {
         fecha: {
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
           ...(fechaHasta && { lte: new Date(fechaHasta) })
         }
       }
-    };
+    } as const;
 
     const [pedidos, total] = await Promise.all([
       prisma.pedidoVenta.findMany({
@@ -136,8 +137,9 @@ export async function POST(request: NextRequest) {
 
     // Verificar que todos los productos existen y hay stock suficiente
     const productosIds = validatedData.items.map(item => item.productoId);
-    const productos = await prisma.producto.findMany({
-      where: { id: { in: productosIds }, activo: true }
+    const productos: Array<{ id: string; nombre: string; stock: number }> = await prisma.producto.findMany({
+      where: { id: { in: productosIds }, activo: true },
+      select: { id: true, nombre: true, stock: true }
     });
 
     if (productos.length !== productosIds.length) {
@@ -150,7 +152,7 @@ export async function POST(request: NextRequest) {
     // Verificar stock disponible
     const stockInsuficiente = [];
     for (const item of validatedData.items) {
-      const producto = productos.find((p: any) => p.id === item.productoId);
+      const producto = productos.find((p) => p.id === item.productoId);
       if (producto && producto.stock < item.cantidad) {
         stockInsuficiente.push({
           producto: producto.nombre,
@@ -177,7 +179,7 @@ export async function POST(request: NextRequest) {
     const total = subtotal + impuestos;
 
     // Crear pedido en transacción
-    const resultado = await prisma.$transaction(async (tx) => {
+    const resultado = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Generar número de pedido
       const numero = await generarNumeroPedidoVenta();
 

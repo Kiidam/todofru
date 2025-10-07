@@ -9,6 +9,7 @@
  */
 
 import { prisma } from './prisma';
+import { Prisma } from '@prisma/client';
 
 export interface ProductoInventarioSync {
   id: string;
@@ -64,17 +65,17 @@ export async function validateProductoInventarioSync(): Promise<SyncValidationRe
       }
     });
 
-    const productosEnInventario = movimientosInventario.map(m => m.productoId);
-    const productosEnCatalogo = catalogoProductos.map(p => p.id);
+    const productosEnInventario = movimientosInventario.map((m: { productoId: string }) => m.productoId);
+    const productosEnCatalogo = catalogoProductos.map((p: { id: string }) => p.id);
 
     // Buscar productos huérfanos en inventario (sin referencia en catálogo)
     result.orphanedInventory = productosEnInventario.filter(
-      productoId => !productosEnCatalogo.includes(productoId)
+      (productoId: string) => !productosEnCatalogo.includes(productoId)
     );
 
     // Buscar productos en catálogo sin movimientos de inventario
     result.missingInventory = productosEnCatalogo.filter(
-      productoId => !productosEnInventario.includes(productoId)
+      (productoId: string) => !productosEnInventario.includes(productoId)
     );
 
     // Generar reportes
@@ -202,7 +203,7 @@ export async function validateProductoParaMovimiento(productoId: string): Promis
 export async function actualizarStockProducto(
   productoId: string,
   nuevaCantidad: number,
-  transaccion?: any
+  transaccion?: Prisma.TransactionClient
 ) {
   const prismaClient = transaccion || prisma;
   
@@ -325,7 +326,8 @@ export const ProductoInventarioHooks = {
   /**
    * Hook para después de crear un producto
    */
-  afterCreateProducto: async (productoId: string) => {
+  afterCreateProducto: async (_productoId: string) => {
+    void _productoId;
     // Por ahora no hacemos nada, el stock inicial es 0
     // En el futuro podrían agregarse movimientos automáticos de inicialización
   },

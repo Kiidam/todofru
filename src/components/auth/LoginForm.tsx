@@ -34,10 +34,30 @@ export default function LoginForm() {
       return true;
     } catch (error) {
       if (error instanceof z.ZodError) {
-        setErrors(prev => ({ ...prev, [name]: error.errors[0].message }));
+        setErrors(prev => ({ ...prev, [name]: error.issues[0].message }));
       }
       return false;
     }
+  };
+
+  // Validación del formulario completo usando safeParse y flatten()
+  const validateForm = (data: LoginFormData) => {
+    const result = loginSchema.safeParse(data);
+    if (!result.success) {
+      const { fieldErrors, formErrors } = result.error.flatten();
+      setErrors({
+        email: fieldErrors.email?.[0],
+        password: fieldErrors.password?.[0],
+      });
+      // Si existiera un error general del formulario, lo mostramos como error de login
+      if (formErrors && formErrors.length > 0) {
+        setLoginError(formErrors[0]);
+      }
+      return false;
+    }
+    // Limpiar errores si todo es válido
+    setErrors({});
+    return true;
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,20 +72,15 @@ export default function LoginForm() {
     e.preventDefault();
     setLoginError(null);
     
-    // Validar todos los campos
-    let isValid = true;
-    Object.entries(formData).forEach(([key, value]) => {
-      const fieldValid = validateField(key as keyof LoginFormData, value);
-      if (!fieldValid) isValid = false;
-    });
-
+    // Validar todos los campos con el esquema completo
+    const isValid = validateForm(formData);
     if (!isValid) return;
 
     setIsLoading(true);
     
     try {
       // Autenticar con el hook useAuth
-      const { success, error } = await login(formData.email, formData.password);
+      const { success } = await login(formData.email, formData.password);
       
       if (!success) {
         setLoginError('Credenciales incorrectas. Por favor, verifica tu correo y contraseña.');
@@ -74,7 +89,7 @@ export default function LoginForm() {
       
       // Si la autenticación fue exitosa, redirigir al dashboard
       router.push('/dashboard');
-    } catch (error) {
+    } catch {
       setLoginError('Ocurrió un error al iniciar sesión. Inténtalo de nuevo.');
     } finally {
       setIsLoading(false);
@@ -139,8 +154,8 @@ export default function LoginForm() {
       <div>
         <button
           type="submit"
-          disabled={isLoading}
-          className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white ${isLoading || Object.keys(errors).length > 0 ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500'} transition-colors`}
+          disabled={isLoading || !!errors.email || !!errors.password}
+          className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white ${isLoading || !!errors.email || !!errors.password ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500'} transition-colors`}
         >
           {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
         </button>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { EstadoPedido, Prisma } from '@prisma/client';
 
 // Esquema de validación para pedidos de compra
 const itemSchema = z.object({
@@ -54,8 +55,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      ...(estado && { estado }),
+    const where = {
+      ...(estado && { estado: estado as EstadoPedido }),
       ...(proveedorId && { proveedorId }),
       ...(fechaDesde || fechaHasta) && {
         fecha: {
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
           ...(fechaHasta && { lte: new Date(fechaHasta) })
         }
       }
-    };
+    } as const;
 
     const [pedidos, total] = await Promise.all([
       prisma.pedidoCompra.findMany({
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
     const total = subtotal + impuestos;
 
     // Crear pedido en transacción
-    const resultado = await prisma.$transaction(async (tx) => {
+    const resultado = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Generar número de pedido
       const numero = await generarNumeroPedido();
 

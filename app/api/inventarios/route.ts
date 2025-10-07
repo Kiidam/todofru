@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { getProductosParaInventario, validateProductoInventarioSync } from '@/lib/producto-inventario-sync';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 // GET /api/inventarios - Obtener productos y movimientos de inventario
 export async function GET(request: NextRequest) {
@@ -73,38 +74,21 @@ export async function GET(request: NextRequest) {
 
       case 'estadisticas':
         // Obtener estadísticas del inventario
-        const totalProductos = await prisma.producto.count({
-          where: { activo: true }
-        });
-
-        const productosStockBajo = await prisma.producto.count({
-          where: {
-            activo: true,
-            stock: {
-              lte: prisma.producto.fields.stockMinimo
-            }
-          }
-        });
-
-        const productosSinStock = await prisma.producto.count({
-          where: {
-            activo: true,
-            stock: 0
-          }
-        });
-
-        const valorTotalInventario = await prisma.producto.aggregate({
+        const productosActivos = await prisma.producto.findMany({
           where: { activo: true },
-          _sum: {
-            stock: true
-          }
+          select: { stock: true, stockMinimo: true, precio: true }
         });
+
+        const totalProductos = productosActivos.length;
+        const productosStockBajo = productosActivos.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= (p.stockMinimo ?? 0)).length;
+        const productosSinStock = productosActivos.filter(p => (p.stock ?? 0) === 0).length;
+        const valorTotalInventario = productosActivos.reduce((sum, p) => sum + ((p.stock ?? 0) * (p.precio ?? 0)), 0);
 
         const estadisticas = {
           totalProductos,
           productosStockBajo,
           productosSinStock,
-          valorTotalInventario: valorTotalInventario._sum.stock || 0
+          valorTotalInventario
         };
 
         return NextResponse.json({ estadisticas });
@@ -166,7 +150,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Crear movimiento en transacción
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Calcular nuevo stock
       const cantidadAnterior = producto.stock;
       let cantidadNueva;

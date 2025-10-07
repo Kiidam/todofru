@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client'; // TransactionClient used
 
 // PUT /api/pedidos-venta/[id]/completar - Completar pedido de venta
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession();
@@ -13,9 +14,11 @@ export async function PUT(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
+
     // Verificar que el pedido existe y está en estado válido
     const pedido = await prisma.pedidoVenta.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         items: {
           include: {
@@ -70,10 +73,10 @@ export async function PUT(
     }
 
     // Completar pedido y actualizar inventario en transacción
-    const resultado = await prisma.$transaction(async (tx) => {
+    const resultado = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Actualizar estado del pedido
       const pedidoActualizado = await tx.pedidoVenta.update({
-        where: { id: params.id },
+        where: { id },
         data: { estado: 'COMPLETADO' }
       });
 
@@ -113,7 +116,7 @@ export async function PUT(
 
     // Obtener el pedido actualizado con relaciones
     const pedidoCompleto = await prisma.pedidoVenta.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         cliente: { select: { id: true, nombre: true, tipoCliente: true } },
         items: {

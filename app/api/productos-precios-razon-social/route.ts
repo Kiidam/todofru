@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession();
@@ -15,15 +16,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    const where: any = { activo: true };
-    
-    if (productoId) {
-      where.productoId = productoId;
-    }
-    
-    if (razonSocialId) {
-      where.razonSocialId = razonSocialId;
-    }
+    const where = {
+      activo: true,
+      ...(productoId ? { productoId: { equals: productoId } } : {}),
+      ...(razonSocialId ? { razonSocialId: { equals: razonSocialId } } : {})
+    };
 
     const [precios, total] = await Promise.all([
       prisma.productoPrecioRazonSocial.findMany({

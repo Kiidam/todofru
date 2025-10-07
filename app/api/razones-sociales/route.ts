@@ -15,19 +15,14 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const activo = searchParams.get('activo');
 
-    const where: any = {};
-    
-    if (search) {
-      where.OR = [
+    const where = {
+      ...(search ? { OR: [
         { nombre: { contains: search, mode: 'insensitive' } },
         { ruc: { contains: search, mode: 'insensitive' } },
         { sector: { contains: search, mode: 'insensitive' } }
-      ];
-    }
-    
-    if (activo !== null && activo !== '') {
-      where.activo = activo === 'true';
-    }
+      ] } : {}),
+      ...(activo !== null && activo !== '' ? { activo: activo === 'true' } : {})
+    };
 
     const [razonesSociales, total] = await Promise.all([
       prisma.razonSocial.findMany({

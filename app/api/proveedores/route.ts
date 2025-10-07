@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
-    const where: any = {
+    const where = {
       activo: true,
       ...(search && {
         OR: [

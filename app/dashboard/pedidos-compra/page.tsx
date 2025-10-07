@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ShoppingCart, Plus, Search, Filter, Eye, Check, X, Clock, AlertCircle } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Eye, Check, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
@@ -92,7 +92,21 @@ export default function PedidosCompraPage() {
   }, []);
 
   useEffect(() => {
-    filterPedidos();
+    let filtered = pedidos;
+
+    if (searchTerm) {
+      filtered = filtered.filter(pedido =>
+        pedido.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pedido.proveedor.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pedido.numeroGuia?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (estadoFilter !== 'all') {
+      filtered = filtered.filter(pedido => pedido.estado === estadoFilter);
+    }
+
+    setFilteredPedidos(filtered);
   }, [pedidos, searchTerm, estadoFilter]);
 
   const fetchPedidos = async () => {
@@ -318,23 +332,6 @@ export default function PedidosCompraPage() {
     }
   };
 
-  const filterPedidos = () => {
-    let filtered = pedidos;
-
-    if (searchTerm) {
-      filtered = filtered.filter(pedido =>
-        pedido.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pedido.proveedor.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pedido.numeroGuia?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (estadoFilter !== 'all') {
-      filtered = filtered.filter(pedido => pedido.estado === estadoFilter);
-    }
-
-    setFilteredPedidos(filtered);
-  };
 
   const getEstadoColor = (estado: string) => {
     switch (estado) {
@@ -394,15 +391,15 @@ export default function PedidosCompraPage() {
 
   const { subtotal, impuestos, total } = calculateTotals();
 
-  const updateFormItem = (index: number, field: string, value: any) => {
+  const updateFormItem = (index: number, field: 'productoId' | 'cantidad' | 'precio', value: string | number) => {
     setFormData(prev => ({
       ...prev,
       items: prev.items.map((item, i) => {
         if (i === index) {
-          const updatedItem = { ...item, [field]: value };
+          const updatedItem = { ...item, [field]: value as never };
           
           // Si se cambió el producto, actualizar el precio automáticamente
-          if (field === 'productoId' && value) {
+          if (field === 'productoId' && typeof value === 'string' && value) {
             const producto = productos.find(p => p.id === value);
             if (producto) {
               updatedItem.precio = producto.precio;

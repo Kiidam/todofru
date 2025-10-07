@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { CreditCard, Plus, Search, AlertTriangle, DollarSign, Calendar } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -52,17 +52,7 @@ export default function CuentasPorCobrarPage() {
     cobradas: 0
   });
 
-  useEffect(() => {
-    fetchCuentas();
-    fetchClientes();
-  }, []);
-
-  useEffect(() => {
-    filterCuentas();
-    calculateStats();
-  }, [cuentas, searchTerm, estadoFilter]);
-
-  const fetchCuentas = async () => {
+  const fetchCuentas = useCallback(async () => {
     try {
       const response = await fetch('/api/cuentas-por-cobrar');
       const data = await response.json();
@@ -75,9 +65,9 @@ export default function CuentasPorCobrarPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchClientes = async () => {
+  const fetchClientes = useCallback(async () => {
     try {
       const response = await fetch('/api/clientes?limit=100');
       const data = await response.json();
@@ -88,9 +78,13 @@ export default function CuentasPorCobrarPage() {
     } catch (error) {
       console.error('Error al cargar clientes:', error);
     }
-  };
+  }, []);
 
-  const calculateStats = () => {
+  useEffect(() => {
+    fetchCuentas();
+    fetchClientes();
+  }, [fetchCuentas, fetchClientes]);
+  const calculateStats = useCallback(() => {
     const now = new Date();
     const totalPorCobrar = cuentas
       .filter(c => c.estado === 'PENDIENTE' || c.estado === 'PARCIAL')
@@ -109,9 +103,9 @@ export default function CuentasPorCobrarPage() {
     const cobradas = cuentas.filter(c => c.estado === 'PAGADO').length;
 
     setStats({ totalPorCobrar, vencidas, porVencer, cobradas });
-  };
+  }, [cuentas]);
 
-  const filterCuentas = () => {
+  const filterCuentas = useCallback(() => {
     let filtered = cuentas;
 
     if (searchTerm) {
@@ -134,7 +128,12 @@ export default function CuentasPorCobrarPage() {
     }
 
     setFilteredCuentas(filtered);
-  };
+  }, [cuentas, searchTerm, estadoFilter]);
+
+  useEffect(() => {
+    filterCuentas();
+    calculateStats();
+  }, [filterCuentas, calculateStats]);
 
   const getEstadoColor = (cuenta: CuentaPorCobrar) => {
     if (cuenta.estado === 'PAGADO') return 'text-green-800 bg-green-100';

@@ -10,7 +10,7 @@ interface HeaderProps {
 
 export default function Header({ title, subtitle }: HeaderProps) {
   const pathname = usePathname();
-  const [notifications, setNotifications] = useState(3);
+  const [notifications] = useState(3);
   
   // Determinar título y subtítulo basado en la ruta actual si no se proporcionan
   const getPageInfo = () => {

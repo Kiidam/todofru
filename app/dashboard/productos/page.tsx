@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { Search, Plus, Package, Edit2, Trash2, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Package, Edit2, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { ProductoInventarioHooks } from '../../../src/lib/producto-inventario-sync';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
@@ -67,67 +67,67 @@ export default function ProductosPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Mock data para los selectores
-  const mockCategorias = [
+  const mockCategorias = useMemo(() => [
     { id: '1', nombre: 'Frutas Citricas' },
     { id: '2', nombre: 'Frutas Tropicales' },
     { id: '3', nombre: 'Verduras de Hoja' },
     { id: '4', nombre: 'Verduras de Fruto' },
     { id: '5', nombre: 'Tuberculos' },
-  ];
+  ], []);
 
-  const mockTiposArticulo = [
+  const mockTiposArticulo = useMemo(() => [
     { id: '1', nombre: 'Producto Natural' },
     { id: '2', nombre: 'Producto Procesado' },
     { id: '3', nombre: 'Producto Organico' },
-  ];
+  ], []);
 
-  const mockFamilias = [
+  const mockFamilias = useMemo(() => [
     { id: '1', nombre: 'Frutas' },
     { id: '2', nombre: 'Verduras' },
     { id: '3', nombre: 'Hierbas' },
-  ];
+  ], []);
 
-  const mockSubfamilias = [
+  const mockSubfamilias = useMemo(() => [
     { id: '1', nombre: 'Citricos' },
     { id: '2', nombre: 'Tropicales' },
     { id: '3', nombre: 'De Hueso' },
     { id: '4', nombre: 'De Hoja Verde' },
     { id: '5', nombre: 'De Raiz' },
     { id: '6', nombre: 'De Fruto' },
-  ];
+  ], []);
 
-  const mockUnidades = [
+  const mockUnidades = useMemo(() => [
     { id: '1', nombre: 'Kilogramo', simbolo: 'kg' },
     { id: '2', nombre: 'Unidad', simbolo: 'und' },
     { id: '3', nombre: 'Caja', simbolo: 'caja' },
     { id: '4', nombre: 'Saco', simbolo: 'saco' },
     { id: '5', nombre: 'Docena', simbolo: 'docena' },
-  ];
+  ], []);
 
-  const mockMarcas = [
+  const mockMarcas = useMemo(() => [
     { id: '1', nombre: 'TODAFRU Premium' },
     { id: '2', nombre: 'TODAFRU Organico' },
     { id: '3', nombre: 'TODAFRU Tradicional' },
     { id: '4', nombre: 'Sin Marca' },
-  ];
+  ], []);
 
-  const mockAgrupadores = [
+  const mockAgrupadores = useMemo(() => [
     { id: '1', nombre: 'Alta Rotacion' },
     { id: '2', nombre: 'Estacional' },
     { id: '3', nombre: 'Premium' },
     { id: '4', nombre: 'Exportacion' },
-  ];
+  ], []);
 
-  const mockRazonesSociales = [
+  const mockRazonesSociales = useMemo(() => [
     { id: '1', nombre: 'Supermercados Wong S.A.' },
     { id: '2', nombre: 'Metro S.A.' },
     { id: '3', nombre: 'Tottus S.A.' },
     { id: '4', nombre: 'Plaza Vea S.A.' },
     { id: '5', nombre: 'Restaurantes Centrales S.A.C.' },
-  ];
+  ], []);
 
   // Funcion para generar SKU automatico
-  const generateSKU = (nombre: string, categoriaId: string, familiaId: string) => {
+  const generateSKU = useCallback((nombre: string, categoriaId: string, familiaId: string) => {
     if (!nombre || !categoriaId) return '';
     
     const categoria = mockCategorias.find(c => c.id === categoriaId);
@@ -142,7 +142,7 @@ export default function ProductosPage() {
     const timestamp = Date.now().toString().slice(-3);
     
     return `${categoriaCode}-${familiaCode ? familiaCode + '-' : ''}${nombreCode}-${timestamp}`;
-  };
+  }, [mockCategorias, mockFamilias]);
 
   const [formData, setFormData] = useState<FormData>({
     nombre: '',
@@ -175,7 +175,7 @@ export default function ProductosPage() {
       const generatedSKU = generateSKU(formData.nombre, formData.categoriaId, formData.familiaId);
       setFormData(prev => ({ ...prev, sku: generatedSKU }));
     }
-  }, [formData.nombre, formData.categoriaId, formData.familiaId, editingProduct]);
+  }, [formData.nombre, formData.categoriaId, formData.familiaId, editingProduct, generateSKU]);
 
   const fetchProductos = async () => {
     setLoading(true);

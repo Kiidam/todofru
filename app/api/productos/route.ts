@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Construir filtros
-    const where: any = {
+    const where = {
       activo: true,
       ...(search && {
         OR: [
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
           {
             AND: [
               { stock: { gt: 0 } },
-              { stock: { lte: { field: 'stockMinimo' } as any } }
+              { stock: { lte: { field: 'stockMinimo' } as unknown as number } }
             ]
           }
         ]

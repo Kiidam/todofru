@@ -12,7 +12,7 @@ export const useAuth = () => {
       });
 
       return { success: !result?.error, error: result?.error };
-    } catch (error) {
+    } catch {
       return { success: false, error: 'Error al iniciar sesión' };
     }
   };

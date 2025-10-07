@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { TipoCliente } from '@prisma/client';
 
 // Esquema de validación para clientes
 const clienteSchema = z.object({
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
-    const where: any = {
+    const where = {
       activo: true,
       ...(search && {
         OR: [
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
           { contacto: { contains: search, mode: 'insensitive' } }
         ]
       }),
-      ...(tipoCliente && { tipoCliente })
+      ...(tipoCliente && { tipoCliente: tipoCliente as TipoCliente })
     };
 
     const [clientes, total] = await Promise.all([

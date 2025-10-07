@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { EstadoCuenta } from '@prisma/client';
 
 // Esquema de validación para cuentas por cobrar
 const cuentaPorCobrarSchema = z.object({
@@ -47,14 +48,14 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      ...(estado && { estado }),
+    const where = {
+      ...(estado && { estado: estado as EstadoCuenta }),
       ...(clienteId && { clienteId }),
       ...(vencidas && {
         fechaVencimiento: { lt: new Date() },
-        estado: { in: ['PENDIENTE', 'PARCIAL'] }
+        estado: { in: [EstadoCuenta.PENDIENTE, EstadoCuenta.PARCIAL] }
       })
-    };
+    } as const;
 
     const [cuentas, total] = await Promise.all([
       prisma.cuentaPorCobrar.findMany({

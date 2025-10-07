@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { validateProductoParaMovimiento, actualizarStockProducto } from '@/lib/producto-inventario-sync';
+import { validateProductoParaMovimiento } from '@/lib/producto-inventario-sync';
+import { TipoMovimiento, Prisma } from '@prisma/client';
 
 // Esquema de validación para movimientos
 const movimientoSchema = z.object({
@@ -32,16 +33,16 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Construir filtros
-    const where: any = {
+    const where = {
       ...(productoId && { productoId }),
-      ...(tipo && { tipo }),
+      ...(tipo && { tipo: tipo as TipoMovimiento }),
       ...(fechaDesde || fechaHasta) && {
         createdAt: {
           ...(fechaDesde && { gte: new Date(fechaDesde) }),
           ...(fechaHasta && { lte: new Date(fechaHasta) })
         }
       }
-    };
+    } as const;
 
     const [movimientos, total] = await Promise.all([
       prisma.movimientoInventario.findMany({
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Crear movimiento y actualizar stock en una transacción
-    const resultado = await prisma.$transaction(async (tx) => {
+    const resultado = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Crear el movimiento
       const movimiento = await tx.movimientoInventario.create({
         data: {

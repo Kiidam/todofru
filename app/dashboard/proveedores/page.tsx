@@ -247,6 +247,20 @@ export default function ProveedoresPage() {
                         {supplier.productsCount} productos
                       </span>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => handleEdit(supplier)}
+                        className="text-indigo-600 hover:text-indigo-900 mr-3"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(supplier.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Eliminar
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

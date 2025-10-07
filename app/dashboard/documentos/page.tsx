@@ -247,7 +247,7 @@ export default function DocumentosPage() {
                 <select
                   id="type-filter"
                   value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value as any)}
+                  onChange={(e) => setTypeFilter(e.target.value as 'all' | 'invoice' | 'receipt' | 'contract' | 'report' | 'other')}
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   aria-label="Filtrar por tipo de documento"
                 >
@@ -264,7 +264,7 @@ export default function DocumentosPage() {
                 <select
                   id="status-filter"
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'archived' | 'deleted')}
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   aria-label="Filtrar por estado de documento"
                 >
@@ -423,7 +423,7 @@ export default function DocumentosPage() {
                   <select
                     id="document-type"
                     value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as 'invoice' | 'receipt' | 'contract' | 'report' | 'other' })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     aria-describedby="document-type-help"
                   >
@@ -445,7 +445,7 @@ export default function DocumentosPage() {
                   <select
                     id="document-status"
                     value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'archived' })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     aria-describedby="document-status-help"
                   >
@@ -501,7 +501,7 @@ export default function DocumentosPage() {
                   <select
                     id="document-entity-type"
                     value={formData.relatedEntityType}
-                    onChange={(e) => setFormData({ ...formData, relatedEntityType: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, relatedEntityType: e.target.value as 'client' | 'supplier' | 'product' })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     aria-describedby="document-entity-type-help"
                   >
