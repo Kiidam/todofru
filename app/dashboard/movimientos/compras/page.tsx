@@ -184,7 +184,7 @@ export default function MovimientosComprasPage() {
           fecha: p.fecha || new Date().toISOString(),
           proveedorId: p.proveedorId || '',
           proveedorNombre: p.proveedor?.nombre || 'Proveedor',
-          usuario: 'Sistema',
+          usuario: p.usuario?.name || 'Sistema',
           items: Array.isArray(p.items) ? p.items.map((item: any) => ({
             productoId: item.productoId || '',
             nombre: item.producto?.nombre || 'Producto',
@@ -193,6 +193,10 @@ export default function MovimientosComprasPage() {
             unidad: item.producto?.unidadMedida?.simbolo || 'unidad',
           })) : [],
           total: Number(p.total) || 0,
+          subtotal: Number(p.subtotal) || 0,
+          impuestos: Number(p.impuestos) || 0,
+          observaciones: p.observaciones || '',
+          fechaEntrega: p.fechaEntrega || null,
         }));
         setPurchases(purchasesList);
       }
@@ -204,6 +208,8 @@ export default function MovimientosComprasPage() {
   };
 
   useEffect(() => {
+    // Cargar datos iniciales
+    fetchPurchases();
 
     const fetchProductos = async () => {
       try {
@@ -220,17 +226,12 @@ export default function MovimientosComprasPage() {
           }));
           setProductos(opts);
         } else {
-          // Mock mínimo si no hay API
-          setProductos([
-            { id: 'p1', nombre: 'Manzana Fuji', sku: 'MAN-001', unidadMedida: { simbolo: 'kg' } },
-            { id: 'p2', nombre: 'Naranja Valencia', sku: 'NAR-001', unidadMedida: { simbolo: 'kg' } },
-          ]);
+          console.warn('No se encontraron productos en la API');
+          setProductos([]);
         }
-      } catch {
-        setProductos([
-          { id: 'p1', nombre: 'Manzana Fuji', sku: 'MAN-001', unidadMedida: { simbolo: 'kg' } },
-          { id: 'p2', nombre: 'Naranja Valencia', sku: 'NAR-001', unidadMedida: { simbolo: 'kg' } },
-        ]);
+      } catch (error) {
+        console.error('Error al cargar productos:', error);
+        setProductos([]);
       } finally {
         setLoadingProductos(false);
       }
@@ -240,29 +241,27 @@ export default function MovimientosComprasPage() {
         setLoadingProveedores(true);
         const res = await fetch('/api/proveedores?page=1&limit=50');
         if (!res.ok) {
-          setProveedores([
-            { id: 'prov1', nombre: 'Distribuidora XYZ E.I.R.L.', ruc: '20123456789' },
-            { id: 'prov2', nombre: 'Comercial 123 S.R.L.', ruc: '20654321098' },
-          ]);
+          console.error('Error al obtener proveedores:', res.status, res.statusText);
+          setProveedores([]);
           return;
         }
         const json = await res.json();
         const arr = Array.isArray(json?.data) ? json.data : [];
         if (arr.length > 0) {
-          const opts: ProveedorOption[] = arr.map((p: any) => ({ id: p.id, nombre: p.nombre, ruc: p.ruc ?? null }));
+          const opts: ProveedorOption[] = arr.map((p: any) => ({
+            id: p.id,
+            nombre: p.nombre || p.razonSocial || `${p.nombres || ''} ${p.apellidos || ''}`.trim() || 'Sin nombre',
+            ruc: p.numeroIdentificacion || p.ruc || null
+          }));
           setProveedores(opts);
         } else {
-          // Fallback si base vacía
-          setProveedores([
-            { id: 'prov1', nombre: 'Distribuidora XYZ E.I.R.L.', ruc: '20123456789' },
-            { id: 'prov2', nombre: 'Comercial 123 S.R.L.', ruc: '20654321098' },
-          ]);
+          // Solo usar fallback si realmente no hay datos en la base de datos
+          console.warn('No se encontraron proveedores en la base de datos');
+          setProveedores([]);
         }
-      } catch {
-        setProveedores([
-          { id: 'prov1', nombre: 'Distribuidora XYZ E.I.R.L.', ruc: '20123456789' },
-          { id: 'prov2', nombre: 'Comercial 123 S.R.L.', ruc: '20654321098' },
-        ]);
+      } catch (error) {
+        console.error('Error al cargar proveedores:', error);
+        setProveedores([]);
       } finally {
         setLoadingProveedores(false);
       }

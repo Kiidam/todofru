@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Plus, Loader2, Check, AlertCircle, User, Building2 } from "lucide-react";
+import { Plus, Loader2, Check, AlertCircle, User, Building2, Lock } from "lucide-react";
+import { validateDocument, sanitizeNumericInput, isDocumentComplete } from "@/utils/documentValidation";
 
 // Tipos para el formulario
 interface SupplierFormData {
@@ -66,6 +67,10 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
   // Estados de validación
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  // Estado para controlar bloqueo de campos
+  const [isDocumentValid, setIsDocumentValid] = useState(false);
+  const [fieldsLocked, setFieldsLocked] = useState(false);
+
   // Referencia para debounce
   const debounceRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
@@ -88,14 +93,14 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
     switch (field) {
       case 'numeroIdentificacion':
         {
-          const strVal = String(value || '').replace(/[^0-9]/g, '');
-          const computedType: 'DNI' | 'RUC' = strVal.length >= 9 ? 'RUC' : 'DNI';
+          const strVal = sanitizeNumericInput(String(value || ''));
           if (!strVal || strVal.trim() === '') {
             errors[field] = 'El número de identificación es obligatorio';
-          } else if (computedType === 'DNI' && !/^\d{8}$/.test(strVal)) {
-            errors[field] = 'El DNI debe tener exactamente 8 dígitos';
-          } else if (computedType === 'RUC' && !/^\d{11}$/.test(strVal)) {
-            errors[field] = 'El RUC debe tener exactamente 11 dígitos';
+          } else {
+            const validation = validateDocument(strVal);
+            if (!validation.isValid) {
+              errors[field] = validation.error || 'Documento inválido';
+            }
           }
         }
         break;
@@ -155,36 +160,39 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
       clearTimeout(debounceRef.current);
     }
 
-    // Normalizar: solo dígitos, hasta 11
-    const value = rawValue.replace(/[^0-9]/g, '').slice(0, 11);
+    // Sanitizar entrada: solo dígitos, hasta 11
+    const value = sanitizeNumericInput(rawValue).slice(0, 11);
 
     // Auto-cambiar tipo según longitud
     const nextType: 'DNI' | 'RUC' = value.length >= 9 ? 'RUC' : 'DNI';
     setFormData(prev => ({ ...prev, numeroIdentificacion: value, tipoIdentificacion: nextType }));
     
-    // Validar campo según tipo
+    // Validar documento usando las nuevas utilidades
+    const validation = validateDocument(value);
+    const isValidDocument = validation.isValid;
+    
+    // Actualizar estados de validación y bloqueo
+    setIsDocumentValid(isValidDocument);
+    setFieldsLocked(isValidDocument);
+    
+    // Validar campo
     validateField('numeroIdentificacion', value);
 
     // Si el valor está vacío o es inválido, limpiar estados
-    if (!value || value.trim() === '') {
+    if (!value || value.trim() === '' || !isValidDocument) {
       setLookupStatus('idle');
       setLookupError('');
       setAutocompletedFields(new Set());
       setLookupSource('');
+      
+      // Si no es válido, desbloquear campos
+      if (!isValidDocument) {
+        setFieldsLocked(false);
+      }
       return;
     }
 
-    // Verificar formato básico (permitir 8 o 11)
-    const isValid = /^\d{8}$|^\d{11}$/.test(value);
-    if (!isValid) {
-      setLookupStatus('idle');
-      setLookupError('');
-      setAutocompletedFields(new Set());
-      setLookupSource('');
-      return;
-    }
-
-    // Configurar debounce para búsqueda
+    // Configurar debounce para búsqueda solo si el documento es válido
     debounceRef.current = setTimeout(() => {
       performLookup(value);
     }, 500);
@@ -354,8 +362,17 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
     setSubmitSuccess('');
 
     try {
+      // Mapear tipoIdentificacion a tipoEntidad según el esquema del backend
+      const tipoEntidad = formData.tipoIdentificacion === 'DNI' ? 'PERSONA_NATURAL' : 'PERSONA_JURIDICA';
+      
+      // Construir el nombre según el tipo de entidad
+      const nombre = formData.tipoIdentificacion === 'DNI' 
+        ? `${formData.nombres} ${formData.apellidos}`.trim()
+        : formData.razonSocial || '';
+
       const payload = {
-        tipoIdentificacion: formData.tipoIdentificacion,
+        tipoEntidad,
+        nombre,
         numeroIdentificacion: formData.numeroIdentificacion,
         direccion: formData.direccion,
         telefono: formData.telefono || undefined,
@@ -378,7 +395,21 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || `Error ${response.status}: ${response.statusText}`);
+        // Manejar errores específicos del backend
+        if (result.issues && Array.isArray(result.issues)) {
+          // Errores de validación de Zod
+          const validationErrors = result.issues.map((issue: any) => {
+            const field = issue.path?.join('.') || 'campo';
+            return `${field}: ${issue.message}`;
+          }).join(', ');
+          throw new Error(`Errores de validación: ${validationErrors}`);
+        } else if (result.error) {
+          // Error específico del backend
+          throw new Error(result.error);
+        } else {
+          // Error genérico
+          throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
       }
 
       setSubmitSuccess('Proveedor creado exitosamente');
@@ -428,10 +459,10 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
             <button
               type="button"
               onClick={() => handleTipoIdentificacionChange('DNI')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md border transition-all font-medium ${
                 formData.tipoIdentificacion === 'DNI'
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
               }`}
             >
               <User className="h-4 w-4" />
@@ -440,10 +471,10 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
             <button
               type="button"
               onClick={() => handleTipoIdentificacionChange('RUC')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md border transition-all font-medium ${
                 formData.tipoIdentificacion === 'RUC'
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
               }`}
             >
               <Building2 className="h-4 w-4" />
@@ -504,40 +535,76 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
             <div>
               <label htmlFor="nombres" className="block text-sm font-medium text-gray-700 mb-2">
                 Nombres *
+                {fieldsLocked && (
+                  <span className="ml-2 inline-flex items-center text-xs text-amber-600">
+                    <Lock className="w-3 h-3 mr-1" />
+                    Bloqueado por documento válido
+                  </span>
+                )}
               </label>
-              <input
-                type="text"
-                id="nombres"
-                value={formData.nombres || ''}
-                onChange={(e) => handleFieldChange('nombres', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  fieldErrors.nombres ? 'border-red-500' : 
-                  autocompletedFields.has('nombres') ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                }`}
-                placeholder="Nombres del proveedor"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  id="nombres"
+                  value={formData.nombres || ''}
+                  onChange={(e) => handleFieldChange('nombres', e.target.value)}
+                  disabled={fieldsLocked}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    fieldsLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' :
+                    fieldErrors.nombres ? 'border-red-500' : 
+                    autocompletedFields.has('nombres') ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Nombres del proveedor"
+                />
+                {fieldsLocked && (
+                  <Lock className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
+                )}
+              </div>
               {fieldErrors.nombres && (
                 <p className="mt-1 text-sm text-red-600">{fieldErrors.nombres}</p>
+              )}
+              {fieldsLocked && !fieldErrors.nombres && (
+                <p className="mt-1 text-sm text-amber-600">
+                  El nombre no puede modificarse una vez registrado el documento válido
+                </p>
               )}
             </div>
 
             <div>
               <label htmlFor="apellidos" className="block text-sm font-medium text-gray-700 mb-2">
                 Apellidos *
+                {fieldsLocked && (
+                  <span className="ml-2 inline-flex items-center text-xs text-amber-600">
+                    <Lock className="w-3 h-3 mr-1" />
+                    Bloqueado por documento válido
+                  </span>
+                )}
               </label>
-              <input
-                type="text"
-                id="apellidos"
-                value={formData.apellidos || ''}
-                onChange={(e) => handleFieldChange('apellidos', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  fieldErrors.apellidos ? 'border-red-500' : 
-                  autocompletedFields.has('apellidos') ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                }`}
-                placeholder="Apellidos del proveedor"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  id="apellidos"
+                  value={formData.apellidos || ''}
+                  onChange={(e) => handleFieldChange('apellidos', e.target.value)}
+                  disabled={fieldsLocked}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    fieldsLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' :
+                    fieldErrors.apellidos ? 'border-red-500' : 
+                    autocompletedFields.has('apellidos') ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Apellidos del proveedor"
+                />
+                {fieldsLocked && (
+                  <Lock className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
+                )}
+              </div>
               {fieldErrors.apellidos && (
                 <p className="mt-1 text-sm text-red-600">{fieldErrors.apellidos}</p>
+              )}
+              {fieldsLocked && !fieldErrors.apellidos && (
+                <p className="mt-1 text-sm text-amber-600">
+                  El nombre no puede modificarse una vez registrado el documento válido
+                </p>
               )}
             </div>
           </>
@@ -549,20 +616,38 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
             <div>
               <label htmlFor="razonSocial" className="block text-sm font-medium text-gray-700 mb-2">
                 Razón Social *
+                {fieldsLocked && (
+                  <span className="ml-2 inline-flex items-center text-xs text-amber-600">
+                    <Lock className="w-3 h-3 mr-1" />
+                    Bloqueado por documento válido
+                  </span>
+                )}
               </label>
-              <input
-                type="text"
-                id="razonSocial"
-                value={formData.razonSocial || ''}
-                onChange={(e) => handleFieldChange('razonSocial', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  fieldErrors.razonSocial ? 'border-red-500' : 
-                  autocompletedFields.has('razonSocial') ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                }`}
-                placeholder="Razón social de la empresa"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  id="razonSocial"
+                  value={formData.razonSocial || ''}
+                  onChange={(e) => handleFieldChange('razonSocial', e.target.value)}
+                  disabled={fieldsLocked}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    fieldsLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' :
+                    fieldErrors.razonSocial ? 'border-red-500' : 
+                    autocompletedFields.has('razonSocial') ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Razón social de la empresa"
+                />
+                {fieldsLocked && (
+                  <Lock className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
+                )}
+              </div>
               {fieldErrors.razonSocial && (
                 <p className="mt-1 text-sm text-red-600">{fieldErrors.razonSocial}</p>
+              )}
+              {fieldsLocked && !fieldErrors.razonSocial && (
+                <p className="mt-1 text-sm text-amber-600">
+                  La razón social no puede modificarse una vez registrado el documento válido
+                </p>
               )}
             </div>
 
@@ -661,7 +746,7 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            className="flex-1 bg-green-50 text-green-700 py-2 px-4 rounded-md hover:bg-green-100 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 border border-green-200 font-medium"
           >
             {isSubmitting ? (
               <>
@@ -680,7 +765,7 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
               type="button"
               onClick={onCancel}
               disabled={isSubmitting}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 border border-gray-200 text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
               Cancelar
             </button>

@@ -112,7 +112,7 @@ const ProductosProveedorModal: React.FC<ProductosProveedorModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-md hover:bg-gray-100"
           >
             <X className="w-6 h-6" />
           </button>

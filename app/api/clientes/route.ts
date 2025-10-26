@@ -116,6 +116,23 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
           );
         }
       }
+
+      // Verificar email único si se proporciona
+      if (validatedData.email && validatedData.email.trim() !== '') {
+        const existingClienteEmail = await prisma.cliente.findFirst({
+          where: { 
+            email: validatedData.email.trim().toLowerCase(),
+            activo: true 
+          }
+        });
+
+        if (existingClienteEmail) {
+          return NextResponse.json(
+            { success: false, error: `Ya existe un cliente con ese email` },
+            { status: 400 }
+          );
+        }
+      }
       
       // Calcular nombre según tipo de entidad
       const nombreCalculado = validatedData.tipoEntidad === 'PERSONA_NATURAL'

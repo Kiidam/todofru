@@ -1,0 +1,113 @@
+{
+  "timestamp": "2025-10-26T19:31:30.295Z",
+  "environment": "development",
+  "steps": [
+    {
+      "name": "Verificación de conexión a base de datos",
+      "status": "SUCCESS",
+      "duration": 13,
+      "result": {
+        "connected": true
+      },
+      "timestamp": "2025-10-26T19:31:30.309Z"
+    },
+    {
+      "name": "Creación de índices optimizados",
+      "status": "SUCCESS",
+      "duration": 34,
+      "result": {
+        "indices": [
+          {
+            "name": "idx_movimiento_fecha_tipo",
+            "status": "already_exists"
+          },
+          {
+            "name": "idx_pedido_venta_estado_fecha",
+            "status": "already_exists"
+          },
+          {
+            "name": "idx_producto_categoria_activo",
+            "status": "already_exists"
+          },
+          {
+            "name": "idx_auditoria_tabla_fecha",
+            "status": "already_exists"
+          },
+          {
+            "name": "idx_pedido_compra_item_producto",
+            "status": "already_exists"
+          },
+          {
+            "name": "idx_pedido_venta_item_producto",
+            "status": "already_exists"
+          }
+        ]
+      },
+      "timestamp": "2025-10-26T19:31:30.343Z"
+    },
+    {
+      "name": "Verificación de integridad de datos",
+      "status": "SUCCESS",
+      "duration": 2,
+      "result": {
+        "checks": [
+          {
+            "name": "productos_sin_categoria",
+            "count": 0,
+            "status": "OK"
+          },
+          {
+            "name": "movimientos_sin_usuario",
+            "count": 0,
+            "status": "OK"
+          }
+        ]
+      },
+      "timestamp": "2025-10-26T19:31:30.346Z"
+    },
+    {
+      "name": "Creación de directorios de configuración",
+      "status": "SUCCESS",
+      "duration": 1,
+      "result": {
+        "created": []
+      },
+      "timestamp": "2025-10-26T19:31:30.347Z"
+    },
+    {
+      "name": "Generación de archivos de configuración",
+      "status": "SUCCESS",
+      "duration": 0,
+      "result": {
+        "configs": []
+      },
+      "timestamp": "2025-10-26T19:31:30.347Z"
+    },
+    {
+      "name": "Verificación de rendimiento de consultas",
+      "status": "SUCCESS",
+      "duration": 6,
+      "result": {
+        "performanceTests": [
+          {
+            "query": "productos_con_joins",
+            "duration": 4,
+            "status": "GOOD"
+          },
+          {
+            "query": "movimientos_recientes",
+            "duration": 2,
+            "status": "GOOD"
+          }
+        ]
+      },
+      "timestamp": "2025-10-26T19:31:30.354Z"
+    }
+  ],
+  "summary": {
+    "totalSteps": 6,
+    "successfulSteps": 6,
+    "failedSteps": 0,
+    "status": "SUCCESS"
+  }
+}

@@ -60,10 +60,24 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const cacheRef = useRef<Map<string, any>>(new Map());
 
+  // Verificar si el proveedor está verificado (tiene DNI/RUC válido)
+  const isProviderVerified = useCallback(() => {
+    if (!supplier?.numeroIdentificacion) return false;
+    const numId = supplier.numeroIdentificacion;
+    // Verificado si tiene DNI de 8 dígitos o RUC de 11 dígitos válidos
+    return (numId.length === 8 && /^\d{8}$/.test(numId)) || 
+           (numId.length === 11 && /^\d{11}$/.test(numId));
+  }, [supplier]);
+
+  // Estado para controlar si los campos de nombre están bloqueados
+  const [isNameFieldsLocked, setIsNameFieldsLocked] = useState(false);
+
   // Inicializar formulario con datos del proveedor
   useEffect(() => {
     if (supplier) {
       const tipoIdentificacion = supplier.numeroIdentificacion?.length === 8 ? 'DNI' : 'RUC';
+      const verified = isProviderVerified();
+      
       setFormData({
         tipoIdentificacion,
         numeroIdentificacion: supplier.numeroIdentificacion || '',
@@ -75,8 +89,11 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
         email: supplier.email || '',
         direccion: supplier.direccion || ''
       });
+      
+      // Bloquear campos de nombre si está verificado
+      setIsNameFieldsLocked(verified);
     }
-  }, [supplier]);
+  }, [supplier, isProviderVerified]);
 
   // Validar campo individual
   const validateField = useCallback((field: string, value: any): boolean => {
@@ -397,6 +414,23 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Editar Proveedor</h3>
         <p className="text-sm text-gray-600">Modifica los datos del proveedor</p>
+        
+        {/* Mensaje informativo para proveedores verificados */}
+        {isNameFieldsLocked && (
+          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  Restricción de edición
+                </p>
+                <p className="text-sm text-amber-700">
+                  Los datos de nombre no pueden modificarse después de la verificación con DNI/RUC
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -409,10 +443,10 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
             <button
               type="button"
               onClick={() => handleTipoIdentificacionChange('DNI')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md border transition-all font-medium ${
                 formData.tipoIdentificacion === 'DNI'
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
               }`}
             >
               <User className="h-4 w-4" />
@@ -421,10 +455,10 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
             <button
               type="button"
               onClick={() => handleTipoIdentificacionChange('RUC')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md border transition-all font-medium ${
                 formData.tipoIdentificacion === 'RUC'
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
               }`}
             >
               <Building2 className="h-4 w-4" />
@@ -485,15 +519,25 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
             <div>
               <label htmlFor="nombres" className="block text-sm font-medium text-gray-700 mb-2">
                 Nombres *
+                {isNameFieldsLocked && (
+                  <span className="ml-2 text-xs text-amber-600 font-normal">
+                    (Campo bloqueado - Proveedor verificado)
+                  </span>
+                )}
               </label>
               <input
                 type="text"
                 id="nombres"
                 value={formData.nombres || ''}
-                onChange={(e) => handleFieldChange('nombres', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  fieldErrors.nombres ? 'border-red-500' : 
-                  autocompletedFields.has('nombres') ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                onChange={(e) => !isNameFieldsLocked && handleFieldChange('nombres', e.target.value)}
+                disabled={isNameFieldsLocked}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  isNameFieldsLocked 
+                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300' 
+                    : `focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        fieldErrors.nombres ? 'border-red-500' : 
+                        autocompletedFields.has('nombres') ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                      }`
                 }`}
                 placeholder="Nombres del proveedor"
               />
@@ -505,15 +549,25 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
             <div>
               <label htmlFor="apellidos" className="block text-sm font-medium text-gray-700 mb-2">
                 Apellidos *
+                {isNameFieldsLocked && (
+                  <span className="ml-2 text-xs text-amber-600 font-normal">
+                    (Campo bloqueado - Proveedor verificado)
+                  </span>
+                )}
               </label>
               <input
                 type="text"
                 id="apellidos"
                 value={formData.apellidos || ''}
-                onChange={(e) => handleFieldChange('apellidos', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  fieldErrors.apellidos ? 'border-red-500' : 
-                  autocompletedFields.has('apellidos') ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                onChange={(e) => !isNameFieldsLocked && handleFieldChange('apellidos', e.target.value)}
+                disabled={isNameFieldsLocked}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  isNameFieldsLocked 
+                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300' 
+                    : `focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        fieldErrors.apellidos ? 'border-red-500' : 
+                        autocompletedFields.has('apellidos') ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                      }`
                 }`}
                 placeholder="Apellidos del proveedor"
               />
@@ -530,15 +584,25 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
             <div>
               <label htmlFor="razonSocial" className="block text-sm font-medium text-gray-700 mb-2">
                 Razón Social *
+                {isNameFieldsLocked && (
+                  <span className="ml-2 text-xs text-amber-600 font-normal">
+                    (Campo bloqueado - Proveedor verificado)
+                  </span>
+                )}
               </label>
               <input
                 type="text"
                 id="razonSocial"
                 value={formData.razonSocial || ''}
-                onChange={(e) => handleFieldChange('razonSocial', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  fieldErrors.razonSocial ? 'border-red-500' : 
-                  autocompletedFields.has('razonSocial') ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                onChange={(e) => !isNameFieldsLocked && handleFieldChange('razonSocial', e.target.value)}
+                disabled={isNameFieldsLocked}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  isNameFieldsLocked 
+                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300' 
+                    : `focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        fieldErrors.razonSocial ? 'border-red-500' : 
+                        autocompletedFields.has('razonSocial') ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                      }`
                 }`}
                 placeholder="Razón social de la empresa"
               />
@@ -645,7 +709,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            className="flex-1 bg-green-50 text-green-700 py-2 px-4 rounded-md hover:bg-green-100 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 border border-green-200 font-medium"
           >
             {isSubmitting ? (
               <>
@@ -664,7 +728,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
               type="button"
               onClick={onCancel}
               disabled={isSubmitting}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              className="px-4 py-2 border border-gray-200 text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 font-medium"
             >
               <X className="h-4 w-4" />
               Cancelar

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { VALIDATION_CONSTANTS, validatePhone, validateDNI, validateRUC } from '../constants/validation';
+import { validateDocument, sanitizeNumericInput } from '../utils/documentValidation';
 
 // Schema base común
 const proveedorBaseSchema = z.object({
@@ -23,8 +24,11 @@ export const personaNaturalSchema = proveedorBaseSchema.extend({
     .max(100, 'Los apellidos no pueden exceder 100 caracteres')
     .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/, 'Los apellidos solo pueden contener letras y espacios'),
   numeroIdentificacion: z.string()
-    .length(VALIDATION_CONSTANTS.DNI_LENGTH, VALIDATION_CONSTANTS.ERROR_MESSAGES.DNI_INVALID_LENGTH)
-    .refine(validateDNI, VALIDATION_CONSTANTS.ERROR_MESSAGES.DNI_INVALID_FORMAT),
+    .transform(sanitizeNumericInput)
+    .refine((val) => {
+      const validation = validateDocument(val);
+      return validation.isValid && validation.type === 'DNI';
+    }, 'DNI debe tener exactamente 8 dígitos numéricos válidos'),
 });
 
 // Schema para persona jurídica
@@ -34,8 +38,11 @@ export const personaJuridicaSchema = proveedorBaseSchema.extend({
     .min(1, 'La razón social es requerida')
     .max(255, 'La razón social no puede exceder 255 caracteres'),
   numeroIdentificacion: z.string()
-    .length(VALIDATION_CONSTANTS.RUC_LENGTH, VALIDATION_CONSTANTS.ERROR_MESSAGES.RUC_INVALID_LENGTH)
-    .refine(validateRUC, VALIDATION_CONSTANTS.ERROR_MESSAGES.RUC_INVALID_FORMAT),
+    .transform(sanitizeNumericInput)
+    .refine((val) => {
+      const validation = validateDocument(val);
+      return validation.isValid && validation.type === 'RUC';
+    }, 'RUC debe tener exactamente 11 dígitos numéricos válidos con prefijo y checksum correcto'),
   representanteLegal: z.string()
     .max(255, 'El nombre del representante legal no puede exceder 255 caracteres')
     .optional(),

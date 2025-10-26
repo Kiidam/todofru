@@ -1,0 +1,318 @@
+{
+  "timestamp": "2025-10-26T20:21:37.100Z",
+  "counts": {
+    "clientes": 14,
+    "pedidosVenta": 0
+  },
+  "clientes": [
+    {
+      "id": "1f7594a5-3fce-4ca7-bb98-d4538cc7bc58",
+      "nombre": "ROBERT ANTONY PINO ROJAS",
+      "ruc": null,
+      "telefono": "+51998347280",
+      "email": "kiidam@hotmail.com",
+      "direccion": "conj san martin de porres d-18",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": false,
+      "createdAt": "2025-10-26T04:50:07.000Z",
+      "updatedAt": "2025-10-26T19:36:52.000Z",
+      "apellidos": "PINO ROJAS",
+      "mensajePersonalizado": null,
+      "nombres": "ROBERT ANTONY",
+      "numeroIdentificacion": "74216475",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "5eaa6227-51b8-4cbe-885c-5dcbada48ea8",
+      "nombre": "FIORELA ROSA ESPINOZA MENDOZA",
+      "ruc": null,
+      "telefono": "+51998347281",
+      "email": "kiidam@gmail.com",
+      "direccion": "conj san martin de porres d-20",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T04:50:58.000Z",
+      "updatedAt": "2025-10-26T19:42:45.000Z",
+      "apellidos": "ESPINOZA MENDOZA",
+      "mensajePersonalizado": null,
+      "nombres": "FIORELA ROSA",
+      "numeroIdentificacion": "74216451",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "7425ba2e-dc04-4e61-b066-a1d56e6cf6ca",
+      "nombre": "CORPORACION ACEROS AREQUIPA S.A.",
+      "ruc": "20370146994",
+      "telefono": "+51998347280",
+      "email": "kiidam@hotmail.com",
+      "direccion": "conj san martin de porres d-18",
+      "contacto": "martin",
+      "tipoCliente": "MINORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T06:06:57.000Z",
+      "updatedAt": "2025-10-26T19:46:08.000Z",
+      "apellidos": null,
+      "mensajePersonalizado": null,
+      "nombres": null,
+      "numeroIdentificacion": "20370146994",
+      "razonSocial": "CORPORACION ACEROS AREQUIPA S.A.",
+      "tipoEntidad": "PERSONA_JURIDICA",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "7569a113-bbcd-4642-9b46-f0a8d2c7540c",
+      "nombre": "FLAVIO SAUL HUAMANI SANTARIA",
+      "ruc": null,
+      "telefono": "+51998347281",
+      "email": "kiidam@gmail.com",
+      "direccion": "conj san martin de porres d-20",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T04:57:20.000Z",
+      "updatedAt": "2025-10-26T04:57:20.000Z",
+      "apellidos": "HUAMANI SANTARIA",
+      "mensajePersonalizado": null,
+      "nombres": "FLAVIO SAUL",
+      "numeroIdentificacion": "74216450",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "769b90b0-c788-47df-a927-1272fe02ba2c",
+      "nombre": "JORGE MARTIN HUAMAN QUISPE",
+      "ruc": null,
+      "telefono": "+51998347280",
+      "email": "kiidam@hotmail.com",
+      "direccion": "conj san martin de porres d-18",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T05:50:33.000Z",
+      "updatedAt": "2025-10-26T05:50:33.000Z",
+      "apellidos": "HUAMAN QUISPE",
+      "mensajePersonalizado": null,
+      "nombres": "JORGE MARTIN",
+      "numeroIdentificacion": "74216420",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "8d1735bc-9fbd-474d-a357-f38b89935c4c",
+      "nombre": "ARIANNA BELEN CARRION RODRIGUEZ",
+      "ruc": null,
+      "telefono": "+51998347280",
+      "email": "kiidam@hotmail.com",
+      "direccion": "conj san martin de porres d-18",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T04:50:31.000Z",
+      "updatedAt": "2025-10-26T20:06:18.000Z",
+      "apellidos": "CARRION RODRIGUEZ",
+      "mensajePersonalizado": null,
+      "nombres": "ARIANNA BELEN",
+      "numeroIdentificacion": "74216458",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "cef84b4e-cb9d-4e81-b65e-3b464fb5d431",
+      "nombre": "RONALD ENRIQUEZ GAMBOA",
+      "ruc": null,
+      "telefono": "+51998347280",
+      "email": "kiidam@hotmail.com",
+      "direccion": "conj san martin de porres d-18",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T05:01:09.000Z",
+      "updatedAt": "2025-10-26T05:01:09.000Z",
+      "apellidos": "ENRIQUEZ GAMBOA",
+      "mensajePersonalizado": null,
+      "nombres": "RONALD",
+      "numeroIdentificacion": "74216414",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "cliente-001",
+      "nombre": "Juan Carlos Pérez García",
+      "ruc": null,
+      "telefono": "987654321",
+      "email": "juan.perez@email.com",
+      "direccion": "Av. Los Olivos 123, San Isidro, Lima",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T08:08:00.000Z",
+      "updatedAt": "2025-10-26T08:08:00.000Z",
+      "apellidos": "Pérez García",
+      "mensajePersonalizado": "Cliente preferencial con descuentos especiales",
+      "nombres": "Juan Carlos",
+      "numeroIdentificacion": "12345678",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "cliente-002",
+      "nombre": "Supermercados La Canasta S.A.C.",
+      "ruc": "20123456789",
+      "telefono": "014567890",
+      "email": "compras@lacanasta.com",
+      "direccion": "Jr. Comercio 456, Cercado de Lima",
+      "contacto": "María González - Gerente de Compras",
+      "tipoCliente": "MAYORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T08:08:00.000Z",
+      "updatedAt": "2025-10-26T08:08:00.000Z",
+      "apellidos": null,
+      "mensajePersonalizado": "Mayorista con términos de pago a 30 días",
+      "nombres": null,
+      "numeroIdentificacion": "20123456789",
+      "razonSocial": "Supermercados La Canasta S.A.C.",
+      "tipoEntidad": "PERSONA_JURIDICA",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "cliente-003",
+      "nombre": "Ana Sofía Rodríguez Vega",
+      "ruc": null,
+      "telefono": "912345678",
+      "email": "ana.rodriguez@gmail.com",
+      "direccion": "Calle Las Flores 789, Miraflores, Lima",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": false,
+      "createdAt": "2025-10-26T08:08:00.000Z",
+      "updatedAt": "2025-10-26T08:08:00.000Z",
+      "apellidos": "Rodríguez Vega",
+      "mensajePersonalizado": null,
+      "nombres": "Ana Sofía",
+      "numeroIdentificacion": "87654321",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "cliente-004",
+      "nombre": "Distribuidora Norte E.I.R.L.",
+      "ruc": "20987654321",
+      "telefono": "014123456",
+      "email": "ventas@distribuidoranorte.com",
+      "direccion": "Av. Industrial 321, Los Olivos, Lima",
+      "contacto": "Carlos Mendoza",
+      "tipoCliente": "MAYORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T08:08:00.000Z",
+      "updatedAt": "2025-10-26T08:08:00.000Z",
+      "apellidos": null,
+      "mensajePersonalizado": null,
+      "nombres": null,
+      "numeroIdentificacion": "20987654321",
+      "razonSocial": "Distribuidora Norte E.I.R.L.",
+      "tipoEntidad": "PERSONA_JURIDICA",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "cliente-005",
+      "nombre": "Roberto Silva Castillo",
+      "ruc": null,
+      "telefono": "998877665",
+      "email": "roberto.silva@hotmail.com",
+      "direccion": "Jr. Independencia 567, Breña, Lima",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T08:08:00.000Z",
+      "updatedAt": "2025-10-26T08:08:00.000Z",
+      "apellidos": "Silva Castillo",
+      "mensajePersonalizado": "Cliente frecuente, prefiere entregas los martes",
+      "nombres": "Roberto",
+      "numeroIdentificacion": "11223344",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "dfd7c997-6548-4325-9aeb-c5fe69b55137",
+      "nombre": "SERGIO ENRIQUE SERNAQUE SANDOVAL",
+      "ruc": null,
+      "telefono": "+51998347281",
+      "email": "kiidam@gmail.com",
+      "direccion": "conj san martin de porres d-20",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T04:50:49.000Z",
+      "updatedAt": "2025-10-26T04:50:49.000Z",
+      "apellidos": "SERNAQUE SANDOVAL",
+      "mensajePersonalizado": null,
+      "nombres": "SERGIO ENRIQUE",
+      "numeroIdentificacion": "74216456",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    },
+    {
+      "id": "e2c929a0-014a-4ae5-9a91-2aaff7e2bb6c",
+      "nombre": "jorge martin huaman quispe",
+      "ruc": "74216474",
+      "telefono": "+51998347280",
+      "email": "kiidam@hotmail.com",
+      "direccion": "conj san martin de porres d-18",
+      "contacto": null,
+      "tipoCliente": "MINORISTA",
+      "activo": true,
+      "createdAt": "2025-10-26T04:42:54.000Z",
+      "updatedAt": "2025-10-26T04:42:54.000Z",
+      "apellidos": "huaman quispe",
+      "mensajePersonalizado": null,
+      "nombres": "jorge martin",
+      "numeroIdentificacion": "74216474",
+      "razonSocial": null,
+      "tipoEntidad": "PERSONA_NATURAL",
+      "_count": {
+        "pedidos": 0
+      }
+    }
+  ],
+  "pedidosVenta": []
+}

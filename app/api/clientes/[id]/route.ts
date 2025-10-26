@@ -56,7 +56,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, { par
 }));
 
 // PUT /api/clientes/[id] - Actualizar cliente
-export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { params, session }: { params: { id: string }, session: any }) => {
   const { id } = params;
   const body = await request.json();
 
@@ -104,6 +104,24 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { par
         const tipoDoc = validatedData.numeroIdentificacion.length === 8 ? 'DNI' : 'RUC';
         return NextResponse.json(
           { success: false, error: `Ya existe otro cliente con ese ${tipoDoc}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Verificar email único si se proporciona (excluyendo el cliente actual)
+    if (validatedData.email && validatedData.email.trim() !== '') {
+      const duplicateClienteEmail = await prisma.cliente.findFirst({
+        where: { 
+          email: validatedData.email.trim().toLowerCase(),
+          activo: true,
+          NOT: { id } // Excluir el cliente actual
+        }
+      });
+
+      if (duplicateClienteEmail) {
+        return NextResponse.json(
+          { success: false, error: `Ya existe otro cliente con ese email` },
           { status: 400 }
         );
       }
@@ -167,7 +185,7 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { par
 }));
 
 // DELETE /api/clientes/[id] - Eliminar cliente (soft delete)
-export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, { params, session }: { params: { id: string }, session: any }) => {
   const { id } = params;
 
   if (!id) {
@@ -205,38 +223,94 @@ export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, { 
 }));
 
 // PATCH /api/clientes/[id] - Alternar estado activo/inactivo
-export const PATCH = withErrorHandling(withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const PATCH = withErrorHandling(withAuth(async (request: NextRequest, { params, session }: { params: { id: string }, session: any }) => {
   const { id } = params;
 
+  // Log inicial de la petición
+  logger.info('PATCH /api/clientes/[id] - Inicio', {
+    clientId: id,
+    timestamp: new Date().toISOString(),
+    url: request.url,
+    method: request.method
+  });
+
   if (!id) {
+    logger.error('PATCH /api/clientes/[id] - ID faltante', { id });
     return errorResponse('ID de cliente requerido', 400);
   }
 
   let body: any = {};
   try {
     body = await request.json();
-  } catch {
+    logger.info('PATCH /api/clientes/[id] - Body parseado', {
+      clientId: id,
+      body: body,
+      bodyType: typeof body,
+      activoValue: body?.activo,
+      activoType: typeof body?.activo
+    });
+  } catch (parseError) {
+    logger.error('PATCH /api/clientes/[id] - Error parsing body', {
+      clientId: id,
+      error: parseError instanceof Error ? parseError.message : 'Error desconocido'
+    });
     return errorResponse('Cuerpo de solicitud inválido', 400);
   }
 
   const activoProvided = typeof body?.activo === 'boolean' ? body.activo : null;
   if (activoProvided === null) {
+    logger.error('PATCH /api/clientes/[id] - Parámetro activo inválido', {
+      clientId: id,
+      activoProvided,
+      bodyActivo: body?.activo,
+      bodyActivoType: typeof body?.activo
+    });
     return errorResponse('Parámetro "activo" requerido', 400);
   }
 
   // Verificar que el cliente existe
+  logger.info('PATCH /api/clientes/[id] - Buscando cliente', { clientId: id });
   const existingCliente = await prisma.cliente.findUnique({
     where: { id }
   });
 
   if (!existingCliente) {
+    logger.error('PATCH /api/clientes/[id] - Cliente no encontrado', { clientId: id });
     return errorResponse('Cliente no encontrado', 404);
   }
+
+  logger.info('PATCH /api/clientes/[id] - Cliente encontrado', {
+    clientId: id,
+    clienteNombre: existingCliente.nombre,
+    estadoActual: existingCliente.activo,
+    nuevoEstado: activoProvided
+  });
+
+  // Realizar la actualización
+  logger.info('PATCH /api/clientes/[id] - Actualizando cliente', {
+    clientId: id,
+    activoProvided
+  });
 
   const updated = await prisma.cliente.update({
     where: { id },
     data: { activo: activoProvided, updatedAt: new Date() }
   });
 
-  return successResponse(updated, `Cliente ${activoProvided ? 'activado' : 'desactivado'} exitosamente`);
+  logger.info('PATCH /api/clientes/[id] - Cliente actualizado exitosamente', {
+    clientId: id,
+    estadoAnterior: existingCliente.activo,
+    estadoNuevo: updated.activo,
+    updatedAt: updated.updatedAt
+  });
+
+  const response = successResponse(updated, `Cliente ${activoProvided ? 'activado' : 'desactivado'} exitosamente`);
+  
+  logger.info('PATCH /api/clientes/[id] - Respuesta enviada', {
+    clientId: id,
+    success: true,
+    message: `Cliente ${activoProvided ? 'activado' : 'desactivado'} exitosamente`
+  });
+
+  return response;
 }));

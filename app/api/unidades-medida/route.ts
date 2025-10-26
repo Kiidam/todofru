@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { logger } from '../../../src/lib/logger';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { withAuth, withErrorHandling, successResponse, errorResponse } from '../../../src/lib/api-utils';
 import { prisma } from '../../../src/lib/prisma';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
+import { Session } from 'next-auth';
 
 // Esquema de validación para unidades de medida
 const unidadMedidaSchema = z.object({
@@ -13,89 +12,46 @@ const unidadMedidaSchema = z.object({
 });
 
 // GET /api/unidades-medida - Listar todas las unidades de medida
-export async function GET() {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    const unidades = await prisma.unidadMedida.findMany({
-      where: { activo: true },
-      orderBy: { nombre: 'asc' },
-      include: {
-        _count: {
-          select: { productos: true }
-        }
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+  const unidades = await prisma.unidadMedida.findMany({
+    where: { activo: true },
+    orderBy: { nombre: 'asc' },
+    include: {
+      _count: {
+        select: { productos: true }
       }
-    });
+    }
+  });
 
-    return NextResponse.json({ 
-      success: true, 
-      data: unidades 
-    });
-  } catch (error) {
-    logger.error('Error al obtener unidades de medida:', { error });
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
-}
+  return successResponse(unidades);
+}));
 
 // POST /api/unidades-medida - Crear nueva unidad de medida
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+  const body = await request.json();
+  const validatedData = unidadMedidaSchema.parse(body);
+
+  // Verificar que no exista una unidad con el mismo nombre o símbolo
+  const existingUnidad = await prisma.unidadMedida.findFirst({
+    where: { 
+      OR: [
+        { nombre: validatedData.nombre },
+        { simbolo: validatedData.simbolo }
+      ],
+      activo: true 
     }
+  });
 
-    const body = await request.json();
-    const validatedData = unidadMedidaSchema.parse(body);
-
-    // Verificar que no exista una unidad con el mismo nombre o símbolo
-    const existingUnidad = await prisma.unidadMedida.findFirst({
-      where: { 
-        OR: [
-          { nombre: validatedData.nombre },
-          { simbolo: validatedData.simbolo }
-        ],
-        activo: true 
-      }
-    });
-
-    if (existingUnidad) {
-      return NextResponse.json(
-        { success: false, error: 'Ya existe una unidad de medida con ese nombre o símbolo' },
-        { status: 400 }
-      );
-    }
-
-    const unidad = await prisma.unidadMedida.create({
-      data: {
-        id: randomUUID(),
-        ...validatedData
-      }
-    });
-
-    return NextResponse.json({ 
-      success: true, 
-      data: unidad,
-      message: 'Unidad de medida creada exitosamente'
-    }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.issues },
-        { status: 400 }
-      );
-    }
-
-    logger.error('Error al crear unidad de medida:', { error });
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+  if (existingUnidad) {
+    return errorResponse('Ya existe una unidad de medida con ese nombre o símbolo', 400);
   }
-}
+
+  const unidad = await prisma.unidadMedida.create({
+    data: {
+      id: randomUUID(),
+      ...validatedData
+    }
+  });
+
+  return successResponse(unidad, 'Unidad de medida creada exitosamente');
+}));

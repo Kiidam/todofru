@@ -5,6 +5,7 @@ import { logger } from '../../../../src/lib/logger';
 import { Prisma } from '@prisma/client';
 import { Session } from 'next-auth';
 import { validateProveedorPayload } from '../../../../src/schemas/proveedor';
+import { validateDocument, sanitizeNumericInput } from '../../../../src/utils/documentValidation';
 
 // PUT /api/proveedores/[id] - Actualizar proveedor existente
 export const PUT = withErrorHandling(withAuth(async (request: NextRequest, session: Session, { params }: { params: { id: string } }) => {
@@ -24,6 +25,36 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, sessi
   
   const validatedData = validation.data;
 
+  // Sanitizar número de identificación
+  if (validatedData.numeroIdentificacion) {
+    validatedData.numeroIdentificacion = sanitizeNumericInput(validatedData.numeroIdentificacion);
+  }
+
+  // Validaciones adicionales de seguridad
+  if (validatedData.numeroIdentificacion) {
+    // Validar documento usando algoritmo checksum
+    const documentValidation = validateDocument(validatedData.numeroIdentificacion);
+    if (!documentValidation.isValid) {
+      logger.warn('Intento de actualización con documento inválido', {
+        proveedorId: id,
+        numeroIdentificacion: validatedData.numeroIdentificacion,
+        tipoEntidad: validatedData.tipoEntidad,
+        error: documentValidation.error,
+        sessionUserId: session.user?.id
+      });
+      return errorResponse(documentValidation.error || 'El número de documento no es válido', 400);
+    }
+
+    // Verificar que el tipo de documento coincida con el tipo de entidad
+    const documentLength = validatedData.numeroIdentificacion.length;
+    if (validatedData.tipoEntidad === 'PERSONA_NATURAL' && documentLength !== 8) {
+      return errorResponse('Para persona natural se requiere un DNI de 8 dígitos', 400);
+    }
+    if (validatedData.tipoEntidad === 'PERSONA_JURIDICA' && documentLength !== 11) {
+      return errorResponse('Para persona jurídica se requiere un RUC de 11 dígitos', 400);
+    }
+  }
+
   // Verificar que el proveedor existe
   const existingProveedor = await prisma.proveedor.findFirst({
     where: { id, activo: true }
@@ -33,8 +64,8 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, sessi
     return errorResponse('Proveedor no encontrado', 404);
   }
 
-  // Verificar RUC único si se proporciona y es diferente al actual (para personas jurídicas)
-  if (validatedData.tipoEntidad === 'PERSONA_JURIDICA' && validatedData.numeroIdentificacion) {
+  // Verificar unicidad del documento (optimizado en una sola consulta)
+  if (validatedData.numeroIdentificacion) {
     const duplicateProveedor = await prisma.proveedor.findFirst({
       where: { 
         OR: [
@@ -47,22 +78,15 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, sessi
     });
 
     if (duplicateProveedor) {
-      return errorResponse('Ya existe otro proveedor con ese RUC', 400);
-    }
-  }
-
-  // Verificar DNI único si se proporciona y es diferente al actual (para personas naturales)
-  if (validatedData.tipoEntidad === 'PERSONA_NATURAL' && validatedData.numeroIdentificacion) {
-    const duplicateProveedor = await prisma.proveedor.findFirst({
-      where: { 
-        numeroIdentificacion: validatedData.numeroIdentificacion, 
-        activo: true,
-        NOT: { id } // Excluir el proveedor actual
-      }
-    });
-
-    if (duplicateProveedor) {
-      return errorResponse('Ya existe otro proveedor con ese DNI', 400);
+      const documentType = validatedData.tipoEntidad === 'PERSONA_JURIDICA' ? 'RUC' : 'DNI';
+      logger.warn('Intento de actualización con documento duplicado', {
+        proveedorId: id,
+        numeroIdentificacion: validatedData.numeroIdentificacion,
+        tipoEntidad: validatedData.tipoEntidad,
+        duplicateProveedorId: duplicateProveedor.id,
+        sessionUserId: session.user?.id
+      });
+      return errorResponse(`Ya existe otro proveedor con ese ${documentType}`, 400);
     }
   }
 

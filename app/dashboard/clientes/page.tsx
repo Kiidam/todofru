@@ -3,7 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import NewClientForm from '../../../src/components/clientes/NewClientForm';
-import { Trash2, AlertTriangle, Loader2, Plus, Search, Filter, Eye, EyeOff, Pencil } from 'lucide-react';
+import ClienteInlineEdit from '../../../src/components/clientes/ClienteInlineEdit';
+import ClienteToggleStatus from '../../../src/components/clientes/ClienteToggleStatus';
+import EditClienteModal from '../../../src/components/clientes/EditClienteModal';
+import { Trash2, AlertTriangle, Loader2, Plus, Search, Filter, Eye, EyeOff, Pencil, Edit3 } from 'lucide-react';
 
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
@@ -103,9 +106,12 @@ export default function ClientesPage() {
   const [actionError, setActionError] = useState('');
   const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null);
   const [statusChangedId, setStatusChangedId] = useState<string | null>(null);
+  const [editingClientId, setEditingClientId] = useState<string | null>(null);
 
   // Estados de modales
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     client: Client;
     isDeleting: boolean;
@@ -128,7 +134,9 @@ export default function ClientesPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/clientes');
+      const response = await fetch('/api/clientes', {
+        credentials: 'include'
+      });
       if (!response.ok) {
         throw new Error('Error al cargar clientes');
       }
@@ -157,16 +165,82 @@ export default function ClientesPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           activo: !client.activo
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Error al actualizar el cliente');
+        // Intentar obtener el mensaje de error específico de la API
+        let errorMessage = 'Error al actualizar el cliente';
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (parseError) {
+          // Si no se puede parsear la respuesta, usar mensaje genérico basado en el status
+          switch (response.status) {
+            case 404:
+              errorMessage = 'Cliente no encontrado';
+              break;
+            case 400:
+              errorMessage = 'Datos de solicitud inválidos';
+              break;
+            case 401:
+              errorMessage = 'No autorizado para realizar esta acción';
+              break;
+            case 403:
+              errorMessage = 'No tiene permisos para modificar este cliente';
+              break;
+            case 500:
+              errorMessage = 'Error interno del servidor';
+              break;
+            default:
+              errorMessage = `Error del servidor (${response.status})`;
+          }
+        }
+        
+        // Intentar obtener más detalles del error
+        let responseText = '';
+        try {
+          responseText = await response.text();
+        } catch (textError) {
+          responseText = 'No se pudo leer la respuesta';
+        }
+
+        console.error('Error al actualizar cliente:', {
+          status: response.status,
+          statusText: response.statusText,
+          clientId: client.id,
+          action: client.activo ? 'desactivar' : 'activar',
+          responseBody: responseText,
+          url: `/api/clientes/${client.id}`,
+          method: 'PATCH',
+          requestBody: JSON.stringify({ activo: !client.activo }),
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        setActionError(errorMessage);
+        return;
       }
 
-      // Actualizar el estado local
+      // Verificar que la respuesta sea válida
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (parseError) {
+        console.error('Error al parsear respuesta exitosa:', parseError);
+        setActionError('Error al procesar la respuesta del servidor');
+        return;
+      }
+
+      // Actualizar el estado local solo si la operación fue exitosa
       setClients(prevClients => 
         prevClients.map(c => 
           c.id === client.id 
@@ -179,8 +253,28 @@ export default function ClientesPage() {
       setTimeout(() => setStatusChangedId(null), 2000);
       
     } catch (error) {
-      console.error('Error al cambiar estado del cliente:', error);
-      setActionError('Error al actualizar el estado del cliente');
+      console.error('Error de red al cambiar estado del cliente:', {
+        error: error,
+        errorMessage: error instanceof Error ? error.message : 'Error desconocido',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        clientId: client.id,
+        action: client.activo ? 'desactivar' : 'activar',
+        url: `/api/clientes/${client.id}`,
+        method: 'PATCH',
+        requestBody: JSON.stringify({ activo: !client.activo }),
+        timestamp: new Date().toISOString()
+      });
+      
+      // Determinar el tipo de error y mostrar mensaje apropiado
+      let errorMessage = 'Error de conexión al actualizar el cliente';
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        errorMessage = 'Error de conexión. Verifique su conexión a internet';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setActionError(errorMessage);
     } finally {
       setToggleLoadingId(null);
     }
@@ -208,6 +302,59 @@ export default function ClientesPage() {
     loadClients(); // Recargar la lista
   };
 
+  // Manejar edición de cliente
+  const handleEditClick = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (client) {
+      setEditingClient(client);
+      setIsEditModalOpen(true);
+    }
+  };
+
+  // Manejar actualización de cliente desde el modal
+  const handleModalSave = async (clientId: string, updatedData: any) => {
+    // Actualizar la lista local de clientes
+    setClients(prevClients => 
+      prevClients.map(client => 
+        client.id === clientId 
+          ? { ...client, ...updatedData }
+          : client
+      )
+    );
+    
+    // Cerrar el modal
+    setIsEditModalOpen(false);
+    setEditingClient(null);
+  };
+
+  // Manejar cierre del modal de edición
+  const handleModalClose = () => {
+    setIsEditModalOpen(false);
+    setEditingClient(null);
+  };
+
+  // Manejar actualización de cliente (para edición inline)
+  const handleClientUpdate = (clientId: string, updatedData: Partial<Client>) => {
+    setClients(prevClients => 
+      prevClients.map(client => 
+        client.id === clientId 
+          ? { ...client, ...updatedData }
+          : client
+      )
+    );
+    setEditingClientId(null);
+  };
+
+  // Manejar errores de edición
+  const handleEditError = (error: string) => {
+    setActionError(error);
+  };
+
+  // Manejar cancelación de edición
+  const handleEditCancel = () => {
+    setEditingClientId(null);
+  };
+
   // Manejar eliminación
   const handleDeleteClick = (client: Client) => {
     setDeleteConfirmation({
@@ -224,6 +371,7 @@ export default function ClientesPage() {
 
       const response = await fetch(`/api/clientes/${deleteConfirmation.client.id}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
 
       const result = await response.json();
@@ -402,17 +550,13 @@ export default function ClientesPage() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">
+                    Fecha Registro
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">
                     Cliente
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">
                     Contacto
-                  </th>
-                  {/* Eliminada columna Tipo */}
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">
-                    Fecha Registro
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-black uppercase tracking-wider">
                     Acciones
@@ -421,76 +565,94 @@ export default function ClientesPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredClients.map((client) => (
-                  <tr key={client.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-semibold text-black">{client.nombre}</div>
-                        {client.numeroIdentificacion && (
-                          <div className="text-sm text-black">
-                            {client.tipoEntidad === 'PERSONA_NATURAL' ? 'DNI' : 'RUC'}: {client.numeroIdentificacion}
-                          </div>
-                        )}
-                        <div className="text-xs text-black">{formatEntityType(client.tipoEntidad)}</div>
+                  <React.Fragment key={client.id}>
+                    <tr className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-black">
+                        {formatDate(client.createdAt)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-semibold text-black">{client.nombre}</div>
+                          {client.numeroIdentificacion && (
+                            <div className="text-sm text-black">
+                              {client.tipoEntidad === 'PERSONA_NATURAL' ? 'DNI' : 'RUC'}: {client.numeroIdentificacion}
+                            </div>
+                          )}
+                          <div className="text-xs text-black">{formatEntityType(client.tipoEntidad)}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-black">
+                          {client.telefono && (
+                            <div>📞 {client.telefono}</div>
+                          )}
+                          {client.email && (
+                            <div>✉️ {client.email}</div>
+                          )}
+                          {client.direccion && (
+                            <div className="text-xs text-black mt-1">📍 {client.direccion}</div>
+                          )}
+                        </div>
+                      </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-2">
+                        {/* Botón de toggle de estado con confirmación visual */}
+                        <button
+                          onClick={() => toggleClientStatus(client)}
+                          disabled={toggleLoadingId === client.id}
+                          className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                            toggleLoadingId === client.id
+                              ? 'opacity-50 cursor-not-allowed'
+                              : 'hover:scale-105 cursor-pointer'
+                          } ${
+                            statusChangedId === client.id
+                              ? 'ring-2 ring-blue-400 ring-opacity-50'
+                              : ''
+                          } ${
+                            client.activo 
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                              : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                          }`}
+                          title={`${client.activo ? 'Desactivar' : 'Activar'} cliente`}
+                        >
+                          {toggleLoadingId === client.id ? (
+                            <div className="flex items-center space-x-1">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>...</span>
+                            </div>
+                          ) : (
+                            <>
+                              {client.activo ? 'Activo' : 'Inactivo'}
+                              {statusChangedId === client.id && (
+                                <span className="ml-1">✓</span>
+                              )}
+                            </>
+                          )}
+                        </button>
+                        
+                        {/* Botón de editar */}
+                        <button
+                          onClick={() => handleEditClick(client.id)}
+                          className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Editar cliente"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        
+                        {/* Botón de eliminar */}
+                        <button
+                          onClick={() => handleDeleteClick(client)}
+                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Eliminar cliente"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-black">
-                        {client.telefono && (
-                          <div>📞 {client.telefono}</div>
-                        )}
-                        {client.email && (
-                          <div>✉️ {client.email}</div>
-                        )}
-                        {client.direccion && (
-                          <div className="text-xs text-black mt-1">📍 {client.direccion}</div>
-                        )}
-                      </div>
-                    </td>
-                    {/* Eliminada celda de Tipo */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {client.activo ? (
-                          <>
-                            <Eye className="w-4 h-4 text-green-500 mr-2" />
-                            <span className="text-sm font-medium text-green-600">Activo</span>
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff className="w-4 h-4 text-red-500 mr-2" />
-                            <span className="text-sm font-medium text-red-600">Inactivo</span>
-                          </>
-                        )}
-                        {statusChangedId === client.id && (
-                          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Actualizado</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-black">
-                      {formatDate(client.createdAt)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleToggleActive(client)}
-                        className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${toggleLoadingId === client.id ? 'bg-blue-300 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                        title="Editar estado"
-                        disabled={toggleLoadingId === client.id}
-                      >
-                        {toggleLoadingId === client.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Pencil className="w-4 h-4" />
-                        )}
-                        <span>Editar</span>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(client)}
-                        className="text-red-600 hover:text-red-900 transition-colors p-2 rounded-lg hover:bg-red-50"
-                        title="Eliminar cliente"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
                     </td>
                   </tr>
+                  
+
+                </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -520,6 +682,24 @@ export default function ClientesPage() {
           />
         )}
       </Modal>
+
+      {/* Modal de edición */}
+      <EditClienteModal
+        isOpen={isEditModalOpen}
+        client={editingClient}
+        onClose={handleModalClose}
+        onSave={handleModalSave}
+      />
+
+      {/* Modal de edición inline (mantener para compatibilidad) */}
+      {editingClientId && (
+        <ClienteInlineEdit
+          client={clients.find(c => c.id === editingClientId)!}
+          onSave={handleClientUpdate}
+          onCancel={handleEditCancel}
+          onError={handleEditError}
+        />
+      )}
     </div>
   );
 }

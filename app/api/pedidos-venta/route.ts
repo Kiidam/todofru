@@ -164,7 +164,25 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
 
     const [pedidos, total] = await Promise.all([
       prisma.pedidoVenta.findMany({ 
-        include: { cliente: true, items: true }, 
+        include: { 
+          cliente: true, 
+          items: {
+            include: {
+              producto: {
+                include: {
+                  unidadMedida: true,
+                  categoria: true
+                }
+              }
+            }
+          },
+          usuario: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }, 
         orderBy: { createdAt: 'desc' }, 
         skip, 
         take: limit 
@@ -173,7 +191,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
     ]);
 
     const response = successResponse({ 
-      pedidos, 
+      data: pedidos, 
       pagination: { total, page, limit, pages: Math.ceil(total / limit) } 
     }, `${pedidos.length} pedidos de venta encontrados`);
     

@@ -1,0 +1,76 @@
+{
+  "timestamp": "2025-10-26T19:22:17.833Z",
+  "summary": {
+    "totalOptimizations": 13,
+    "successfulOptimizations": 12,
+    "skippedOptimizations": 1
+  },
+  "optimizations": [
+    {
+      "type": "INDEX_CREATION",
+      "description": "CREATE INDEX idx_movimiento_fecha_tipo \n       ON movimientoinventario (createdAt DESC, tipo, productoId)",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "INDEX_CREATION",
+      "description": "CREATE INDEX idx_pedido_venta_estado_fecha \n       ON pedidoventa (estado, fecha DESC, clienteId)",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "INDEX_CREATION",
+      "description": "CREATE INDEX idx_pedido_compra_estado_fecha \n       ON pedidocompra (estado, fecha DESC, proveedorId)",
+      "status": "SKIPPED",
+      "reason": "\nInvalid `prisma.$executeRawUnsafe()` invocation:\n\n\nRaw query failed. Code: `1072`. Message: `Key column 'estado' doesn't exist in table`"
+    },
+    {
+      "type": "INDEX_CREATION",
+      "description": "CREATE INDEX idx_producto_busqueda \n       ON producto (activo, nombre(50), sku)",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "INDEX_CREATION",
+      "description": "CREATE INDEX idx_auditoria_tabla_fecha \n       ON auditoria (tabla, createdAt DESC, usuarioId)",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "INDEX_CREATION",
+      "description": "CREATE INDEX idx_producto_categoria_activo \n       ON producto (categoriaId, activo, nombre(50))",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "INDEX_CREATION",
+      "description": "CREATE INDEX idx_pedido_venta_item_producto \n       ON pedidoventaitem (productoId, pedidoId)",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "INDEX_CREATION",
+      "description": "CREATE INDEX idx_pedido_compra_item_producto \n       ON pedidocompraitem (productoId, pedidoId)",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "PRISMA_OPTIMIZATION",
+      "description": "Configuración optimizada de Prisma con pool de conexiones y cache",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "CACHE_UTILITIES",
+      "description": "Utilidades de cache para APIs con invalidación y paginación optimizada",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "RATE_LIMITING",
+      "description": "Middleware de rate limiting con configuraciones predefinidas",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "PERFORMANCE_MONITORING",
+      "description": "Sistema de monitoreo de rendimiento con métricas detalladas",
+      "status": "SUCCESS"
+    },
+    {
+      "type": "METRICS_ENDPOINT",
+      "description": "Endpoint para consultar métricas de rendimiento y sistema",
+      "status": "SUCCESS"
+    }
+  ]
+}

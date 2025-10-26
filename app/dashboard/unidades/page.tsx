@@ -23,15 +23,7 @@ export default function UnidadesMedidaPage() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ nombre: '', simbolo: '' });
 
-  const mockUnidades: UnidadMedida[] = [
-    { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg', _count: { productos: 0 }, activo: true },
-    { id: 'g', nombre: 'Gramos', simbolo: 'g', _count: { productos: 0 }, activo: true },
-    { id: 'l', nombre: 'Litros', simbolo: 'L', _count: { productos: 0 }, activo: true },
-    { id: 'ml', nombre: 'Mililitros', simbolo: 'mL', _count: { productos: 0 }, activo: true },
-    { id: 'u', nombre: 'Unidades', simbolo: 'u', _count: { productos: 0 }, activo: true },
-    { id: 'caja', nombre: 'Cajas', simbolo: 'caja', _count: { productos: 0 }, activo: true },
-    { id: 'paq', nombre: 'Paquetes', simbolo: 'paq', _count: { productos: 0 }, activo: true },
-  ];
+
 
   const loadUnidades = async () => {
     setLoading(true);
@@ -44,12 +36,12 @@ export default function UnidadesMedidaPage() {
         setUnidades(data.data as UnidadMedida[]);
       } else {
         setApiError('No se pudieron cargar las unidades de medida');
-        setUnidades(mockUnidades);
+        setUnidades([]);
       }
     } catch (e) {
       console.error('Error cargando unidades:', e);
       setApiError('Error interno del servidor');
-      setUnidades(mockUnidades);
+      setUnidades([]);
     } finally {
       setLoading(false);
     }

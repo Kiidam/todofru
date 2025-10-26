@@ -1,10 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Plus, Loader2, Check, AlertCircle, User, Building2 } from "lucide-react";
-import { validateDocumentNumber } from "../../utils/decolecta-utils";
+import { Plus, User, Building2, Loader2, Check, AlertCircle, CheckCircle } from "lucide-react";
+
+// Tipos para respuesta del proxy
+interface ProxyResponse {
+  success: boolean;
+  data?: {
+    nombres?: string;
+    apellidos?: string;
+    razonSocial?: string;
+    direccion?: string;
+  };
+  error?: string;
+}
 
 // Tipos para el formulario
 interface ClienteFormData {
@@ -18,20 +29,6 @@ interface ClienteFormData {
   email?: string;
   direccion: string; // Obligatorio
   mensajePersonalizado?: string;
-}
-
-// Respuesta normalizada del proxy interno
-interface ProxyResponse {
-  success: boolean;
-  data?: {
-    razonSocial?: string;
-    nombres?: string;
-    apellidos?: string;
-    direccion?: string;
-    tipoContribuyente?: string;
-    esPersonaNatural?: boolean;
-  };
-  error?: string;
 }
 
 interface NewClientFormProps {
@@ -109,38 +106,78 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
         break;
 
       case 'nombres':
-        if (formData.tipoIdentificacion === 'DNI' && (!value || String(value).trim().length < 2)) {
-          errors[field] = 'Los nombres son obligatorios para personas naturales';
+        if (formData.tipoIdentificacion === 'DNI') {
+          if (!value || String(value).trim().length < 2) {
+            errors[field] = 'Los nombres son obligatorios para personas naturales';
+          } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(String(value).trim())) {
+            errors[field] = 'Los nombres solo pueden contener letras y espacios';
+          }
         }
         break;
 
       case 'apellidos':
-        if (formData.tipoIdentificacion === 'DNI' && (!value || String(value).trim().length < 2)) {
-          errors[field] = 'Los apellidos son obligatorios para personas naturales';
+        if (formData.tipoIdentificacion === 'DNI') {
+          if (!value || String(value).trim().length < 2) {
+            errors[field] = 'Los apellidos son obligatorios para personas naturales';
+          } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(String(value).trim())) {
+            errors[field] = 'Los apellidos solo pueden contener letras y espacios';
+          }
         }
         break;
 
       case 'razonSocial':
-        if (formData.tipoIdentificacion === 'RUC' && (!value || String(value).trim().length < 3)) {
-          errors[field] = 'La razón social es obligatoria para personas jurídicas';
+        if (formData.tipoIdentificacion === 'RUC') {
+          if (!value || String(value).trim().length < 3) {
+            errors[field] = 'La razón social es obligatoria para personas jurídicas';
+          } else if (String(value).trim().length > 100) {
+            errors[field] = 'La razón social no puede exceder 100 caracteres';
+          }
+        }
+        break;
+
+      case 'representanteLegal':
+        if (value && String(value).trim() !== '') {
+          if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(String(value).trim())) {
+            errors[field] = 'El representante legal solo puede contener letras y espacios';
+          } else if (String(value).trim().length > 50) {
+            errors[field] = 'El representante legal no puede exceder 50 caracteres';
+          }
         }
         break;
 
       case 'direccion':
         if (!value || String(value).trim().length < 10) {
           errors[field] = 'La dirección es obligatoria y debe tener al menos 10 caracteres';
+        } else if (String(value).trim().length > 200) {
+          errors[field] = 'La dirección no puede exceder 200 caracteres';
         }
         break;
 
       case 'email':
-        if (value && String(value).trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
-          errors[field] = 'El formato del email no es válido';
+        if (value && String(value).trim() !== '') {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(String(value))) {
+            errors[field] = 'El formato del email no es válido';
+          } else if (String(value).length > 100) {
+            errors[field] = 'El email no puede exceder 100 caracteres';
+          }
         }
         break;
 
       case 'telefono':
-        if (value && String(value).trim() !== '' && /^[\+]?[\d\s\-\(\)]{7,15}$/.test(String(value)) === false) {
-          errors[field] = 'El formato del teléfono no es válido';
+        if (value && String(value).trim() !== '') {
+          const phoneRegex = /^[\+]?[\d\s\-\(\)]{7,15}$/;
+          if (!phoneRegex.test(String(value))) {
+            errors[field] = 'El formato del teléfono no es válido (ej: +51 123 456 789)';
+          }
+        }
+        break;
+
+      case 'mensajePersonalizado':
+        if (value && String(value).trim() !== '') {
+          if (String(value).trim().length > 500) {
+            errors[field] = 'El mensaje personalizado no puede exceder 500 caracteres';
+          }
         }
         break;
     }
@@ -327,24 +364,55 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
       'numeroIdentificacion',
       'direccion',
       'email',
-      'telefono'
+      'telefono',
+      'mensajePersonalizado'
     ];
 
     if (formData.tipoIdentificacion === 'DNI') {
       fieldsToValidate.push('nombres', 'apellidos');
     } else {
-      fieldsToValidate.push('razonSocial');
+      fieldsToValidate.push('razonSocial', 'representanteLegal');
     }
 
     let hasErrors = false;
+    const errorFields: string[] = [];
+    
     fieldsToValidate.forEach(field => {
       const isValid = validateField(field, formData[field as keyof ClienteFormData]);
-      if (!isValid) hasErrors = true;
+      if (!isValid) {
+        hasErrors = true;
+        errorFields.push(field);
+      }
     });
 
     if (hasErrors) {
-      setSubmitError('Por favor, corrija los errores en el formulario');
+      const fieldNames: Record<string, string> = {
+        numeroIdentificacion: formData.tipoIdentificacion,
+        nombres: 'Nombres',
+        apellidos: 'Apellidos',
+        razonSocial: 'Razón Social',
+        representanteLegal: 'Representante Legal',
+        direccion: 'Dirección',
+        email: 'Email',
+        telefono: 'Teléfono',
+        mensajePersonalizado: 'Mensaje Personalizado'
+      };
+      
+      const errorFieldNames = errorFields.map(field => fieldNames[field]).filter(Boolean);
+      const errorMessage = errorFieldNames.length === 1 
+        ? `Por favor, corrija el error en el campo: ${errorFieldNames[0]}`
+        : `Por favor, corrija los errores en los siguientes campos: ${errorFieldNames.join(', ')}`;
+      
+      setSubmitError(errorMessage);
       setSubmitSuccess('');
+      
+      // Scroll al primer campo con error
+      const firstErrorField = document.querySelector('.border-red-500');
+      if (firstErrorField) {
+        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        (firstErrorField as HTMLElement).focus();
+      }
+      
       return;
     }
 
@@ -353,29 +421,41 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
       setSubmitError('');
       setSubmitSuccess('');
 
-      // Preparar payload para la API
+      // Preparar payload optimizado para la API
       const payload = {
         tipoEntidad: formData.tipoIdentificacion === 'DNI' ? 'PERSONA_NATURAL' : 'PERSONA_JURIDICA',
-        tipoCliente: 'MINORISTA', // Valor por defecto ya que se eliminó el campo
-        numeroIdentificacion: formData.numeroIdentificacion,
-        nombres: formData.nombres || undefined,
-        apellidos: formData.apellidos || undefined,
-        razonSocial: formData.razonSocial || undefined,
-        contacto: formData.representanteLegal || undefined,
-        telefono: formData.telefono || undefined,
-        email: formData.email || undefined,
-        direccion: formData.direccion,
-        mensajePersonalizado: formData.mensajePersonalizado || undefined,
-        // Campo calculado para compatibilidad
+        tipoCliente: 'MINORISTA', // Valor por defecto
+        numeroIdentificacion: formData.numeroIdentificacion.trim(),
+        nombres: formData.nombres?.trim() || undefined,
+        apellidos: formData.apellidos?.trim() || undefined,
+        razonSocial: formData.razonSocial?.trim() || undefined,
+        contacto: formData.representanteLegal?.trim() || undefined,
+        telefono: formData.telefono?.trim() || undefined,
+        email: formData.email?.trim() || undefined,
+        direccion: formData.direccion.trim(),
+        mensajePersonalizado: formData.mensajePersonalizado?.trim() || undefined,
+        // Campo calculado para compatibilidad con el backend
         nombre: formData.tipoIdentificacion === 'DNI' 
-          ? `${formData.nombres} ${formData.apellidos}`.trim()
-          : formData.razonSocial || ''
+          ? `${formData.nombres?.trim()} ${formData.apellidos?.trim()}`.trim()
+          : formData.razonSocial?.trim() || ''
       };
+
+      // Validación adicional antes del envío
+      if (payload.tipoEntidad === 'PERSONA_NATURAL') {
+        if (!payload.nombres || !payload.apellidos) {
+          throw new Error('Los nombres y apellidos son requeridos para personas naturales');
+        }
+      } else {
+        if (!payload.razonSocial) {
+          throw new Error('La razón social es requerida para personas jurídicas');
+        }
+      }
 
       const response = await fetch('/api/clientes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify(payload),
       });
@@ -383,47 +463,94 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
       let result: any = null;
       try {
         result = await response.json();
-      } catch (e) {
-        console.error('Respuesta no-JSON del servidor al crear cliente:', e);
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        throw new Error('Error en la respuesta del servidor. Por favor, intente nuevamente.');
       }
 
-      if (!response.ok || !(result && result.success)) {
-        const serverMessage = (result && (result.error || result.message)) || response.statusText || 'Error al crear el cliente';
-        const detailsText = result && result.details ? ` (${JSON.stringify(result.details)})` : '';
-        throw new Error(`${serverMessage}${detailsText}`);
+      if (!response.ok) {
+        // Manejo específico de errores del servidor
+        if (response.status === 400) {
+          const serverMessage = result?.error || result?.message || 'Datos inválidos';
+          if (serverMessage.toLowerCase().includes('duplicado') || serverMessage.toLowerCase().includes('existe')) {
+            throw new Error(`Ya existe un cliente con el ${formData.tipoIdentificacion} ${formData.numeroIdentificacion}`);
+          } else if (result.details && Array.isArray(result.details)) {
+            // Errores de validación del servidor (Zod)
+            const validationMessages = result.details.map((detail: any) => detail.message).join(', ');
+            throw new Error(`Errores de validación: ${validationMessages}`);
+          } else if (serverMessage.toLowerCase().includes('validación')) {
+            throw new Error('Los datos proporcionados no son válidos. Verifique la información e intente nuevamente.');
+          } else {
+            throw new Error(serverMessage);
+          }
+        } else if (response.status === 500) {
+          throw new Error('Error interno del servidor. Por favor, contacte al administrador del sistema.');
+        } else if (response.status === 403) {
+          throw new Error('No tiene permisos para realizar esta acción.');
+        } else if (response.status === 401) {
+          throw new Error('Su sesión ha expirado. Por favor, inicie sesión nuevamente.');
+        } else {
+          const serverMessage = result?.error || result?.message || response.statusText || 'Error desconocido';
+          throw new Error(`Error del servidor (${response.status}): ${serverMessage}`);
+        }
+      }
+
+      // Verificar que la respuesta sea exitosa
+      if (!result.success) {
+        throw new Error(result.error || 'Error al procesar la solicitud');
       }
 
       // Éxito
-      setSubmitSuccess('Cliente creado exitosamente');
-      // Opcional: limpiar el formulario después de crear
-      setFormData(prev => ({
-        ...prev,
-        numeroIdentificacion: '',
-        nombres: '',
-        apellidos: '',
-        razonSocial: '',
-        representanteLegal: '',
-        telefono: '',
-        email: '',
-        direccion: '',
-        mensajePersonalizado: ''
-      }));
+      const clienteName = formData.tipoIdentificacion === 'DNI' 
+        ? `${formData.nombres} ${formData.apellidos}` 
+        : formData.razonSocial;
+      setSubmitSuccess(`¡Cliente ${clienteName} creado exitosamente!`);
+      
+      // Limpiar errores de validación
+      setFieldErrors({});
+      
+      // Limpiar el formulario después de un breve delay para mostrar el mensaje
+      setTimeout(() => {
+        setFormData(prev => ({
+          ...prev,
+          numeroIdentificacion: '',
+          nombres: '',
+          apellidos: '',
+          razonSocial: '',
+          representanteLegal: '',
+          telefono: '',
+          email: '',
+          direccion: '',
+          mensajePersonalizado: ''
+        }));
 
-      if (onSuccess) {
-        // Dar tiempo para que se vea el mensaje de éxito
-        setTimeout(() => {
+        // Limpiar estados de autocompletado
+        setAutocompletedFields(new Set());
+        setLookupStatus('idle');
+        setLookupError('');
+        setLookupSource('');
+        setSubmitSuccess('');
+
+        if (onSuccess) {
           onSuccess();
-        }, 1200);
-      } else {
-        // Refrescar si no hay handler externo
-        setTimeout(() => {
+        } else {
           router.refresh();
-        }, 1200);
-      }
+        }
+      }, 2000);
 
     } catch (error) {
       console.error('Error al crear cliente:', error);
-      setSubmitError(error instanceof Error ? error.message : 'Error inesperado al crear el cliente');
+      let errorMessage = 'Error inesperado al crear el cliente. Por favor, intente nuevamente.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('fetch')) {
+          errorMessage = 'Error de conexión. Por favor, verifique su conexión a internet e intente nuevamente.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setSubmitError(errorMessage);
       setSubmitSuccess('');
     } finally {
       setIsSubmitting(false);
@@ -431,147 +558,135 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+    <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 max-w-2xl mx-auto">
+      {/* Header */}
       <div className="mb-6">
-        <h3 className="text-xl font-bold text-black">Crear Nuevo Cliente</h3>
-        <p className="text-sm text-black mt-1">
+        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1">Crear Nuevo Cliente</h2>
+        <p className="text-sm sm:text-base text-gray-600">
           Complete los datos para registrar un nuevo cliente con autocompletado desde RENIEC/SUNAT
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Selector de tipo de identificación */}
-        <div>
-          <label className="block text-sm font-semibold text-black mb-3">
-            Tipo de Identificación *
-          </label>
-          <div className="flex space-x-4">
-            <button
-              type="button"
-              onClick={() => handleTipoIdentificacionChange('DNI')}
-              className={`flex items-center space-x-2 px-4 py-3 rounded-lg border-2 transition-all ${
-                formData.tipoIdentificacion === 'DNI'
-                  ? 'border-green-500 bg-green-50 text-green-700'
-                  : 'border-gray-300 bg-white text-black hover:border-gray-400'
-              }`}
-            >
-              <User className="w-5 h-5" />
-              <span className="font-medium">DNI - Persona Natural</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleTipoIdentificacionChange('RUC')}
-              className={`flex items-center space-x-2 px-4 py-3 rounded-lg border-2 transition-all ${
-                formData.tipoIdentificacion === 'RUC'
-                  ? 'border-green-500 bg-green-50 text-green-700'
-                  : 'border-gray-300 bg-white text-black hover:border-gray-400'
-              }`}
-            >
-              <Building2 className="w-5 h-5" />
-              <span className="font-medium">RUC - Persona Jurídica</span>
-            </button>
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6" role="form" aria-label="Formulario de creación de cliente">
+        {/* Tipo de Identificación */}
+        <fieldset>
+          <legend className="block text-sm font-medium text-gray-700 mb-3">
+            Tipo de Identificación <span className="text-red-500" aria-label="campo requerido">*</span>
+          </legend>
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4" role="radiogroup" aria-labelledby="tipo-identificacion">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name="tipoIdentificacion"
+                value="DNI"
+                checked={formData.tipoIdentificacion === 'DNI'}
+                onChange={(e) => handleTipoIdentificacionChange(e.target.value as 'DNI' | 'RUC')}
+                className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+                aria-describedby="dni-description"
+              />
+              <span className="ml-2 text-sm text-gray-700 flex items-center" id="dni-description">
+                <User className="w-4 h-4 mr-1" aria-hidden="true" />
+                DNI - Persona Natural
+              </span>
+            </label>
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name="tipoIdentificacion"
+                value="RUC"
+                checked={formData.tipoIdentificacion === 'RUC'}
+                onChange={(e) => handleTipoIdentificacionChange(e.target.value as 'DNI' | 'RUC')}
+                className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+                aria-describedby="ruc-description"
+              />
+              <span className="ml-2 text-sm text-gray-700 flex items-center" id="ruc-description">
+                <Building2 className="w-4 h-4 mr-1" aria-hidden="true" />
+                RUC - Persona Jurídica
+              </span>
+            </label>
           </div>
-        </div>
+        </fieldset>
 
-        {/* Número de identificación */}
+        {/* Número de Identificación */}
         <div>
-          <label htmlFor="numeroIdentificacion" className="block text-sm font-semibold text-black mb-2">
-            {formData.tipoIdentificacion === 'DNI' ? 'DNI' : 'RUC'} *
+          <label htmlFor="numeroIdentificacion" className="block text-sm font-medium text-gray-700 mb-2">
+            {formData.tipoIdentificacion} <span className="text-red-500" aria-label="campo requerido">*</span>
           </label>
           <div className="relative">
             <input
-              id="numeroIdentificacion"
               type="text"
+              id="numeroIdentificacion"
+              name="numeroIdentificacion"
               value={formData.numeroIdentificacion}
-              onChange={(e) => {
-                handleIdentificationChange(e.target.value);
-              }}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black ${
+              onChange={(e) => handleIdentificationChange(e.target.value)}
+              placeholder={formData.tipoIdentificacion === 'DNI' ? '12345678' : '20123456789'}
+              className={`w-full px-3 py-2 pr-10 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                 fieldErrors.numeroIdentificacion ? 'border-red-500' : 'border-gray-300'
-              } ${autocompletedFields.has('numeroIdentificacion') ? 'bg-green-50' : 'bg-white'}`}
-              placeholder={formData.tipoIdentificacion === 'DNI' ? '12345678' : '12345678901'}
+              }`}
               maxLength={11}
+              aria-describedby={`${fieldErrors.numeroIdentificacion ? 'numeroIdentificacion-error' : ''} ${lookupError ? 'numeroIdentificacion-lookup-error' : ''} ${lookupStatus === 'success' && lookupSource ? 'numeroIdentificacion-success' : ''}`.trim()}
+              aria-invalid={fieldErrors.numeroIdentificacion ? 'true' : 'false'}
+              required
             />
             {lookupStatus === 'loading' && (
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-              </div>
+              <Loader2 className="absolute right-3 top-2.5 h-5 w-5 animate-spin text-green-500" aria-hidden="true" />
+            )}
+            {lookupStatus === 'success' && (
+              <Check className="absolute right-3 top-2.5 h-5 w-5 text-green-500" aria-hidden="true" />
+            )}
+            {lookupStatus === 'error' && (
+              <AlertCircle className="absolute right-3 top-2.5 h-5 w-5 text-red-500" aria-hidden="true" />
             )}
           </div>
-          
-          {/* Estados de búsqueda */}
-          <div className="mt-2 space-y-1">
-            {lookupStatus === 'loading' && (
-              <p className="text-sm text-blue-600 flex items-center">
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                Consultando {formData.tipoIdentificacion === 'DNI' ? 'RENIEC' : 'SUNAT'}...
-              </p>
-            )}
-            
-            {lookupStatus === 'success' && lookupSource && (
-              <p className="text-sm text-green-600 flex items-center font-medium">
-                <Check className="w-4 h-4 mr-2" />
-                Datos obtenidos de {lookupSource}
-              </p>
-            )}
-            
-            {lookupStatus === 'error' && lookupError && (
-              <p className="text-sm text-red-600 flex items-center">
-                <AlertCircle className="w-4 h-4 mr-2" />
-                {lookupError}
-              </p>
-            )}
-            
-            {fieldErrors.numeroIdentificacion && (
-              <p className="text-sm text-red-600">{fieldErrors.numeroIdentificacion}</p>
-            )}
-          </div>
+          {fieldErrors.numeroIdentificacion && (
+            <p id="numeroIdentificacion-error" className="mt-1 text-sm text-red-600" role="alert">{fieldErrors.numeroIdentificacion}</p>
+          )}
+          {lookupError && (
+            <p id="numeroIdentificacion-lookup-error" className="mt-1 text-sm text-orange-600" role="alert">{lookupError}</p>
+          )}
+          {lookupStatus === 'success' && lookupSource && (
+            <p id="numeroIdentificacion-success" className="mt-1 text-sm text-green-600" aria-live="polite">✓ Datos obtenidos de {lookupSource}</p>
+          )}
         </div>
 
-        {/* Campos específicos para Persona Natural (DNI) */}
+        {/* Campos de persona natural (DNI) */}
         {formData.tipoIdentificacion === 'DNI' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="nombres" className="block text-sm font-semibold text-black mb-2">
-                Nombres *
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nombres <span className="text-red-500">*</span>
               </label>
               <input
-                id="nombres"
                 type="text"
-                value={formData.nombres}
+                value={formData.nombres || ''}
                 onChange={(e) => {
                   setFormData(prev => ({ ...prev, nombres: e.target.value }));
                   validateField('nombres', e.target.value);
                 }}
-                readOnly={formData.tipoIdentificacion === 'DNI' && autocompletedFields.has('nombres')}
-                title={formData.tipoIdentificacion === 'DNI' && autocompletedFields.has('nombres') ? 'Campo autocompletado por RENIEC, no editable' : undefined}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black ${
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                   fieldErrors.nombres ? 'border-red-500' : 'border-gray-300'
-                } ${autocompletedFields.has('nombres') ? 'bg-green-50' : 'bg-white'}`}
+                } ${autocompletedFields.has('nombres') ? 'bg-green-50' : ''}`}
                 placeholder="Juan Carlos"
               />
               {fieldErrors.nombres && (
                 <p className="mt-1 text-sm text-red-600">{fieldErrors.nombres}</p>
               )}
             </div>
-            
+
             <div>
-              <label htmlFor="apellidos" className="block text-sm font-semibold text-black mb-2">
-                Apellidos *
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Apellidos <span className="text-red-500">*</span>
               </label>
               <input
-                id="apellidos"
                 type="text"
-                value={formData.apellidos}
+                value={formData.apellidos || ''}
                 onChange={(e) => {
                   setFormData(prev => ({ ...prev, apellidos: e.target.value }));
                   validateField('apellidos', e.target.value);
                 }}
-                readOnly={formData.tipoIdentificacion === 'DNI' && autocompletedFields.has('apellidos')}
-                title={formData.tipoIdentificacion === 'DNI' && autocompletedFields.has('apellidos') ? 'Campo autocompletado por RENIEC, no editable' : undefined}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black ${
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                   fieldErrors.apellidos ? 'border-red-500' : 'border-gray-300'
-                } ${autocompletedFields.has('apellidos') ? 'bg-green-50' : 'bg-white'}`}
+                } ${autocompletedFields.has('apellidos') ? 'bg-green-50' : ''}`}
                 placeholder="Pérez García"
               />
               {fieldErrors.apellidos && (
@@ -581,86 +696,90 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
           </div>
         )}
 
-        {/* Campos específicos para Persona Jurídica (RUC) */}
+        {/* Campos de persona jurídica (RUC) */}
         {formData.tipoIdentificacion === 'RUC' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <>
             <div>
-              <label htmlFor="razonSocial" className="block text-sm font-semibold text-black mb-2">
-                Razón Social *
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Razón Social <span className="text-red-500">*</span>
               </label>
               <input
-                id="razonSocial"
                 type="text"
-                value={formData.razonSocial}
+                value={formData.razonSocial || ''}
                 onChange={(e) => {
                   setFormData(prev => ({ ...prev, razonSocial: e.target.value }));
                   validateField('razonSocial', e.target.value);
                 }}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black ${
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                   fieldErrors.razonSocial ? 'border-red-500' : 'border-gray-300'
-                } ${autocompletedFields.has('razonSocial') ? 'bg-green-50' : 'bg-white'}`}
-                placeholder="Empresa S.A.C."
+                } ${autocompletedFields.has('razonSocial') ? 'bg-green-50' : ''}`}
+                placeholder="CORPORACION ACEROS AREQUIPA S.A."
               />
               {fieldErrors.razonSocial && (
                 <p className="mt-1 text-sm text-red-600">{fieldErrors.razonSocial}</p>
               )}
             </div>
-            
+
             <div>
-              <label htmlFor="representanteLegal" className="block text-sm font-semibold text-black mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Representante Legal
               </label>
               <input
-                id="representanteLegal"
                 type="text"
-                value={formData.representanteLegal}
-                onChange={(e) => setFormData(prev => ({ ...prev, representanteLegal: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-black"
-                placeholder="Nombre del representante"
+                value={formData.representanteLegal || ''}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, representanteLegal: e.target.value }));
+                  validateField('representanteLegal', e.target.value);
+                }}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                  fieldErrors.representanteLegal ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="Nombre del representante legal"
               />
+              {fieldErrors.representanteLegal && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.representanteLegal}</p>
+              )}
             </div>
-          </div>
+          </>
         )}
 
-        {/* Campos de contacto */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Teléfono y Email */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="telefono" className="block text-sm font-semibold text-black mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Teléfono
             </label>
             <input
-              id="telefono"
               type="tel"
-              value={formData.telefono}
+              value={formData.telefono || ''}
               onChange={(e) => {
                 setFormData(prev => ({ ...prev, telefono: e.target.value }));
                 validateField('telefono', e.target.value);
               }}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black ${
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                 fieldErrors.telefono ? 'border-red-500' : 'border-gray-300'
-              } bg-white`}
+              }`}
               placeholder="+51 123 456 789"
             />
             {fieldErrors.telefono && (
               <p className="mt-1 text-sm text-red-600">{fieldErrors.telefono}</p>
             )}
           </div>
-          
+
           <div>
-            <label htmlFor="email" className="block text-sm font-semibold text-black mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Email
             </label>
             <input
-              id="email"
               type="email"
-              value={formData.email}
+              value={formData.email || ''}
               onChange={(e) => {
                 setFormData(prev => ({ ...prev, email: e.target.value }));
                 validateField('email', e.target.value);
               }}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black ${
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                 fieldErrors.email ? 'border-red-500' : 'border-gray-300'
-              } bg-white`}
+              }`}
               placeholder="correo@ejemplo.com"
             />
             {fieldErrors.email && (
@@ -669,22 +788,21 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
           </div>
         </div>
 
-        {/* Dirección (obligatoria) */}
+        {/* Dirección */}
         <div>
-          <label htmlFor="direccion" className="block text-sm font-semibold text-black mb-2">
-            Dirección *
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Dirección <span className="text-red-500">*</span>
           </label>
           <input
-            id="direccion"
             type="text"
             value={formData.direccion}
             onChange={(e) => {
               setFormData(prev => ({ ...prev, direccion: e.target.value }));
               validateField('direccion', e.target.value);
             }}
-            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black ${
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
               fieldErrors.direccion ? 'border-red-500' : 'border-gray-300'
-            } ${autocompletedFields.has('direccion') ? 'bg-green-50' : 'bg-white'}`}
+            } ${autocompletedFields.has('direccion') ? 'bg-green-50' : ''}`}
             placeholder="Av. Principal 123, Distrito, Provincia, Departamento"
           />
           {fieldErrors.direccion && (
@@ -692,42 +810,64 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
           )}
         </div>
 
-        {/* Mensaje personalizado */}
+        {/* Mensaje Personalizado */}
         <div>
-          <label htmlFor="mensajePersonalizado" className="block text-sm font-semibold text-black mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Mensaje Personalizado
           </label>
           <textarea
-            id="mensajePersonalizado"
-            value={formData.mensajePersonalizado}
-            onChange={(e) => setFormData(prev => ({ ...prev, mensajePersonalizado: e.target.value }))}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-black"
-            placeholder="Mensaje personalizado para incluir en comunicaciones..."
+            value={formData.mensajePersonalizado || ''}
+            onChange={(e) => {
+              setFormData(prev => ({ ...prev, mensajePersonalizado: e.target.value }));
+              validateField('mensajePersonalizado', e.target.value);
+            }}
             rows={3}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+              fieldErrors.mensajePersonalizado ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="Mensaje personalizado para incluir en comunicaciones..."
           />
+          {fieldErrors.mensajePersonalizado && (
+            <p className="mt-1 text-sm text-red-600">{fieldErrors.mensajePersonalizado}</p>
+          )}
+          <p className="mt-1 text-xs text-gray-500">
+            {(formData.mensajePersonalizado || '').length}/500 caracteres
+          </p>
         </div>
 
-        {/* Mensaje de éxito */}
-        {submitSuccess && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm text-green-700 font-medium">{submitSuccess}</p>
+        {/* Mensajes de estado */}
+        {submitError && (
+          <div id="submit-error" className="bg-red-50 border border-red-200 rounded-md p-4 animate-in slide-in-from-top-2 duration-300" role="alert" aria-live="assertive">
+            <div className="flex items-center">
+              <AlertCircle className="h-6 w-6 text-red-500 mr-3 animate-pulse" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-medium text-red-800">{submitError}</p>
+                <p className="text-xs text-red-600 mt-1">Por favor, revise la información e intente nuevamente.</p>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Error de envío */}
-        {submitError && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-600 font-medium">{submitError}</p>
+        {submitSuccess && (
+          <div id="submit-success" className="bg-green-50 border border-green-200 rounded-md p-4 animate-in slide-in-from-top-2 duration-300" role="status" aria-live="polite">
+            <div className="flex items-center">
+              <CheckCircle className="h-6 w-6 text-green-500 mr-3 animate-bounce" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-medium text-green-800">{submitSuccess}</p>
+                <p className="text-xs text-green-600 mt-1">El cliente ha sido registrado correctamente en el sistema.</p>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Botones de acción */}
-        <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
+        <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3 pt-6 border-t border-gray-200">
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="px-6 py-3 text-sm font-medium text-black bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="w-full sm:w-auto px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+              aria-label="Cancelar creación de cliente"
             >
               Cancelar
             </button>
@@ -735,17 +875,23 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-3 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+            className={`w-full sm:w-auto px-6 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors ${
+              isSubmitting
+                ? 'bg-green-400 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+            aria-label={isSubmitting ? 'Creando cliente, por favor espere' : 'Crear nuevo cliente'}
+            aria-describedby={submitError ? 'submit-error' : submitSuccess ? 'submit-success' : undefined}
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Guardando...</span>
+                <Loader2 className="inline-block h-4 w-4 animate-spin mr-2" aria-hidden="true" />
+                Creando Cliente...
               </>
             ) : (
               <>
-                <Plus className="w-4 h-4" />
-                <span>Crear Cliente</span>
+                <Plus className="inline-block h-4 w-4 mr-2" aria-hidden="true" />
+                Crear Cliente
               </>
             )}
           </button>

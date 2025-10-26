@@ -5,10 +5,10 @@ const prisma = new PrismaClient();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const { searchParams } = new URL(request.url);
     
     // Parámetros de consulta
@@ -51,11 +51,12 @@ export async function GET(
         'Sin nombre';
     }
 
-    // Construir filtros de búsqueda
+    // Construir filtros de búsqueda para ProductoProveedor
     const whereConditions: any = {
       proveedorId: id
     };
 
+    // Filtros para la relación ProductoProveedor
     if (!includeInactive) {
       whereConditions.activo = true;
       whereConditions.producto = {
@@ -63,14 +64,31 @@ export async function GET(
       };
     }
 
+    // Filtros de búsqueda en el producto
     if (search) {
       whereConditions.producto = {
         ...whereConditions.producto,
         OR: [
-          { nombre: { contains: search } },
-          { sku: { contains: search } },
-          { descripcion: { contains: search } }
+          { nombre: { contains: search, mode: 'insensitive' } },
+          { sku: { contains: search, mode: 'insensitive' } },
+          { descripcion: { contains: search, mode: 'insensitive' } }
         ]
+      };
+    }
+
+    // Filtro por categoría
+    if (categoria) {
+      whereConditions.producto = {
+        ...whereConditions.producto,
+        categoriaId: categoria
+      };
+    }
+
+    // Filtro por disponibilidad (stock)
+    if (disponible !== undefined) {
+      whereConditions.producto = {
+        ...whereConditions.producto,
+        stock: disponible ? { gt: 0 } : { lte: 0 }
       };
     }
 
@@ -79,6 +97,11 @@ export async function GET(
 
     // Intentar obtener productos directamente relacionados (nueva tabla ProductoProveedor)
     try {
+      // Validar campo de ordenamiento
+      const validSortFields = ['nombre', 'sku', 'precio', 'stock', 'createdAt'];
+      const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'nombre';
+      const safeSortOrder = sortOrder === 'desc' ? 'desc' : 'asc';
+
       productosDirectos = await prisma.productoProveedor.findMany({
         where: whereConditions,
         include: {
@@ -91,7 +114,7 @@ export async function GET(
         },
         orderBy: {
           producto: {
-            [sortBy]: sortOrder as 'asc' | 'desc'
+            [safeSortBy]: safeSortOrder
           }
         },
         skip,
@@ -108,30 +131,40 @@ export async function GET(
     // Obtener productos de pedidos de compra (relación histórica)
     let productosHistoricos: any[] = [];
     try {
+      // Construir filtros para productos históricos
+       const historicalWhere: any = {
+         pedidoCompra: {
+           proveedorId: id
+         }
+       };
+
+      // Aplicar filtros de búsqueda
+      if (search || categoria || disponible !== undefined || !includeInactive) {
+        historicalWhere.producto = {};
+        
+        if (search) {
+          historicalWhere.producto.OR = [
+            { nombre: { contains: search, mode: 'insensitive' } },
+            { sku: { contains: search, mode: 'insensitive' } },
+            { descripcion: { contains: search, mode: 'insensitive' } }
+          ];
+        }
+        
+        if (categoria) {
+          historicalWhere.producto.categoriaId = categoria;
+        }
+        
+        if (disponible !== undefined) {
+          historicalWhere.producto.stock = disponible ? { gt: 0 } : { lte: 0 };
+        }
+        
+        if (!includeInactive) {
+          historicalWhere.producto.activo = true;
+        }
+      }
+
       productosHistoricos = await prisma.pedidoCompraItem.findMany({
-        where: {
-          pedido: {
-            proveedorId: id
-          },
-          ...(search && {
-            producto: {
-              OR: [
-                { nombre: { contains: search } },
-                { sku: { contains: search } }
-              ]
-            }
-          }),
-          ...(categoria && {
-            producto: {
-              categoriaId: categoria
-            }
-          }),
-          ...(disponible !== undefined && {
-            producto: {
-              stock: disponible ? { gt: 0 } : { lte: 0 }
-            }
-          })
-        },
+        where: historicalWhere,
         include: {
           producto: {
             include: {
@@ -142,8 +175,12 @@ export async function GET(
           pedido: true
         },
         orderBy: {
-          id: 'desc'
-        }
+          producto: {
+            [safeSortBy]: safeSortOrder
+          }
+        },
+        skip,
+        take: limit
       });
       console.log(`Productos históricos encontrados: ${productosHistoricos.length}`);
     } catch (error) {
@@ -210,51 +247,66 @@ export async function GET(
 
     const productos = Array.from(productosMap.values());
 
-    // Contar total para paginación
-    let totalDirectos = 0;
+    // Contar total de productos
+    let total = 0;
+
     if (hasDirectRelations) {
       try {
-        totalDirectos = await prisma.productoProveedor.count({
+        total = await prisma.productoProveedor.count({
           where: whereConditions
         });
       } catch (error) {
-        totalDirectos = 0;
+        console.log('Error contando productos directos:', error);
+        total = productosDirectos.length;
+      }
+    } else {
+      try {
+        // Usar los mismos filtros que para la consulta histórica
+         const historicalCountWhere: any = {
+           pedidoCompra: {
+             proveedorId: id
+           }
+         };
+
+        if (search || categoria || disponible !== undefined || !includeInactive) {
+          historicalCountWhere.producto = {};
+          
+          if (search) {
+            historicalCountWhere.producto.OR = [
+              { nombre: { contains: search, mode: 'insensitive' } },
+              { sku: { contains: search, mode: 'insensitive' } },
+              { descripcion: { contains: search, mode: 'insensitive' } }
+            ];
+          }
+          
+          if (categoria) {
+            historicalCountWhere.producto.categoriaId = categoria;
+          }
+          
+          if (disponible !== undefined) {
+            historicalCountWhere.producto.stock = disponible ? { gt: 0 } : { lte: 0 };
+          }
+          
+          if (!includeInactive) {
+            historicalCountWhere.producto.activo = true;
+          }
+        }
+
+        // Contar productos únicos en el historial
+        const uniqueProductIds = await prisma.pedidoCompraItem.findMany({
+          where: historicalCountWhere,
+          select: {
+            productoId: true
+          },
+          distinct: ['productoId']
+        });
+        
+        total = uniqueProductIds.length;
+      } catch (error) {
+        console.log('Error contando productos históricos:', error instanceof Error ? error.message : 'Error desconocido');
+        total = productosHistoricos.length;
       }
     }
-
-    let totalHistoricos = 0;
-    try {
-      totalHistoricos = await prisma.pedidoCompraItem.count({
-        where: {
-          pedido: {
-            proveedorId: id
-          },
-          ...(search && {
-            producto: {
-              OR: [
-                { nombre: { contains: search } },
-                { sku: { contains: search } }
-              ]
-            }
-          }),
-          ...(categoria && {
-            producto: {
-              categoriaId: categoria
-            }
-          }),
-          ...(disponible !== undefined && {
-            producto: {
-              stock: disponible ? { gt: 0 } : { lte: 0 }
-            }
-          })
-        }
-      });
-    } catch (error) {
-      console.log('Error contando productos históricos:', error instanceof Error ? error.message : 'Error desconocido');
-      totalHistoricos = 0;
-    }
-
-    const total = Math.max(totalDirectos, totalHistoricos);
     const totalPages = Math.ceil(total / limit);
 
     // Estadísticas adicionales
@@ -298,21 +350,42 @@ export async function GET(
     // Manejo específico de errores de Prisma
     if (error?.code === 'P2025') {
       return NextResponse.json(
-        { error: 'Proveedor no encontrado' },
+        { 
+          success: false,
+          error: 'Proveedor no encontrado',
+          code: 'PROVEEDOR_NOT_FOUND'
+        },
         { status: 404 }
       );
     }
 
     if (error?.code === 'P2021') {
       return NextResponse.json(
-        { error: 'La tabla no existe. Ejecute las migraciones de base de datos.' },
+        { 
+          success: false,
+          error: 'La tabla no existe. Ejecute las migraciones de base de datos.',
+          code: 'TABLE_NOT_EXISTS'
+        },
         { status: 500 }
+      );
+    }
+
+    if (error?.code === 'P2002') {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Conflicto de datos únicos',
+          code: 'UNIQUE_CONSTRAINT_VIOLATION'
+        },
+        { status: 409 }
       );
     }
 
     return NextResponse.json(
       { 
+        success: false,
         error: 'Error interno del servidor',
+        code: 'INTERNAL_SERVER_ERROR',
         details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Error desconocido') : undefined
       },
       { status: 500 }

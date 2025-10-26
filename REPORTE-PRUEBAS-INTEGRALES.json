@@ -1,0 +1,208 @@
+{
+  "timestamp": "2025-10-26T19:29:59.829Z",
+  "summary": {
+    "totalTests": 18,
+    "passedTests": 18,
+    "failedTests": 0,
+    "successRate": "100.0",
+    "overallStatus": "EXITOSO"
+  },
+  "testResults": [
+    {
+      "name": "Conexión a base de datos",
+      "status": "PASSED",
+      "duration": 14,
+      "result": {
+        "connected": true,
+        "testQuery": [
+          {
+            "test": "1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Verificación de tablas principales",
+      "status": "PASSED",
+      "duration": 3,
+      "result": {
+        "totalTables": 14,
+        "requiredTables": 10
+      }
+    },
+    {
+      "name": "Verificación de índices optimizados",
+      "status": "PASSED",
+      "duration": 3,
+      "result": {
+        "totalOptimizedIndices": 19,
+        "expectedIndices": 7,
+        "indices": [
+          "idx_auditoria_tabla_fecha",
+          "idx_auditoria_tabla_fecha",
+          "idx_auditoria_tabla_fecha",
+          "idx_movimiento_fecha_tipo",
+          "idx_movimiento_fecha_tipo",
+          "idx_movimiento_fecha_tipo",
+          "idx_pedido_compra_item_producto",
+          "idx_pedido_compra_item_producto",
+          "idx_pedido_venta_estado_fecha",
+          "idx_pedido_venta_estado_fecha",
+          "idx_pedido_venta_estado_fecha",
+          "idx_pedido_venta_item_producto",
+          "idx_pedido_venta_item_producto",
+          "idx_producto_busqueda",
+          "idx_producto_busqueda",
+          "idx_producto_busqueda",
+          "idx_producto_categoria_activo",
+          "idx_producto_categoria_activo",
+          "idx_producto_categoria_activo"
+        ]
+      }
+    },
+    {
+      "name": "Creación de Usuario de Prueba",
+      "status": "PASSED",
+      "duration": 28
+    },
+    {
+      "name": "CRUD Categorías",
+      "status": "PASSED",
+      "duration": 67,
+      "result": {
+        "created": true,
+        "read": true,
+        "updated": true
+      }
+    },
+    {
+      "name": "CRUD Proveedores",
+      "status": "PASSED",
+      "duration": 169,
+      "result": {
+        "created": true,
+        "read": true,
+        "updated": true
+      }
+    },
+    {
+      "name": "CRUD Clientes",
+      "status": "PASSED",
+      "duration": 66,
+      "result": {
+        "created": true,
+        "read": true,
+        "updated": true
+      }
+    },
+    {
+      "name": "CRUD Productos",
+      "status": "PASSED",
+      "duration": 127,
+      "result": {
+        "created": true,
+        "read": true,
+        "updated": true
+      }
+    },
+    {
+      "name": "Relaciones Producto-Categoría-UnidadMedida",
+      "status": "PASSED",
+      "duration": 2,
+      "result": {
+        "hasCategory": true,
+        "hasUnit": true,
+        "categoryName": "Test Category",
+        "unitName": "Caja"
+      }
+    },
+    {
+      "name": "Verificación de Movimientos de Inventario",
+      "status": "PASSED",
+      "duration": 2,
+      "result": {
+        "canQuery": true,
+        "totalMovimientos": 0,
+        "sampleMovimientos": 0,
+        "hasRelations": false
+      }
+    },
+    {
+      "name": "Creación de Pedido de Compra",
+      "status": "PASSED",
+      "duration": 46,
+      "result": {
+        "created": true,
+        "hasSupplier": true,
+        "hasItems": true,
+        "itemsWithProducts": true
+      }
+    },
+    {
+      "name": "Creación de Pedido de Venta",
+      "status": "PASSED",
+      "duration": 35,
+      "result": {
+        "created": true,
+        "hasClient": true,
+        "hasItems": true,
+        "itemsWithProducts": true,
+        "status": "PENDIENTE"
+      }
+    },
+    {
+      "name": "Consulta optimizada de productos",
+      "status": "PASSED",
+      "duration": 3,
+      "result": {
+        "count": 10,
+        "duration": 3,
+        "performanceGood": true
+      }
+    },
+    {
+      "name": "Consulta de inventario con stock bajo",
+      "status": "PASSED",
+      "duration": 3,
+      "result": {
+        "count": 1,
+        "duration": 3,
+        "performanceGood": true
+      }
+    },
+    {
+      "name": "Consulta de movimientos recientes",
+      "status": "PASSED",
+      "duration": 2,
+      "result": {
+        "count": 0,
+        "duration": 2,
+        "performanceGood": true
+      }
+    },
+    {
+      "name": "Validación de RUC único en proveedores",
+      "status": "PASSED",
+      "duration": 29,
+      "result": {
+        "uniqueConstraintWorking": true
+      }
+    },
+    {
+      "name": "Validación de SKU único en productos",
+      "status": "PASSED",
+      "duration": 30,
+      "result": {
+        "uniqueConstraintWorking": true
+      }
+    },
+    {
+      "name": "Limpieza de datos de prueba",
+      "status": "PASSED",
+      "duration": 1115,
+      "result": {
+        "cleaned": true
+      }
+    }
+  ]
+}

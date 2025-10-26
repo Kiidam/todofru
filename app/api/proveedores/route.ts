@@ -9,6 +9,7 @@ import { Session } from 'next-auth';
 import * as crypto from 'crypto';
 import { proveedorPayloadSchema, validateProveedorPayload } from '../../../src/schemas/proveedor';
 import { ProveedorPayload } from '../../../src/types/proveedor';
+import { validateDocument, sanitizeNumericInput } from '../../../src/utils/documentValidation';
 
 // GET /api/proveedores - Listar proveedores
 export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
@@ -173,6 +174,11 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
 export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
   const body = await request.json();
 
+  // Sanitizar número de identificación antes de validar
+  if (body.numeroIdentificacion) {
+    body.numeroIdentificacion = sanitizeNumericInput(body.numeroIdentificacion);
+  }
+
   // Validar payload usando el esquema existente
   const validation = validateProveedorPayload(body);
   if (!validation.success) {
@@ -181,15 +187,38 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
 
   const data = validation.data;
 
-  // Verificar unicidad de RUC si es persona jurídica
-  if (data.tipoEntidad === 'PERSONA_JURIDICA' && data.numeroIdentificacion) {
-    const existingRuc = await prisma.proveedor.findFirst({
+  // Validaciones adicionales de seguridad para documentos
+  if (data.numeroIdentificacion) {
+    const documentValidation = validateDocument(data.numeroIdentificacion);
+    if (!documentValidation.isValid) {
+      return errorResponse(documentValidation.error || 'Documento de identificación inválido', 400);
+    }
+
+    // Verificar que el tipo de documento coincida con el tipo de entidad
+    if (data.tipoEntidad === 'PERSONA_NATURAL' && documentValidation.type !== 'DNI') {
+      return errorResponse('Para persona natural se requiere un DNI válido', 400);
+    }
+    if (data.tipoEntidad === 'PERSONA_JURIDICA' && documentValidation.type !== 'RUC') {
+      return errorResponse('Para persona jurídica se requiere un RUC válido', 400);
+    }
+
+    // Verificar unicidad del documento
+    const existingDocument = await prisma.proveedor.findFirst({
       where: { numeroIdentificacion: data.numeroIdentificacion }
     });
-    if (existingRuc) {
-      return errorResponse('El RUC ya está registrado para otro proveedor', 409);
+    if (existingDocument) {
+      return errorResponse(`El ${documentValidation.type} ya está registrado para otro proveedor`, 409);
     }
   }
+
+  // Registrar intento de creación para auditoría
+  logger.info('Intento de creación de proveedor', {
+    userId: session.user?.id,
+    userEmail: session.user?.email,
+    tipoEntidad: data.tipoEntidad,
+    numeroIdentificacion: data.numeroIdentificacion ? '***' + data.numeroIdentificacion.slice(-3) : undefined,
+    timestamp: new Date().toISOString()
+  });
 
   try {
     const created = await prisma.proveedor.create({

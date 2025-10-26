@@ -96,6 +96,8 @@ interface ApiResponse {
     sortBy: string;
     sortOrder: string;
   };
+  error?: string;
+  code?: string;
 }
 
 interface ProductosProveedorVistaModalProps {
@@ -160,13 +162,22 @@ const ProductosProveedorVistaModal: React.FC<ProductosProveedorVistaModalProps> 
       const response = await fetch(`/api/proveedores/${proveedorId}/productos?${params}`);
       
       if (!response.ok) {
+        // Intentar obtener el mensaje de error de la respuesta
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            throw new Error(errorData.error);
+          }
+        } catch (parseError) {
+          // Si no se puede parsear la respuesta, usar el status text
+        }
         throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
       
       const result: ApiResponse = await response.json();
       
       if (!result.success) {
-        throw new Error('Error al cargar productos');
+        throw new Error(result.error || 'Error al cargar productos');
       }
       
       setData(result);
@@ -189,11 +200,22 @@ const ProductosProveedorVistaModal: React.FC<ProductosProveedorVistaModalProps> 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      
+      // Manejar tecla Escape
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+      
+      document.addEventListener('keydown', handleKeyDown);
+      
       return () => {
         document.body.style.overflow = 'unset';
+        document.removeEventListener('keydown', handleKeyDown);
       };
     }
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   // Efecto para resetear página cuando cambian los filtros
   useEffect(() => {
@@ -255,14 +277,14 @@ const ProductosProveedorVistaModal: React.FC<ProductosProveedorVistaModalProps> 
 
   const modalContent = (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4 animate-fade-in"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full max-h-[95vh] overflow-hidden relative z-[10000]">
+      <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full max-h-[95vh] overflow-hidden relative animate-scale-in">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center space-x-3">
@@ -278,7 +300,7 @@ const ProductosProveedorVistaModal: React.FC<ProductosProveedorVistaModalProps> 
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-lg"
+            className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-md"
           >
             <X className="w-6 h-6" />
           </button>
@@ -360,10 +382,10 @@ const ProductosProveedorVistaModal: React.FC<ProductosProveedorVistaModalProps> 
               <div className="flex items-center space-x-4">
                 <button
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-colors ${
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-md border transition-colors font-medium ${
                     showFilters 
                       ? 'bg-blue-50 border-blue-200 text-blue-700' 
-                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                      : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
                   }`}
                 >
                   <Filter className="w-4 h-4" />
@@ -380,7 +402,7 @@ const ProductosProveedorVistaModal: React.FC<ProductosProveedorVistaModalProps> 
                 <button
                   onClick={fetchProductos}
                   disabled={loading}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-50 text-green-700 rounded-md hover:bg-green-100 disabled:opacity-50 transition-colors border border-green-200 font-medium"
                 >
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -449,7 +471,7 @@ const ProductosProveedorVistaModal: React.FC<ProductosProveedorVistaModalProps> 
                       </select>
                       <button
                         onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                        className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        className="px-3 py-2 border border-gray-200 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
                       >
                         {sortOrder === 'asc' ? (
                           <SortAsc className="w-4 h-4" />

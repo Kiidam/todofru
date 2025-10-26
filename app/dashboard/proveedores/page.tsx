@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import AddSupplierForm from "@/components/proveedores/AddSupplierForm";
 import EditSupplierForm from "@/components/proveedores/EditSupplierForm";
 import ProductosProveedorVistaModal from "@/components/proveedores/ProductosProveedorVistaModal";
+import ToggleStatus from "../../../src/components/ui/ToggleStatus";
 import { Trash2, AlertTriangle, Loader2, Plus, Search, Filter, Eye, EyeOff, Pencil, Package } from 'lucide-react';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
@@ -68,7 +69,7 @@ function DeleteConfirmation({ supplier, onConfirm, onCancel, isDeleting }: Delet
           type="button"
           onClick={onCancel}
           disabled={isDeleting}
-          className="px-4 py-2 text-sm font-medium text-black bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100 disabled:opacity-50 transition-colors border border-gray-200"
         >
           Cancelar
         </button>
@@ -76,7 +77,7 @@ function DeleteConfirmation({ supplier, onConfirm, onCancel, isDeleting }: Delet
           type="button"
           onClick={onConfirm}
           disabled={isDeleting}
-          className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center space-x-2"
+          className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 disabled:opacity-50 transition-colors flex items-center space-x-2 border border-red-200"
         >
           {isDeleting ? (
             <>
@@ -175,6 +176,41 @@ export default function ProveedoresPage() {
       setActionError(err?.message || 'Error inesperado al actualizar el estado');
     } finally {
       setToggleLoadingId(null);
+    }
+  };
+
+  // Wrapper para ToggleStatus component
+  const handleToggleStatus = async (supplierId: string, newStatus: boolean) => {
+    const supplier = suppliers.find(s => s.id === supplierId);
+    if (supplier) {
+      await handleToggleActive(supplier);
+    }
+  };
+
+  // Formatear fecha
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'No disponible';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Formatear tipo de entidad
+  const formatEntityType = (tipoIdentificacion?: string) => {
+    switch (tipoIdentificacion) {
+      case 'DNI':
+        return 'Persona Natural';
+      case 'RUC':
+        return 'Persona Jurídica';
+      default:
+        return 'No especificado';
     }
   };
 
@@ -280,7 +316,7 @@ export default function ProveedoresPage() {
           <p className="text-red-600 mt-2">{error}</p>
           <button
             onClick={loadSuppliers}
-            className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            className="mt-3 px-4 py-2 bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors border border-red-200 font-medium"
           >
             Reintentar
           </button>
@@ -301,7 +337,7 @@ export default function ProveedoresPage() {
         </div>
         <button
           onClick={() => setShowCreateForm(true)}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+          className="bg-green-50 text-green-700 px-4 py-2 rounded-md hover:bg-green-100 transition-colors flex items-center space-x-2 border border-green-200 font-medium"
         >
           <Plus className="w-4 h-4" />
           <span>Agregar Proveedor</span>
@@ -372,10 +408,10 @@ export default function ProveedoresPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Proveedor
+                    Fecha Registro
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Documento
+                    Proveedor
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Contacto
@@ -395,20 +431,26 @@ export default function ProveedoresPage() {
                 {filteredSuppliers.map((supplier) => (
                   <tr key={supplier.id} className={statusChangedId === supplier.id ? 'bg-green-50' : ''}>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-black">
+                        {formatDate(supplier.createdAt)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-black">
                           {supplier.razonSocial || `${supplier.nombres} ${supplier.apellidos}`}
                         </div>
+                        {supplier.numeroIdentificacion && (
+                          <div className="text-sm text-black">
+                            {supplier.tipoIdentificacion}: {supplier.numeroIdentificacion}
+                          </div>
+                        )}
+                        <div className="text-xs text-black">{formatEntityType(supplier.tipoIdentificacion)}</div>
                         {supplier.representanteLegal && (
                           <div className="text-sm text-gray-500">
                             Rep. Legal: {supplier.representanteLegal}
                           </div>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-black">
-                        {supplier.tipoIdentificacion}: {supplier.numeroIdentificacion}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -418,7 +460,7 @@ export default function ProveedoresPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                        <button
                          onClick={() => handleProductsClick(supplier)}
-                         className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors"
+                         className="flex items-center space-x-2 bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors border border-blue-200"
                          title="Ver productos del proveedor"
                        >
                          <Package className="w-4 h-4" />
@@ -428,30 +470,33 @@ export default function ProveedoresPage() {
                        </button>
                      </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        supplier.activo 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {supplier.activo ? 'Activo' : 'Inactivo'}
-                      </span>
+                      <ToggleStatus
+                        id={supplier.id}
+                        isActive={supplier.activo}
+                        onToggle={handleToggleStatus}
+                        entityName="proveedor"
+                        size="sm"
+                        disabled={toggleLoadingId === supplier.id}
+                      />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => setShowEditForm(supplier)}
-                        className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors bg-blue-600 text-white hover:bg-blue-700"
-                        title="Editar proveedor"
-                      >
-                        <Pencil className="w-4 h-4" />
-                        <span>Editar</span>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(supplier)}
-                        className="text-red-600 hover:text-red-900 transition-colors p-2 rounded-lg hover:bg-red-50"
-                        title="Eliminar proveedor"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setShowEditForm(supplier)}
+                          className="flex items-center space-x-1 px-3 py-1.5 rounded-md transition-colors bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-sm font-medium"
+                          title="Editar proveedor"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          <span>Editar</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(supplier)}
+                          className="flex items-center justify-center p-1.5 rounded-md transition-colors text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200"
+                          title="Eliminar proveedor"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

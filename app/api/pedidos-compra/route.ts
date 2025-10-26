@@ -201,7 +201,25 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
 
   const [pedidos, total] = await Promise.all([
     prisma.pedidoCompra.findMany({
-      include: { proveedor: true, items: true },
+      include: { 
+        proveedor: true, 
+        items: {
+          include: {
+            producto: {
+              include: {
+                unidadMedida: true,
+                categoria: true
+              }
+            }
+          }
+        },
+        usuario: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
@@ -210,7 +228,8 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
   ]);
 
   const response = successResponse(
-    { data: pedidos, pagination: { total, page, limit } }
+    { data: pedidos, pagination: { total, page, limit, pages: Math.ceil(total / limit) } },
+    `${pedidos.length} pedidos de compra encontrados`
   );
   response.headers.set('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=120');
   return response;

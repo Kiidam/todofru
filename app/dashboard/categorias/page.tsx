@@ -34,23 +34,10 @@ export default function CategoriasPage() {
       }
       const data = await res.json()
       const apiList = data.data || []
-      if (apiList.length === 0) {
-        // Fallback con ejemplos si la API no devuelve datos
-        setCategorias([
-          { id: 'cat-frutas', nombre: 'Frutas', descripcion: 'Categoría de frutas frescas', _count: { productos: 0 }, activo: true },
-          { id: 'cat-verduras', nombre: 'Verduras', descripcion: 'Verduras y hortalizas', _count: { productos: 0 }, activo: true },
-          { id: 'cat-lacteos', nombre: 'Lácteos', descripcion: 'Productos derivados de la leche', _count: { productos: 0 }, activo: true },
-        ])
-      } else {
-        setCategorias(apiList)
-      }
+      setCategorias(apiList)
     } catch (e) {
-      // En error, mostrar datos de ejemplo para que el módulo sea navegable
-      setCategorias([
-        { id: 'cat-frutas', nombre: 'Frutas', descripcion: 'Categoría de frutas frescas', _count: { productos: 0 }, activo: true },
-        { id: 'cat-verduras', nombre: 'Verduras', descripcion: 'Verduras y hortalizas', _count: { productos: 0 }, activo: true },
-        { id: 'cat-lacteos', nombre: 'Lácteos', descripcion: 'Productos derivados de la leche', _count: { productos: 0 }, activo: true },
-      ])
+      console.error('Error al cargar categorías:', e)
+      setCategorias([])
       setError(e instanceof Error ? e.message : 'Error desconocido')
     } finally {
       setLoading(false)

@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-10-26T20:21:37.349Z",
+  "fixedCount": 8,
+  "report": [
+    {
+      "key": "EMAIL:kiidam@hotmail.com",
+      "keep": "7425ba2e-dc04-4e61-b066-a1d56e6cf6ca",
+      "removed": [
+        "8d1735bc-9fbd-474d-a357-f38b89935c4c",
+        "769b90b0-c788-47df-a927-1272fe02ba2c",
+        "cef84b4e-cb9d-4e81-b65e-3b464fb5d431",
+        "e2c929a0-014a-4ae5-9a91-2aaff7e2bb6c",
+        "1f7594a5-3fce-4ca7-bb98-d4538cc7bc58"
+      ],
+      "migrated": [],
+      "deactivated": [
+        "8d1735bc-9fbd-474d-a357-f38b89935c4c",
+        "769b90b0-c788-47df-a927-1272fe02ba2c",
+        "cef84b4e-cb9d-4e81-b65e-3b464fb5d431",
+        "e2c929a0-014a-4ae5-9a91-2aaff7e2bb6c",
+        "1f7594a5-3fce-4ca7-bb98-d4538cc7bc58"
+      ]
+    },
+    {
+      "key": "EMAIL:kiidam@gmail.com",
+      "keep": "5eaa6227-51b8-4cbe-885c-5dcbada48ea8",
+      "removed": [
+        "7569a113-bbcd-4642-9b46-f0a8d2c7540c",
+        "dfd7c997-6548-4325-9aeb-c5fe69b55137"
+      ],
+      "migrated": [],
+      "deactivated": [
+        "7569a113-bbcd-4642-9b46-f0a8d2c7540c",
+        "dfd7c997-6548-4325-9aeb-c5fe69b55137"
+      ]
+    },
+    {
+      "key": "NOMBRE:jorge martin huaman quispe",
+      "keep": "769b90b0-c788-47df-a927-1272fe02ba2c",
+      "removed": [
+        "e2c929a0-014a-4ae5-9a91-2aaff7e2bb6c"
+      ],
+      "migrated": [],
+      "deactivated": [
+        "e2c929a0-014a-4ae5-9a91-2aaff7e2bb6c"
+      ]
+    }
+  ]
+}

@@ -87,29 +87,9 @@ export default function MovimientosVentasPage() {
     estado: 'all',
   });
 
-  // Ventas con mÃºltiples productos (mock inicial + registros locales)
-  const [sales, setSales] = useState<Sale[]>([{
-    id: 's1',
-    fecha: new Date().toISOString(),
-    clienteId: 'c1',
-    clienteNombre: 'Cliente Demo',
-    motivo: 'Pedido de venta #PV-00987',
-    usuario: 'operador3',
-    items: [
-      { productoId: 'p1', nombre: 'Peras Williams', cantidad: 20, precio: 3.5, unidad: 'unidad' },
-      { productoId: 'p2', nombre: 'Manzanas Fuji', cantidad: 10, precio: 4.2, unidad: 'unidad' },
-    ],
-  }, {
-    id: 's2',
-    fecha: new Date(Date.now() - 3600_000 * 6).toISOString(),
-    clienteId: 'c2',
-    clienteNombre: 'Cliente Prueba',
-    motivo: 'Pedido de venta #PV-00986',
-    usuario: 'operador1',
-    items: [
-      { productoId: 'p3', nombre: 'Naranjas Valencia', cantidad: 50, precio: 2.1, unidad: 'unidad' },
-    ],
-  }]);
+  // Ventas cargadas desde la API
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [loadingSales, setLoadingSales] = useState(false);
 
   // Selectores
   const [productos, setProductos] = useState<ProductoOption[]>([]);
@@ -146,6 +126,9 @@ export default function MovimientosVentasPage() {
   }, [saleItems]);
 
   useEffect(() => {
+    // Cargar datos iniciales
+    fetchSales();
+    
     const fetchProductos = async () => {
       try {
         setLoadingProductos(true);
@@ -223,7 +206,44 @@ export default function MovimientosVentasPage() {
   const [registering, setRegistering] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Eliminado: flujo de agregar manual, ahora se gestiona desde la tabla de productos
+  // Función para cargar pedidos de venta
+  const fetchSales = async (showLoading = true) => {
+    try {
+      if (showLoading) setLoadingSales(true);
+      const res = await fetch('/api/pedidos-venta?page=1&limit=50');
+      if (res.ok) {
+        const json = await res.json();
+        const arr = Array.isArray(json?.data) ? json.data : [];
+        const salesList: Sale[] = arr.map((p: any) => ({
+          id: p.id,
+          numero: p.numero || `PV-${p.id}`,
+          fecha: p.fecha || new Date().toISOString(),
+          clienteId: p.clienteId || '',
+          clienteNombre: p.cliente?.nombre || 'Cliente',
+          usuario: p.usuario?.name || 'Sistema',
+          items: Array.isArray(p.items) ? p.items.map((item: any) => ({
+            productoId: item.productoId || '',
+            nombre: item.producto?.nombre || 'Producto',
+            cantidad: Number(item.cantidad) || 0,
+            precio: Number(item.precio) || 0,
+            unidad: item.producto?.unidadMedida?.simbolo || 'unidad',
+          })) : [],
+          total: Number(p.total) || 0,
+          subtotal: Number(p.subtotal) || 0,
+          impuestos: Number(p.impuestos) || 0,
+          observaciones: p.observaciones || '',
+          motivo: p.observaciones || `Venta #${p.numero || p.id}`,
+          estado: p.estado || 'PENDIENTE',
+          fechaEntrega: p.fechaEntrega || null,
+        }));
+        setSales(salesList);
+      }
+    } catch (error) {
+      console.error('Error al cargar pedidos de venta:', error);
+    } finally {
+      if (showLoading) setLoadingSales(false);
+    }
+  };
 
   const handleRegisterSale = async () => {
     if (!canRegisterSale || registering) return;
@@ -249,18 +269,10 @@ export default function MovimientosVentasPage() {
         return;
       }
       const { data } = json;
-      const id = data?.id || `s-${Date.now()}`;
-      const fechaIso = new Date(form.fecha).toISOString();
-      const nuevaSale: Sale = {
-        id,
-        fecha: fechaIso,
-        clienteId: selectedCliente?.id || form.clienteId,
-        clienteNombre: selectedCliente?.nombre || 'Cliente',
-        motivo: payload.motivo,
-        usuario: user?.name ?? 'usuario',
-        items: saleItems,
-      };
-      setSales(prev => [nuevaSale, ...prev]);
+      
+      // Recargar datos desde la API para mostrar la venta actualizada
+      await fetchSales(false);
+      
       try {
         saleItems.forEach(it => {
           if (it.productoId && it.cantidad > 0) {
@@ -384,21 +396,10 @@ export default function MovimientosVentasPage() {
         return;
       }
       const { data } = json;
-      const id = data?.id || `s-${Date.now()}`;
-      const fechaIso = new Date(orderInfo.fechaPedido).toISOString();
-      const nuevaSale: Sale = {
-        id,
-        fecha: fechaIso,
-        clienteId: selectedCliente?.id || form.clienteId,
-        clienteNombre: selectedCliente?.nombre || 'Cliente',
-        motivo: payload.motivo,
-        usuario: user?.name ?? 'usuario',
-        items: saleItems,
-        numeroPedido: payload.numeroPedido,
-        fechaEntrega: payload.fechaEntrega ? new Date(payload.fechaEntrega).toISOString() : undefined,
-        estado: 'PENDIENTE',
-      };
-      setSales(prev => [nuevaSale, ...prev]);
+      
+      // Recargar datos desde la API para mostrar la venta actualizada
+      await fetchSales(false);
+      
       try {
         saleItems.forEach(it => {
           if (it.productoId && it.cantidad > 0) {
@@ -532,7 +533,19 @@ export default function MovimientosVentasPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sales
+              {loadingSales ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                    Cargando ventas...
+                  </td>
+                </tr>
+              ) : sales.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                    No hay ventas registradas
+                  </td>
+                </tr>
+              ) : sales
                 .filter((s) => {
                   const { searchTerm, fechaDesde, fechaHasta } = filters;
                   let ok = true;

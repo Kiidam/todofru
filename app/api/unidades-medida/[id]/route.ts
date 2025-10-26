@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { logger } from '../../../../src/lib/logger';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../auth/[...nextauth]/route';
+import { withAuth, withErrorHandling, successResponse, errorResponse } from '../../../../src/lib/api-utils';
 import { prisma } from '../../../../src/lib/prisma';
+import { logger } from '../../../../src/lib/logger';
+import { authOptions } from '../../auth/[...nextauth]/route';
 import { z } from 'zod';
+import { Session } from 'next-auth';
 
 const unidadSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
@@ -11,27 +13,25 @@ const unidadSchema = z.object({
 });
 
 // GET /api/unidades-medida/[id]
-export async function GET(
+export const GET = withErrorHandling(withAuth(async (
   request: NextRequest,
+  session: Session,
   context: { params: Promise<{ id: string }> }
-) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    const { id } = await context.params;
-    const unidad = await prisma.unidadMedida.findUnique({
-      where: { id },
-      include: {
-        _count: { select: { productos: true } }
-      }
-    });
-    if (!unidad) return NextResponse.json({ success: false, error: 'Unidad no encontrada' }, { status: 404 });
-    return NextResponse.json({ success: true, data: unidad });
-  } catch (error) {
-    logger.error('Error al obtener unidad de medida:', { error });
-    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 });
+) => {
+  const { id } = await context.params;
+  const unidad = await prisma.unidadMedida.findUnique({
+    where: { id },
+    include: {
+      _count: { select: { productos: true } }
+    }
+  });
+  
+  if (!unidad) {
+    return errorResponse('Unidad no encontrada', 404);
   }
-}
+  
+  return successResponse(unidad);
+}));
 
 // PUT /api/unidades-medida/[id] - actualizar nombre/símbolo
 export async function PUT(

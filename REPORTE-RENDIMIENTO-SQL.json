@@ -1,0 +1,412 @@
+{
+  "timestamp": "2025-10-26T19:00:04.259Z",
+  "summary": {
+    "totalIssues": 0,
+    "highSeverityIssues": 0,
+    "mediumSeverityIssues": 0,
+    "lowSeverityIssues": 0,
+    "totalRecommendations": 0,
+    "missingIndicesCount": 0
+  },
+  "performanceIssues": [],
+  "recommendations": [],
+  "missingIndices": [],
+  "existingIndices": [
+    {
+      "TABLE_NAME": "_prisma_migrations",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "auditoria",
+      "INDEX_NAME": "idx_auditoria_accion",
+      "COLUMN_NAME": "accion",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "auditoria",
+      "INDEX_NAME": "idx_auditoria_fecha",
+      "COLUMN_NAME": "createdAt",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "auditoria",
+      "INDEX_NAME": "idx_auditoria_registro",
+      "COLUMN_NAME": "registroId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "auditoria",
+      "INDEX_NAME": "idx_auditoria_tabla",
+      "COLUMN_NAME": "tabla",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "auditoria",
+      "INDEX_NAME": "idx_auditoria_usuario",
+      "COLUMN_NAME": "usuarioId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "auditoria",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "categoria",
+      "INDEX_NAME": "nombre",
+      "COLUMN_NAME": "nombre",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "categoria",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "cliente",
+      "INDEX_NAME": "numeroIdentificacion",
+      "COLUMN_NAME": "numeroIdentificacion",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "cliente",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "cliente",
+      "INDEX_NAME": "ruc",
+      "COLUMN_NAME": "ruc",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "movimientoinventario",
+      "INDEX_NAME": "fk_mi_pc",
+      "COLUMN_NAME": "pedidoCompraId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "movimientoinventario",
+      "INDEX_NAME": "fk_mi_pv",
+      "COLUMN_NAME": "pedidoVentaId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "movimientoinventario",
+      "INDEX_NAME": "fk_mi_usuario",
+      "COLUMN_NAME": "usuarioId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "movimientoinventario",
+      "INDEX_NAME": "idx_mi_created",
+      "COLUMN_NAME": "createdAt",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "movimientoinventario",
+      "INDEX_NAME": "idx_mi_producto",
+      "COLUMN_NAME": "productoId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "movimientoinventario",
+      "INDEX_NAME": "idx_mi_tipo",
+      "COLUMN_NAME": "tipo",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "movimientoinventario",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "productoId",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "movimientoinventario",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "createdAt",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "pedidocompra",
+      "INDEX_NAME": "fk_pc_usuario",
+      "COLUMN_NAME": "usuarioId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidocompra",
+      "INDEX_NAME": "idx_pc_fecha",
+      "COLUMN_NAME": "fecha",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidocompra",
+      "INDEX_NAME": "idx_pc_proveedor",
+      "COLUMN_NAME": "proveedorId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidocompra",
+      "INDEX_NAME": "idx_pedidocompra_proveedor_fecha",
+      "COLUMN_NAME": "proveedorId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidocompra",
+      "INDEX_NAME": "idx_pedidocompra_proveedor_fecha",
+      "COLUMN_NAME": "fecha",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidocompra",
+      "INDEX_NAME": "idx_pedidocompra_version",
+      "COLUMN_NAME": "version",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidocompra",
+      "INDEX_NAME": "numero",
+      "COLUMN_NAME": "numero",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "pedidocompra",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "pedidocompraitem",
+      "INDEX_NAME": "idx_pci_pedido",
+      "COLUMN_NAME": "pedidoId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidocompraitem",
+      "INDEX_NAME": "idx_pci_producto",
+      "COLUMN_NAME": "productoId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidocompraitem",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "pedidocompraitem",
+      "INDEX_NAME": "uq_pci_pedido_producto",
+      "COLUMN_NAME": "pedidoId",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "pedidocompraitem",
+      "INDEX_NAME": "uq_pci_pedido_producto",
+      "COLUMN_NAME": "productoId",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "pedidoventa",
+      "INDEX_NAME": "fk_pv_usuario",
+      "COLUMN_NAME": "usuarioId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidoventa",
+      "INDEX_NAME": "idx_pv_cliente",
+      "COLUMN_NAME": "clienteId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidoventa",
+      "INDEX_NAME": "idx_pv_fecha",
+      "COLUMN_NAME": "fecha",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidoventa",
+      "INDEX_NAME": "numero",
+      "COLUMN_NAME": "numero",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "pedidoventa",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "pedidoventaitem",
+      "INDEX_NAME": "idx_pvi_pedido",
+      "COLUMN_NAME": "pedidoId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidoventaitem",
+      "INDEX_NAME": "idx_pvi_producto",
+      "COLUMN_NAME": "productoId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "pedidoventaitem",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "pedidoventaitem",
+      "INDEX_NAME": "uq_pvi_pedido_producto",
+      "COLUMN_NAME": "pedidoId",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "pedidoventaitem",
+      "INDEX_NAME": "uq_pvi_pedido_producto",
+      "COLUMN_NAME": "productoId",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "producto",
+      "INDEX_NAME": "fk_prod_categoria",
+      "COLUMN_NAME": "categoriaId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "producto",
+      "INDEX_NAME": "fk_prod_unidad",
+      "COLUMN_NAME": "unidadMedidaId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "producto",
+      "INDEX_NAME": "idx_prod_activo",
+      "COLUMN_NAME": "activo",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "producto",
+      "INDEX_NAME": "idx_prod_nombre",
+      "COLUMN_NAME": "nombre",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "producto",
+      "INDEX_NAME": "idx_producto_version",
+      "COLUMN_NAME": "version",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "producto",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "producto",
+      "INDEX_NAME": "sku",
+      "COLUMN_NAME": "sku",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "productoproveedor",
+      "INDEX_NAME": "idx_pp_activo",
+      "COLUMN_NAME": "activo",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "productoproveedor",
+      "INDEX_NAME": "idx_pp_producto",
+      "COLUMN_NAME": "productoId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "productoproveedor",
+      "INDEX_NAME": "idx_pp_proveedor",
+      "COLUMN_NAME": "proveedorId",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "productoproveedor",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "productoproveedor",
+      "INDEX_NAME": "uq_producto_proveedor",
+      "COLUMN_NAME": "productoId",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "productoproveedor",
+      "INDEX_NAME": "uq_producto_proveedor",
+      "COLUMN_NAME": "proveedorId",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "proveedor",
+      "INDEX_NAME": "idx_proveedor_numero_identificacion",
+      "COLUMN_NAME": "numeroIdentificacion",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "proveedor",
+      "INDEX_NAME": "idx_proveedor_tipo",
+      "COLUMN_NAME": "tipoEntidad",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "proveedor",
+      "INDEX_NAME": "idx_proveedor_version",
+      "COLUMN_NAME": "version",
+      "NON_UNIQUE": "1"
+    },
+    {
+      "TABLE_NAME": "proveedor",
+      "INDEX_NAME": "numero_identificacion",
+      "COLUMN_NAME": "numeroIdentificacion",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "proveedor",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "unidadmedida",
+      "INDEX_NAME": "nombre",
+      "COLUMN_NAME": "nombre",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "unidadmedida",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "unidadmedida",
+      "INDEX_NAME": "simbolo",
+      "COLUMN_NAME": "simbolo",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "user",
+      "INDEX_NAME": "email",
+      "COLUMN_NAME": "email",
+      "NON_UNIQUE": "0"
+    },
+    {
+      "TABLE_NAME": "user",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMN_NAME": "id",
+      "NON_UNIQUE": "0"
+    }
+  ]
+}

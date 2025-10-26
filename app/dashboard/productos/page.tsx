@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Search, Plus, Package, Edit2, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { suscribirseInventarioEventos } from '@/lib/inventory-channel';
 import { ProductoInventarioHooks } from '../../../src/lib/producto-inventario-sync';
+import ToggleStatus from "../../../src/components/ui/ToggleStatus";
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
@@ -708,11 +709,27 @@ export default function ProductosPage() {
     }
   };
 
-  const toggleEstado = async (id: string) => {
-    setProductos(prev => prev.map(p => 
-      p.id === id ? { ...p, activo: !p.activo } : p
-    ));
-    await fetchProductos();
+  const toggleEstado = async (id: string, newStatus: boolean) => {
+    try {
+      const response = await fetch(`/api/productos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo: newStatus })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error al actualizar el estado del producto');
+      }
+
+      // Actualizar el estado local
+      setProductos(prev => prev.map(p => 
+        p.id === id ? { ...p, activo: newStatus } : p
+      ));
+    } catch (error) {
+      console.error('Error al cambiar estado del producto:', error);
+      throw error; // Re-lanzar para que ToggleStatus pueda manejarlo
+    }
   };
 
   const filteredAndSortedProductos = productos
@@ -958,17 +975,13 @@ return (
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          <button
-                            onClick={() => toggleEstado(producto.id)}
-                            className={`px-2 py-1 text-xs rounded ${
-                              producto.activo 
-                                ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                                : 'bg-red-100 text-red-800 hover:bg-red-200'
-                            }`}
-                            title={producto.activo ? 'Desactivar producto' : 'Activar producto'}
-                          >
-                            {producto.activo ? 'Activo' : 'Inactivo'}
-                          </button>
+                          <ToggleStatus
+                            id={producto.id}
+                            isActive={producto.activo}
+                            onToggle={toggleEstado}
+                            entityName="producto"
+                            size="sm"
+                          />
                           <button
                             onClick={() => handleEdit(producto)}
                             className="text-blue-600 hover:text-blue-800"

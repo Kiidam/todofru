@@ -21,11 +21,9 @@ export interface ApiResponse<T = any> {
 // Función para verificar bypass de autenticación en modo test
 export function shouldBypassAuth(request: NextRequest): boolean {
   const header = request.headers.get('x-test-bypass-auth');
-  return (
-    process.env.TEST_API === '1' ||
-    header === '1' ||
-    header === 'true'
-  );
+  const testApiEnv = process.env.TEST_API;
+  
+  return header === '1' || header === 'true' || testApiEnv === '1';
 }
 
 // Wrapper para manejo de autenticación
@@ -48,8 +46,10 @@ export function withAuth<T extends any[]>(
           );
         }
         
-        // Insertar la sesión como segundo parámetro
-        const newArgs = [args[0], session, ...args.slice(1)] as any;
+        // Agregar la sesión al contexto del segundo parámetro
+        const context = args[1] as any;
+        const newContext = { ...context, session };
+        const newArgs = [args[0], newContext, ...args.slice(2)] as any;
         return await handler(...newArgs);
       } else {
         // En modo bypass, crear una sesión mock
@@ -61,11 +61,19 @@ export function withAuth<T extends any[]>(
           }
         };
         
-        const newArgs = [args[0], mockSession, ...args.slice(1)] as any;
-        return await handler(...newArgs);
+        // Agregar la sesión mock al contexto del segundo parámetro
+        const context = args[1] as any;
+        const newContext = { ...context, session: mockSession };
+        const newArgs = [args[0], newContext, ...args.slice(2)] as any;
+        const result = await handler(...newArgs);
+        return result;
       }
     } catch (error) {
-      logger.error('Error en autenticación:', { error });
+      logger.error('Error en autenticación:', { 
+        error,
+        errorMessage: error instanceof Error ? error.message : 'Error desconocido',
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       return NextResponse.json(
         { success: false, error: 'Error de autenticación' } as ApiResponse,
         { status: 500 }
