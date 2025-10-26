@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { prisma } from '@/lib/prisma';
+import { revalidatePath } from 'next/cache';
+import { prisma } from '../../../src/lib/prisma';
+import { logger } from '../../../src/lib/logger';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
+import { Session } from 'next-auth';
+import { 
+  withAuth, 
+  withErrorHandling, 
+  validatePagination, 
+  successResponse, 
+  errorResponse,
+  validateActiveRecord,
+  validateUniqueness
+} from '../../../src/lib/api-utils';
 
 // Esquema de validación para productos
 const productoSchema = z.object({
@@ -17,64 +29,34 @@ const productoSchema = z.object({
 });
 
 // GET /api/productos - Listar productos con filtros
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const categoriaId = searchParams.get('categoriaId');
-    const razonSocialId = searchParams.get('razonSocialId'); // Nuevo parámetro
     const stockBajo = searchParams.get('stockBajo') === 'true';
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = validatePagination(searchParams);
 
-    // Construir filtros
+    // Construir filtros (sin comparaciones entre campos para evitar errores de Prisma)
     const where = {
       activo: true,
       ...(search && {
         OR: [
-          { nombre: { contains: search, mode: 'insensitive' } },
-          { sku: { contains: search, mode: 'insensitive' } },
-          { descripcion: { contains: search, mode: 'insensitive' } }
+          { nombre: { contains: search } },
+          { sku: { contains: search } },
+          { descripcion: { contains: search } }
         ]
       }),
       ...(categoriaId && { categoriaId }),
-      ...(stockBajo && {
-        OR: [
-          { stock: { lte: 0 } },
-          {
-            AND: [
-              { stock: { gt: 0 } },
-              { stock: { lte: { field: 'stockMinimo' } as unknown as number } }
-            ]
-          }
-        ]
-      })
+      // Filtrado de stock bajo se aplica en memoria para evitar errores y simplificar consulta
     };
 
-    const [productos, total] = await Promise.all([
+    const [productosRaw, total] = await Promise.all([
       prisma.producto.findMany({
         where,
         include: {
           categoria: { select: { id: true, nombre: true } },
           unidadMedida: { select: { id: true, nombre: true, simbolo: true } },
-          // Incluir precios por razón social
-          preciosRazonSocial: {
-            where: {
-              activo: true,
-              ...(razonSocialId && { razonSocialId })
-            },
-            include: {
-              razonSocial: {
-                select: { id: true, nombre: true, tipoEmpresa: true }
-              }
-            }
-          }
+          // Razón Social no se utiliza (el backend se simplifica según frontend)
         },
         orderBy: { nombre: 'asc' },
         skip,
@@ -83,99 +65,75 @@ export async function GET(request: NextRequest) {
       prisma.producto.count({ where })
     ]);
 
-    return NextResponse.json({ 
-      success: true, 
-      data: productos,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
+    // Normalizar datos y aplicar filtrado de stock bajo si es necesario
+    const productos = (productosRaw || []).map((p) => ({
+       ...p,
+       precio: typeof p.precio === 'number' ? p.precio : 0,
+       stock: typeof p.stock === 'number' ? p.stock : 0,
+       stockMinimo: typeof p.stockMinimo === 'number' ? p.stockMinimo : 0
+     }));
+
+    const data = stockBajo
+      ? productos.filter((p) => p.stock <= 0 || (p.stock > 0 && p.stock <= p.stockMinimo))
+      : productos;
+
+    const response = successResponse(data, `${data.length} productos encontrados`, {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
     });
-  } catch (error) {
-    console.error('Error al obtener productos:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
-}
+
+    response.headers.set('Cache-Control', 'no-store');
+    return response;
+}));
 
 // POST /api/productos - Crear nuevo producto
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
     const body = await request.json();
     const validatedData = productoSchema.parse(body);
 
     // Verificar que la categoría y unidad de medida existan
-    const [categoria, unidadMedida] = await Promise.all([
-      prisma.categoria.findFirst({
-        where: { id: validatedData.categoriaId, activo: true }
-      }),
-      prisma.unidadMedida.findFirst({
-        where: { id: validatedData.unidadMedidaId, activo: true }
-      })
-    ]);
-
-    if (!categoria) {
-      return NextResponse.json(
-        { success: false, error: 'Categoría no encontrada' },
-        { status: 400 }
-      );
-    }
-
-    if (!unidadMedida) {
-      return NextResponse.json(
-        { success: false, error: 'Unidad de medida no encontrada' },
-        { status: 400 }
-      );
-    }
+    await validateActiveRecord(prisma.categoria, validatedData.categoriaId, 'Categoría');
+    await validateActiveRecord(prisma.unidadMedida, validatedData.unidadMedidaId, 'Unidad de medida');
 
     // Verificar SKU único si se proporciona
     if (validatedData.sku) {
-      const existingProduct = await prisma.producto.findFirst({
-        where: { sku: validatedData.sku, activo: true }
-      });
-
-      if (existingProduct) {
-        return NextResponse.json(
-          { success: false, error: 'Ya existe un producto con ese SKU' },
-          { status: 400 }
-        );
-      }
+      await validateUniqueness(prisma.producto, 'sku', validatedData.sku, 'producto');
     }
 
-    const producto = await prisma.producto.create({
-      data: validatedData,
-      include: {
-        categoria: { select: { id: true, nombre: true } },
-        unidadMedida: { select: { id: true, nombre: true, simbolo: true } }
+    // Crear producto
+    const nuevoProducto = await prisma.producto.create({
+      data: {
+        id: randomUUID(),
+        nombre: validatedData.nombre,
+        sku: validatedData.sku || null,
+        descripcion: validatedData.descripcion || null,
+        precio: validatedData.precio,
+        stockMinimo: validatedData.stockMinimo,
+        porcentajeMerma: 0,
+        perecedero: validatedData.perecedero,
+        diasVencimiento: validatedData.diasVencimiento || null,
+        tieneIGV: false,
+        categoriaId: validatedData.categoriaId,
+        unidadMedidaId: validatedData.unidadMedidaId,
+        activo: true
       }
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      data: producto,
-      message: 'Producto creado exitosamente'
-    }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.issues },
-        { status: 400 }
-      );
-    }
+    // Revalidar cualquier ruta que dependa de productos
+    try {
+      revalidatePath('/dashboard/productos');
+      revalidatePath('/app/dashboard/productos');
+    } catch {}
 
-    console.error('Error al crear producto:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
-}
+    const response = successResponse(nuevoProducto, 'Producto creado exitosamente');
+    response.headers.set('Cache-Control', 'no-store');
+    return new NextResponse(response.body, {
+      status: 201,
+      headers: response.headers
+    });
+}));
+// Desactivar caché para este handler y sus respuestas
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;

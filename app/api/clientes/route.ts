@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '../../../src/lib/prisma';
+import { logger } from '../../../src/lib/logger';
 import { z } from 'zod';
-import { TipoCliente } from '@prisma/client';
+import { randomUUID } from 'crypto';
+import { 
+  withAuth, 
+  withErrorHandling, 
+  validatePagination, 
+  successResponse, 
+  validateUniqueness
+} from '../../../src/lib/api-utils';
+import { clientePayloadSchema, validateClientePayload } from '../../../src/schemas/cliente';
 
-// Esquema de validación para clientes
-const clienteSchema = z.object({
+type TipoCliente = 'MAYORISTA' | 'MINORISTA';
+type TipoEntidad = 'PERSONA_NATURAL' | 'PERSONA_JURIDICA';
+
+// Esquema de validación para clientes (estructura antigua - retrocompatibilidad)
+const clienteSchemaLegacy = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
   ruc: z.string().optional(),
   telefono: z.string().optional(),
@@ -15,28 +26,25 @@ const clienteSchema = z.object({
   tipoCliente: z.enum(['MAYORISTA', 'MINORISTA']),
 });
 
-// GET /api/clientes - Listar clientes
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+// Función para detectar si es estructura nueva o antigua
+function isNewStructure(data: any): boolean {
+  return data.tipoEntidad !== undefined || data.numeroIdentificacion !== undefined;
+}
 
+// GET /api/clientes - Listar clientes
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: any) => {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const tipoCliente = searchParams.get('tipoCliente');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = validatePagination(searchParams);
 
     const where = {
       activo: true,
       ...(search && {
         OR: [
-          { nombre: { contains: search, mode: 'insensitive' } },
-          { ruc: { contains: search, mode: 'insensitive' } },
-          { contacto: { contains: search, mode: 'insensitive' } }
+          { nombre: { contains: search } },
+          { ruc: { contains: search } },
+          { contacto: { contains: search } }
         ]
       }),
       ...(tipoCliente && { tipoCliente: tipoCliente as TipoCliente })
@@ -48,8 +56,7 @@ export async function GET(request: NextRequest) {
         include: {
           _count: {
             select: { 
-              pedidosVenta: true,
-              cuentasPorCobrar: { where: { estado: { in: ['PENDIENTE', 'PARCIAL'] } } }
+              pedidos: true
             }
           }
         },
@@ -60,71 +67,106 @@ export async function GET(request: NextRequest) {
       prisma.cliente.count({ where })
     ]);
 
-    return NextResponse.json({ 
-      success: true, 
-      data: clientes,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
+    const response = successResponse(clientes, `${clientes.length} clientes encontrados`, {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
     });
-  } catch (error) {
-    console.error('Error al obtener clientes:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
-}
+
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
+    return response;
+}));
 
 // POST /api/clientes - Crear nuevo cliente
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: any) => {
     const body = await request.json();
-    const validatedData = clienteSchema.parse(body);
-
-    // Verificar RUC único si se proporciona
-    if (validatedData.ruc) {
-      const existingCliente = await prisma.cliente.findFirst({
-        where: { ruc: validatedData.ruc, activo: true }
-      });
-
-      if (existingCliente) {
+    
+    let validatedData: any;
+    let clienteData: any;
+    
+    if (isNewStructure(body)) {
+      // Nueva estructura (formularios refactorizados)
+      const validation = validateClientePayload(body);
+      if (!validation.success) {
         return NextResponse.json(
-          { success: false, error: 'Ya existe un cliente con ese RUC' },
+          { success: false, error: 'Datos inválidos', details: validation.error.issues },
           { status: 400 }
         );
       }
+      validatedData = validation.data;
+      
+      // Verificar número de identificación único
+      if (validatedData.numeroIdentificacion) {
+        const existingCliente = await prisma.cliente.findFirst({
+          where: { 
+            OR: [
+              { ruc: validatedData.numeroIdentificacion },
+              { numeroIdentificacion: validatedData.numeroIdentificacion }
+            ],
+            activo: true 
+          }
+        });
+
+        if (existingCliente) {
+          const tipoDoc = validatedData.numeroIdentificacion.length === 8 ? 'DNI' : 'RUC';
+          return NextResponse.json(
+            { success: false, error: `Ya existe un cliente con ese ${tipoDoc}` },
+            { status: 400 }
+          );
+        }
+      }
+      
+      // Calcular nombre según tipo de entidad
+      const nombreCalculado = validatedData.tipoEntidad === 'PERSONA_NATURAL'
+        ? `${(validatedData.nombres || '').trim()} ${(validatedData.apellidos || '').trim()}`.trim().replace(/\s+/g, ' ')
+        : (validatedData.razonSocial || '').trim();
+      
+      // Preparar datos para la base de datos
+      clienteData = {
+        id: randomUUID(),
+        nombre: nombreCalculado,
+        // Guardar RUC solo para persona jurídica (compatibilidad)
+        ruc: validatedData.tipoEntidad === 'PERSONA_JURIDICA' ? validatedData.numeroIdentificacion : undefined,
+        numeroIdentificacion: validatedData.numeroIdentificacion,
+        telefono: validatedData.telefono,
+        email: validatedData.email,
+        direccion: validatedData.direccion,
+        contacto: validatedData.contacto,
+        tipoCliente: validatedData.tipoCliente,
+        mensajePersonalizado: validatedData.mensajePersonalizado,
+        activo: true,
+        // Campos adicionales para nueva estructura
+        tipoEntidad: validatedData.tipoEntidad,
+        nombres: validatedData.nombres,
+        apellidos: validatedData.apellidos,
+        razonSocial: validatedData.razonSocial,
+      };
+    } else {
+      // Estructura antigua (retrocompatibilidad)
+      validatedData = clienteSchemaLegacy.parse(body);
+      
+      // Verificar RUC único si se proporciona
+      if (validatedData.ruc) {
+        await validateUniqueness(prisma.cliente, 'ruc', validatedData.ruc, 'cliente');
+      }
+      
+      clienteData = {
+        id: randomUUID(),
+        ...validatedData,
+        activo: true,
+      };
     }
 
     const cliente = await prisma.cliente.create({
-      data: validatedData
+      data: clienteData
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      data: cliente,
-      message: 'Cliente creado exitosamente'
-    }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.issues },
-        { status: 400 }
-      );
-    }
-
-    console.error('Error al crear cliente:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify(successResponse(cliente, 'Cliente creado exitosamente').body),
+      { 
+        status: 201,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
-  }
-}
+}));

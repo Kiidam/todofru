@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '../../../src/lib/logger';
 import { getServerSession } from 'next-auth/next';
-import { prisma } from '@/lib/prisma';
+import { authOptions } from '../auth/[...nextauth]/route';
+import { prisma } from '../../../src/lib/prisma';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 
 // Esquema de validación para unidades de medida
 const unidadMedidaSchema = z.object({
@@ -12,7 +15,7 @@ const unidadMedidaSchema = z.object({
 // GET /api/unidades-medida - Listar todas las unidades de medida
 export async function GET() {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
@@ -32,7 +35,7 @@ export async function GET() {
       data: unidades 
     });
   } catch (error) {
-    console.error('Error al obtener unidades de medida:', error);
+    logger.error('Error al obtener unidades de medida:', { error });
     return NextResponse.json(
       { success: false, error: 'Error interno del servidor' },
       { status: 500 }
@@ -43,7 +46,7 @@ export async function GET() {
 // POST /api/unidades-medida - Crear nueva unidad de medida
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
@@ -70,7 +73,10 @@ export async function POST(request: NextRequest) {
     }
 
     const unidad = await prisma.unidadMedida.create({
-      data: validatedData
+      data: {
+        id: randomUUID(),
+        ...validatedData
+      }
     });
 
     return NextResponse.json({ 
@@ -86,7 +92,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error('Error al crear unidad de medida:', error);
+    logger.error('Error al crear unidad de medida:', { error });
     return NextResponse.json(
       { success: false, error: 'Error interno del servidor' },
       { status: 500 }

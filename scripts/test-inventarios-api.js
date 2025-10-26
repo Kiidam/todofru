@@ -5,7 +5,7 @@ async function testInventariosAPI() {
   try {
     // Test 1: Productos
     console.log('1️⃣ Probando /api/inventarios?action=productos');
-    const productosResponse = await fetch('http://localhost:3000/api/inventarios?action=productos');
+    const productosResponse = await fetch('http://localhost:3001/api/inventarios?action=productos');
     console.log('Status:', productosResponse.status);
     
     if (productosResponse.ok) {
@@ -17,7 +17,7 @@ async function testInventariosAPI() {
 
     // Test 2: Movimientos
     console.log('\n2️⃣ Probando /api/inventarios?action=movimientos');
-    const movimientosResponse = await fetch('http://localhost:3000/api/inventarios?action=movimientos');
+    const movimientosResponse = await fetch('http://localhost:3001/api/inventarios?action=movimientos');
     console.log('Status:', movimientosResponse.status);
     
     if (movimientosResponse.ok) {
@@ -29,7 +29,7 @@ async function testInventariosAPI() {
 
     // Test 3: Sync Validation
     console.log('\n3️⃣ Probando /api/inventarios?action=sync-validation');
-    const syncResponse = await fetch('http://localhost:3000/api/inventarios?action=sync-validation');
+    const syncResponse = await fetch('http://localhost:3001/api/inventarios?action=sync-validation');
     console.log('Status:', syncResponse.status);
     
     if (syncResponse.ok) {
@@ -41,7 +41,7 @@ async function testInventariosAPI() {
 
     // Test 4: Estadísticas
     console.log('\n4️⃣ Probando /api/inventarios?action=estadisticas');
-    const statsResponse = await fetch('http://localhost:3000/api/inventarios?action=estadisticas');
+    const statsResponse = await fetch('http://localhost:3001/api/inventarios?action=estadisticas');
     console.log('Status:', statsResponse.status);
     
     if (statsResponse.ok) {

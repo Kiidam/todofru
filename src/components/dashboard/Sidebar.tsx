@@ -3,24 +3,19 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
-import { 
-  LayoutDashboard, 
-  Package, 
-  Users, 
-  Truck, 
-  UserCheck, 
-  FileText, 
-  Star, 
-  Ruler, 
-  Calculator, 
+import {
+  LayoutDashboard,
+  Package,
+  Users,
+  Truck,
+  FileText,
   Settings,
   LogOut,
   Warehouse,
-  ShoppingCart,
-  TrendingUp,
-  CreditCard,
-  Activity
 } from 'lucide-react';
+
+// Icons used in movimientos submenu
+import { ShoppingCart, TrendingUp } from 'lucide-react';
 
 interface NavItemProps {
   href: string;
@@ -43,36 +38,33 @@ const NavItem = ({ href, label, active, icon }: NavItemProps) => {
   );
 };
 
-export default function Sidebar() {
+import { memo, useMemo, useState, useEffect } from 'react';
+
+function SidebarComponent() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
-  
-  const navItems = [
+  const [movimientosOpen, setMovimientosOpen] = useState(false);
+  const [productosOpen, setProductosOpen] = useState(false);
+
+  useEffect(() => {
+    // Abrir el dropdown si estamos dentro de /dashboard/movimientos
+    setMovimientosOpen(pathname.startsWith('/dashboard/movimientos'));
+    // Abrir el dropdown de productos si estamos dentro de productos o categorías
+    setProductosOpen(pathname.startsWith('/dashboard/productos') || pathname.startsWith('/dashboard/categorias'));
+  }, [pathname]);
+
+  const navItems = useMemo(() => ([
     { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     
     // Módulo de Inventario
-    { href: '/dashboard/inventarios', label: 'Inventarios', icon: <Warehouse size={20} /> },
-    { href: '/dashboard/productos', label: 'Productos', icon: <Package size={20} /> },
-    { href: '/dashboard/agrupador-productos', label: 'Agrupador de Productos', icon: <Package size={20} /> },
-    
-    // Módulo de Pedidos
-    { href: '/dashboard/pedidos-compra', label: 'Pedidos de Compra', icon: <ShoppingCart size={20} /> },
-    { href: '/dashboard/pedidos-venta', label: 'Pedidos de Venta', icon: <TrendingUp size={20} /> },
-    
-    // Módulo de Cuentas
-    { href: '/dashboard/cuentas-cobrar', label: 'Cuentas por Cobrar', icon: <CreditCard size={20} /> },
-    { href: '/dashboard/cuentas-pagar', label: 'Cuentas por Pagar', icon: <Activity size={20} /> },
+    { href: '/dashboard/inventario', label: 'Inventario', icon: <Warehouse size={20} /> },
+    // Módulo de Cuentas (oculto temporalmente por refactor)
     
     // Módulos existentes
     { href: '/dashboard/proveedores', label: 'Proveedores', icon: <Truck size={20} /> },
     { href: '/dashboard/clientes', label: 'Clientes', icon: <Users size={20} /> },
-    { href: '/dashboard/grupo-cliente', label: 'Grupo de Cliente', icon: <UserCheck size={20} /> },
-  // { href: '/dashboard/tipo-articulo', label: 'Tipo de Artículo', icon: <FileText size={20} /> },
-    { href: '/dashboard/marcas', label: 'Marcas', icon: <Star size={20} /> },
-    { href: '/dashboard/unidad-medida', label: 'Unidad de Medida', icon: <Ruler size={20} /> },
-    { href: '/dashboard/razon-social', label: 'Razón Social', icon: <Calculator size={20} /> },
-    { href: '/dashboard/documentos', label: 'Documentos', icon: <FileText size={20} /> },
-  ];
+    // Navegación limpia tras refactor: módulos eliminados ocultos
+  ]), []);
 
   return (
     <div className="w-64 bg-white h-screen border-r border-gray-200 flex flex-col">
@@ -82,7 +74,7 @@ export default function Sidebar() {
             <span className="text-white font-bold text-sm">T</span>
           </div>
           <div>
-            <h1 className="text-lg font-bold text-gray-800">TodoFrut</h1>
+            <h1 className="text-lg font-bold text-gray-800">TodaFru</h1>
           </div>
         </div>
       </div>
@@ -98,6 +90,92 @@ export default function Sidebar() {
               active={pathname === item.href}
             />
           ))}
+
+          {/* Dropdown Productos */}
+          <button
+            type="button"
+            onClick={() => setProductosOpen((v) => !v)}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-md transition-colors ${productosOpen 
+              ? 'bg-green-100 text-green-700 font-medium' 
+              : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <div className="flex items-center">
+              <Package size={20} className="mr-3" />
+              <span>Productos</span>
+            </div>
+            <svg
+              className={`h-4 w-4 transform transition-transform ${productosOpen ? 'rotate-180' : 'rotate-0'}`}
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {productosOpen && (
+            <div className="ml-8 space-y-1">
+              <NavItem 
+                href="/dashboard/productos"
+                label="Listado"
+                icon={<Package size={18} />}
+                active={pathname === '/dashboard/productos'}
+              />
+              <NavItem 
+                href="/dashboard/unidades"
+                label="Unidades de medida"
+                icon={<Settings size={18} />}
+                active={pathname === '/dashboard/unidades'}
+              />
+              <NavItem 
+                href="/dashboard/categorias"
+                label="Categorías"
+                icon={<FileText size={18} />}
+                active={pathname === '/dashboard/categorias'}
+              />
+            </div>
+          )}
+
+          {/* Dropdown Movimientos */}
+          <button
+            type="button"
+            onClick={() => setMovimientosOpen((v) => !v)}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-md transition-colors ${movimientosOpen 
+              ? 'bg-green-100 text-green-700 font-medium' 
+              : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <div className="flex items-center">
+              <FileText size={20} className="mr-3" />
+              <span>Movimientos</span>
+            </div>
+            <svg
+              className={`h-4 w-4 transform transition-transform ${movimientosOpen ? 'rotate-180' : 'rotate-0'}`}
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {movimientosOpen && (
+            <div className="ml-8 space-y-1">
+              <NavItem 
+                href="/dashboard/movimientos/compras"
+                label="Compras"
+                icon={<ShoppingCart size={18} />}
+                active={pathname === '/dashboard/movimientos/compras'}
+              />
+              <NavItem 
+                href="/dashboard/movimientos/ventas"
+                label="Ventas"
+                icon={<TrendingUp size={18} />}
+                active={pathname === '/dashboard/movimientos/ventas'}
+              />
+            </div>
+          )}
         </nav>
       </div>
       
@@ -131,3 +209,5 @@ export default function Sidebar() {
     </div>
   );
 }
+
+export default memo(SidebarComponent);

@@ -1,259 +1,182 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { prisma } from '@/lib/prisma';
+import { NextRequest } from 'next/server';
+import { logger } from '../../../src/lib/logger';
+import { prisma, safeTransaction } from '../../../src/lib/prisma';
 import { z } from 'zod';
-import { EstadoPedido, Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
+import { Session } from 'next-auth';
+import { 
+  withAuth, 
+  withErrorHandling, 
+  validatePagination, 
+  successResponse, 
+  errorResponse,
+  validateActiveRecord
+} from '../../../src/lib/api-utils';
 
-// Esquema de validación para pedidos de venta
 const itemSchema = z.object({
-  productoId: z.string().min(1, 'El producto es requerido'),
-  cantidad: z.number().positive('La cantidad debe ser positiva'),
-  precio: z.number().min(0, 'El precio debe ser mayor o igual a 0'),
+  productoId: z.string().min(1),
+  cantidad: z.number().positive(),
+  precio: z.number().min(0),
+  unidad: z.string().optional(),
 });
 
-const pedidoVentaSchema = z.object({
-  clienteId: z.string().min(1, 'El cliente es requerido'),
+const ventaSchema = z.object({
+  clienteId: z.string().min(1),
+  fecha: z.string().optional(),
+  motivo: z.string().optional(),
+  numeroPedido: z.string().optional(),
   fechaEntrega: z.string().optional(),
-  observaciones: z.string().optional(),
-  numeroGuia: z.string().optional(),
-  items: z.array(itemSchema).min(1, 'Debe incluir al menos un producto'),
+  items: z.array(itemSchema).min(1),
 });
 
-// Función para generar número de pedido de venta
-async function generarNumeroPedidoVenta(): Promise<string> {
-  const fecha = new Date();
-  const year = fecha.getFullYear().toString().slice(-2);
-  const month = (fecha.getMonth() + 1).toString().padStart(2, '0');
-  
-  const count = await prisma.pedidoVenta.count({
-    where: {
-      createdAt: {
-        gte: new Date(fecha.getFullYear(), fecha.getMonth(), 1),
-        lt: new Date(fecha.getFullYear(), fecha.getMonth() + 1, 1),
-      }
-    }
-  });
-  
-  const numero = (count + 1).toString().padStart(4, '0');
-  return `PV${year}${month}${numero}`;
+function generarNumeroPedido(prefix = 'PV') {
+  const now = new Date();
+  const y = now.getFullYear();
+  const ts = String(now.getTime()).slice(-6);
+  return `${prefix}-${y}-${ts}`;
 }
 
-// GET /api/pedidos-venta - Listar pedidos de venta
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const estado = searchParams.get('estado');
-    const clienteId = searchParams.get('clienteId');
-    const fechaDesde = searchParams.get('fechaDesde');
-    const fechaHasta = searchParams.get('fechaHasta');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const skip = (page - 1) * limit;
-
-    const where = {
-      ...(estado && { estado: estado as EstadoPedido }),
-      ...(clienteId && { clienteId }),
-      ...(fechaDesde || fechaHasta) && {
-        fecha: {
-          ...(fechaDesde && { gte: new Date(fechaDesde) }),
-          ...(fechaHasta && { lte: new Date(fechaHasta) })
-        }
-      }
-    } as const;
-
-    const [pedidos, total] = await Promise.all([
-      prisma.pedidoVenta.findMany({
-        where,
-        include: {
-          cliente: { select: { id: true, nombre: true, tipoCliente: true } },
-          items: {
-            include: {
-              producto: { 
-                select: { 
-                  id: true, 
-                  nombre: true, 
-                  sku: true,
-                  stock: true,
-                  unidadMedida: { select: { simbolo: true } }
-                } 
-              }
-            }
-          },
-          _count: { select: { movimientos: true } }
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit
-      }),
-      prisma.pedidoVenta.count({ where })
-    ]);
-
-    return NextResponse.json({ 
-      success: true, 
-      data: pedidos,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    console.error('Error al obtener pedidos de venta:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
-}
-
-// POST /api/pedidos-venta - Crear nuevo pedido de venta
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
     const body = await request.json();
-    const validatedData = pedidoVentaSchema.parse(body);
-
-    // Verificar que el cliente existe
-    const cliente = await prisma.cliente.findFirst({
-      where: { id: validatedData.clienteId, activo: true }
-    });
-
-    if (!cliente) {
-      return NextResponse.json(
-        { success: false, error: 'Cliente no encontrado' },
-        { status: 404 }
-      );
+    const parsed = ventaSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse('Datos inválidos', 400, { details: parsed.error.flatten() });
     }
 
-    // Verificar que todos los productos existen y hay stock suficiente
-    const productosIds = validatedData.items.map(item => item.productoId);
-    const productos: Array<{ id: string; nombre: string; stock: number }> = await prisma.producto.findMany({
-      where: { id: { in: productosIds }, activo: true },
-      select: { id: true, nombre: true, stock: true }
-    });
+    const { clienteId, fecha, motivo, numeroPedido, fechaEntrega, items } = parsed.data;
 
-    if (productos.length !== productosIds.length) {
-      return NextResponse.json(
-        { success: false, error: 'Uno o más productos no fueron encontrados' },
-        { status: 404 }
-      );
+    // Validar que no haya productos duplicados en los items
+    const ids = items.map(i => i.productoId);
+    const duplicados = ids.filter((id, idx) => ids.indexOf(id) !== idx);
+    if (duplicados.length) {
+      const unicos = Array.from(new Set(duplicados));
+      return errorResponse('Productos duplicados en los items del pedido de venta', 400, { productosDuplicados: unicos });
     }
 
-    // Verificar stock disponible
-    const stockInsuficiente = [];
-    for (const item of validatedData.items) {
-      const producto = productos.find((p) => p.id === item.productoId);
-      if (producto && producto.stock < item.cantidad) {
-        stockInsuficiente.push({
-          producto: producto.nombre,
-          disponible: producto.stock,
-          solicitado: item.cantidad
-        });
+    // Validar cliente activo
+    const cliente = await validateActiveRecord(prisma.cliente, clienteId, 'Cliente');
+
+    const productoIds = Array.from(new Set(items.map(i => i.productoId)));
+    const productos = await prisma.producto.findMany({ where: { id: { in: productoIds }, activo: true } });
+    if (productos.length !== productoIds.length) {
+      return errorResponse('Uno o más productos no existen o están inactivos', 400);
+    }
+
+    // Validar stock suficiente para cada item
+    const stockMap = new Map(productos.map(p => [p.id, p.stock]));
+    for (const it of items) {
+      const stock = stockMap.get(it.productoId) ?? 0;
+      if (it.cantidad > stock) {
+        return errorResponse(`Stock insuficiente para producto ${it.productoId}`, 400);
       }
     }
 
-    if (stockInsuficiente.length > 0) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Stock insuficiente para algunos productos',
-          stockInsuficiente 
-        },
-        { status: 400 }
-      );
-    }
+    // Totales (IGV 18% si el producto tieneIGV)
+    let subtotal = 0;
+    let impuestos = 0;
+    const mapProductoIGV = new Map(productos.map(p => [p.id, p.tieneIGV]));
+    items.forEach(it => {
+      const sub = it.cantidad * it.precio;
+      subtotal += sub;
+      if (mapProductoIGV.get(it.productoId)) impuestos += sub * 0.18;
+    });
+    const total = Number((subtotal + impuestos).toFixed(2));
 
-    // Calcular totales
-    const subtotal = validatedData.items.reduce((sum, item) => sum + (item.cantidad * item.precio), 0);
-    const impuestos = subtotal * 0.18; // IGV 18%
-    const total = subtotal + impuestos;
+    const numero = numeroPedido || generarNumeroPedido('PV');
+    const usuarioId = session.user?.id || 'system';
+    const fechaVenta = fecha ? new Date(fecha) : new Date();
 
-    // Crear pedido en transacción
-    const resultado = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Generar número de pedido
-      const numero = await generarNumeroPedidoVenta();
-
-      // Crear el pedido
+    const result = await safeTransaction(async (tx) => {
       const pedido = await tx.pedidoVenta.create({
         data: {
+          id: randomUUID(),
           numero,
-          clienteId: validatedData.clienteId,
-          fechaEntrega: validatedData.fechaEntrega ? new Date(validatedData.fechaEntrega) : undefined,
-          subtotal,
-          impuestos,
+          clienteId,
+          fecha: fechaVenta,
+          subtotal: Number(subtotal.toFixed(2)),
+          impuestos: Number(impuestos.toFixed(2)),
           total,
-          observaciones: validatedData.observaciones,
-          numeroGuia: validatedData.numeroGuia,
-          usuarioId: session.user.id,
-        }
+          observaciones: motivo,
+          usuarioId,
+          estado: 'CONFIRMADO',
+        },
       });
 
-      // Crear los items del pedido
-      const items = await Promise.all(
-        validatedData.items.map(item =>
-          tx.pedidoVentaItem.create({
-            data: {
-              pedidoId: pedido.id,
-              productoId: item.productoId,
-              cantidad: item.cantidad,
-              precio: item.precio,
-              subtotal: item.cantidad * item.precio
-            }
-          })
-        )
-      );
+      await tx.pedidoVentaItem.createMany({
+        data: items.map(it => ({
+          id: randomUUID(),
+          pedidoId: pedido.id,
+          productoId: it.productoId,
+          cantidad: it.cantidad,
+          precio: it.precio,
+          subtotal: Number((it.cantidad * it.precio).toFixed(2)),
+        })),
+      });
 
-      return { pedido, items };
-    });
+      for (const it of items) {
+        const prod = await tx.producto.findUnique({ where: { id: it.productoId } });
+        if (!prod) throw new Error('Producto no encontrado durante la transacción');
+        const antes = prod.stock;
+        const despues = Number((antes - it.cantidad).toFixed(4));
 
-    // Obtener el pedido completo con relaciones
-    const pedidoCompleto = await prisma.pedidoVenta.findUnique({
-      where: { id: resultado.pedido.id },
-      include: {
-        cliente: { select: { id: true, nombre: true, tipoCliente: true } },
-        items: {
-          include: {
-            producto: { 
-              select: { 
-                id: true, 
-                nombre: true, 
-                sku: true,
-                stock: true,
-                unidadMedida: { select: { simbolo: true } }
-              } 
-            }
-          }
-        }
+        await tx.producto.update({ where: { id: it.productoId }, data: { stock: despues } });
+
+        await tx.movimientoInventario.create({
+          data: {
+            productoId: it.productoId,
+            tipo: 'SALIDA',
+            cantidad: it.cantidad,
+            cantidadAnterior: antes,
+            cantidadNueva: despues,
+            precio: it.precio,
+            motivo: 'Venta',
+            pedidoVentaId: pedido.id,
+            usuarioId,
+          },
+        });
       }
+
+      return pedido;
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      data: pedidoCompleto,
-      message: 'Pedido de venta creado exitosamente'
-    }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.issues },
-        { status: 400 }
-      );
+    if (!result.success || !result.data) {
+      return errorResponse(result.error || 'Error al crear pedido de venta', 500);
     }
 
-    console.error('Error al crear pedido de venta:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
-}
+    logger.info('Pedido de venta creado', { 
+      pedidoId: result.data.id,
+      numero: result.data.numero,
+      clienteId,
+      total: result.data.total,
+      usuarioId
+    });
+
+    return successResponse({ 
+      id: result.data.id, 
+      numero: result.data.numero, 
+      total: result.data.total 
+    }, 'Pedido de venta creado exitosamente');
+}));
+
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+    const { searchParams } = new URL(request.url);
+    const { page, limit, skip } = validatePagination(searchParams);
+
+    const [pedidos, total] = await Promise.all([
+      prisma.pedidoVenta.findMany({ 
+        include: { cliente: true, items: true }, 
+        orderBy: { createdAt: 'desc' }, 
+        skip, 
+        take: limit 
+      }),
+      prisma.pedidoVenta.count(),
+    ]);
+
+    const response = successResponse({ 
+      pedidos, 
+      pagination: { total, page, limit, pages: Math.ceil(total / limit) } 
+    }, `${pedidos.length} pedidos de venta encontrados`);
+    
+    response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
+    return response;
+}));

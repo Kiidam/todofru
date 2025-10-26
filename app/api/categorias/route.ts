@@ -1,92 +1,71 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { prisma } from '@/lib/prisma';
+import { NextRequest } from 'next/server';
+import { withAuth, withErrorHandling, successResponse, errorResponse } from '../../../src/lib/api-utils';
+import { safeTransaction } from '../../../src/lib/prisma';
+import { logger } from '../../../src/lib/logger';
+import { prisma } from '../../../src/lib/prisma';
 import { z } from 'zod';
+import { Session } from 'next-auth';
+import * as crypto from 'crypto';
 
 // Esquema de validación para categorías
 const categoriaSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
   descripcion: z.string().optional(),
+  activo: z.boolean().optional().default(true),
 });
 
-// GET /api/categorias - Listar todas las categorías
-export async function GET() {
-  try {
-    const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+// GET /api/categorias - Listar categorías (activos por defecto; admite status=all|active|inactive)
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+  const { searchParams } = new URL(request.url);
+  const status = (searchParams.get('status') || 'active').toLowerCase();
 
-    const categorias = await prisma.categoria.findMany({
-      where: { activo: true },
-      orderBy: { nombre: 'asc' },
-      include: {
-        _count: {
-          select: { productos: true }
-        }
+  const where =
+    status === 'inactive' ? { activo: false } :
+    status === 'all' ? {} : { activo: true };
+
+  const categorias = await prisma.categoria.findMany({
+    where,
+    orderBy: { nombre: 'asc' },
+    include: {
+      _count: {
+        select: { productos: true }
       }
-    });
+    }
+  });
 
-    return NextResponse.json({ 
-      success: true, 
-      data: categorias 
-    });
-  } catch (error) {
-    console.error('Error al obtener categorías:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
-}
+  const response = successResponse(categorias);
+  response.headers.set('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+  return response;
+}));
 
 // POST /api/categorias - Crear nueva categoría
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+  const body = await request.json();
+  const validatedData = categoriaSchema.parse(body);
+
+  // Verificar que no exista una categoría con el mismo nombre
+  const existingCategoria = await prisma.categoria.findFirst({
+    where: { 
+      nombre: validatedData.nombre,
+      activo: true 
     }
+  });
 
-    const body = await request.json();
-    const validatedData = categoriaSchema.parse(body);
-
-    // Verificar que no exista una categoría con el mismo nombre
-    const existingCategoria = await prisma.categoria.findFirst({
-      where: { 
-        nombre: validatedData.nombre,
-        activo: true 
-      }
-    });
-
-    if (existingCategoria) {
-      return NextResponse.json(
-        { success: false, error: 'Ya existe una categoría con ese nombre' },
-        { status: 400 }
-      );
-    }
-
-    const categoria = await prisma.categoria.create({
-      data: validatedData
-    });
-
-    return NextResponse.json({ 
-      success: true, 
-      data: categoria,
-      message: 'Categoría creada exitosamente'
-    }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.issues },
-        { status: 400 }
-      );
-    }
-
-    console.error('Error al crear categoría:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+  if (existingCategoria) {
+    return errorResponse('Ya existe una categoría con ese nombre', 400);
   }
-}
+
+  const categoria = await prisma.categoria.create({
+    data: {
+      id: crypto.randomUUID(),
+      ...validatedData
+    }
+  });
+
+  logger.info('Categoría creada exitosamente', { 
+    categoriaId: categoria.id, 
+    nombre: validatedData.nombre 
+  });
+
+  return successResponse(categoria, 'Categoría creada exitosamente');
+}));

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '../../../src/lib/logger';
 import { getServerSession } from 'next-auth/next';
-import { prisma } from '@/lib/prisma';
+import { authOptions } from '../auth/[...nextauth]/route';
+import { prisma } from '../../../src/lib/prisma';
 import { z } from 'zod';
-import { validateProductoParaMovimiento } from '@/lib/producto-inventario-sync';
-import { TipoMovimiento, Prisma } from '@prisma/client';
+import { validateProductoParaMovimiento } from '../../../src/lib/producto-inventario-sync';
+import type { Prisma } from '@prisma/client';
+import type { TipoMovimiento } from '../../../src/types/todafru';
 
 // Esquema de validación para movimientos
 const movimientoSchema = z.object({
@@ -18,7 +21,7 @@ const movimientoSchema = z.object({
 // GET /api/movimientos-inventario - Listar movimientos con filtros
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
@@ -28,8 +31,8 @@ export async function GET(request: NextRequest) {
     const tipo = searchParams.get('tipo');
     const fechaDesde = searchParams.get('fechaDesde');
     const fechaHasta = searchParams.get('fechaHasta');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
     const skip = (page - 1) * limit;
 
     // Construir filtros
@@ -74,9 +77,13 @@ export async function GET(request: NextRequest) {
         limit,
         totalPages: Math.ceil(total / limit)
       }
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=20, stale-while-revalidate=120'
+      }
     });
   } catch (error) {
-    console.error('Error al obtener movimientos:', error);
+    logger.error('Error al obtener movimientos:', { error });
     return NextResponse.json(
       { success: false, error: 'Error interno del servidor' },
       { status: 500 }
@@ -87,7 +94,7 @@ export async function GET(request: NextRequest) {
 // POST /api/movimientos-inventario - Crear nuevo movimiento
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
@@ -173,7 +180,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error('Error al crear movimiento:', error);
+    logger.error('Error al crear movimiento:', { error });
     return NextResponse.json(
       { success: false, error: 'Error interno del servidor' },
       { status: 500 }

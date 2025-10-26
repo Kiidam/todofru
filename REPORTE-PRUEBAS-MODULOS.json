@@ -1,0 +1,79 @@
+{
+  "timestamp": "2025-10-26T02:15:48.067Z",
+  "tests": [
+    {
+      "name": "Conexión a la base de datos",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.547Z"
+    },
+    {
+      "name": "Verificar tablas principales",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.556Z"
+    },
+    {
+      "name": "Verificar datos iniciales",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.560Z"
+    },
+    {
+      "name": "Crear proveedor",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.613Z"
+    },
+    {
+      "name": "Leer proveedor",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.615Z"
+    },
+    {
+      "name": "Actualizar proveedor",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.693Z"
+    },
+    {
+      "name": "Listar proveedores",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.694Z"
+    },
+    {
+      "name": "Crear producto",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.794Z"
+    },
+    {
+      "name": "Leer producto con relaciones",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.797Z"
+    },
+    {
+      "name": "Crear cliente",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.867Z"
+    },
+    {
+      "name": "Crear pedido de compra",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:48.916Z"
+    },
+    {
+      "name": "Crear pedido de venta",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:49.026Z"
+    },
+    {
+      "name": "Eliminar datos de prueba",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:49.703Z"
+    },
+    {
+      "name": "Verificar limpieza de datos de prueba",
+      "status": "PASSED",
+      "timestamp": "2025-10-26T02:15:49.707Z"
+    }
+  ],
+  "totalTests": 14,
+  "passedTests": 14,
+  "failedTests": 0,
+  "errors": []
+}

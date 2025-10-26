@@ -1,84 +1,56 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
+import { NextRequest } from 'next/server';
+import { withAuth, withErrorHandling, successResponse, errorResponse } from '../../../../src/lib/api-utils';
+import { logger } from '../../../../src/lib/logger';
 import { 
   validateProductoInventarioSync, 
   migrarProductosHuerfanos, 
   limpiarProductosHuerfanos 
-} from '@/lib/producto-inventario-sync';
+} from '../../../../src/lib/producto-inventario-sync';
+import { Session } from 'next-auth';
 
 // GET /api/productos/sync-validation - Validar sincronización
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    const validation = await validateProductoInventarioSync();
-    
-    return NextResponse.json({
-      success: true,
-      data: validation
-    });
-  } catch (error) {
-    console.error('Error en validación de sincronización:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Error interno del servidor',
-        details: error instanceof Error ? error.message : 'Error desconocido'
-      },
-      { status: 500 }
-    );
-  }
-}
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+  const validation = await validateProductoInventarioSync();
+  
+  const response = successResponse(validation);
+  response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
+  return response;
+}));
 
 // POST /api/productos/sync-validation - Ejecutar acciones de sincronización
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+  const { action } = await request.json();
 
-    const { action } = await request.json();
+  switch (action) {
+    case 'migrate':
+      const migrationResult = await migrarProductosHuerfanos();
+      logger.info('Migración de productos ejecutada', { 
+        success: migrationResult.success,
+        migrated: migrationResult.migrated 
+      });
+      
+      return successResponse(
+        migrationResult,
+        migrationResult.success 
+          ? `${migrationResult.migrated} productos migrados exitosamente`
+          : 'Error en la migración'
+      );
 
-    switch (action) {
-      case 'migrate':
-        const migrationResult = await migrarProductosHuerfanos();
-        return NextResponse.json({
-          success: migrationResult.success,
-          data: migrationResult,
-          message: migrationResult.success 
-            ? `${migrationResult.migrated} productos migrados exitosamente`
-            : 'Error en la migración'
-        });
+    case 'clean':
+      const cleanResult = await limpiarProductosHuerfanos();
+      logger.info('Limpieza de productos ejecutada', { 
+        success: cleanResult.success,
+        deleted: cleanResult.deleted 
+      });
+      
+      return successResponse(
+        cleanResult,
+        cleanResult.success
+          ? `${cleanResult.deleted} movimientos eliminados exitosamente`
+          : 'Error en la limpieza'
+      );
 
-      case 'clean':
-        const cleanResult = await limpiarProductosHuerfanos();
-        return NextResponse.json({
-          success: cleanResult.success,
-          data: cleanResult,
-          message: cleanResult.success
-            ? `${cleanResult.deleted} movimientos eliminados exitosamente`
-            : 'Error en la limpieza'
-        });
-
-      default:
-        return NextResponse.json(
-          { error: 'Acción no válida' },
-          { status: 400 }
-        );
-    }
-  } catch (error) {
-    console.error('Error en acción de sincronización:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Error interno del servidor',
-        details: error instanceof Error ? error.message : 'Error desconocido'
-      },
-      { status: 500 }
-    );
+    default:
+      return errorResponse('Acción no válida', 400);
   }
-}
+}));

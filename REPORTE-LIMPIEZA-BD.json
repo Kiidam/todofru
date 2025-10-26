@@ -1,0 +1,40 @@
+{
+  "timestamp": "2025-10-26T02:12:25.944Z",
+  "estadoInicial": {
+    "usuarios": 0,
+    "categorias": 0,
+    "unidades": 1,
+    "proveedores": 1,
+    "clientes": 0,
+    "productos": 0,
+    "pedidosCompra": 0,
+    "pedidosVenta": 0,
+    "movimientos": 0
+  },
+  "estadoFinal": {
+    "usuarios": 0,
+    "categorias": 0,
+    "unidades": 0,
+    "proveedores": 0,
+    "clientes": 0,
+    "productos": 0,
+    "pedidosCompra": 0,
+    "pedidosVenta": 0,
+    "movimientos": 0
+  },
+  "registrosEliminados": {
+    "movimientos": 0,
+    "detallesVenta": 0,
+    "pedidosVenta": 0,
+    "detallesCompra": 0,
+    "pedidosCompra": 0,
+    "productos": 0,
+    "proveedores": 1,
+    "clientes": 0,
+    "categorias": 0,
+    "unidades": 1,
+    "usuarios": 0
+  },
+  "totalEliminado": 2,
+  "limpiezaCompleta": true
+}

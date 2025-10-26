@@ -1,264 +1,425 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import AddSupplierForm from "@/components/proveedores/AddSupplierForm";
+import { Trash2, AlertTriangle, Loader2, Plus, Search, Filter, Eye, EyeOff, Pencil } from 'lucide-react';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
 interface Supplier {
   id: string;
-  name: string;
-  ruc: string;
-  contactName: string;
-  email: string;
-  phone: string;
-  website?: string;
-  paymentType: string;
+  razonSocial?: string;
+  nombres?: string;
+  apellidos?: string;
+  numeroIdentificacion?: string;
+  tipoIdentificacion?: 'DNI' | 'RUC';
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  representanteLegal?: string;
+  activo: boolean;
   createdAt: string;
-  productsCount: number;
+  updatedAt?: string;
+}
+
+interface DeleteConfirmationProps {
+  supplier: Supplier;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isDeleting: boolean;
+}
+
+function DeleteConfirmation({ supplier, onConfirm, onCancel, isDeleting }: DeleteConfirmationProps) {
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 max-w-md mx-auto">
+      <div className="flex items-center space-x-3 mb-4">
+        <div className="flex-shrink-0">
+          <AlertTriangle className="w-8 h-8 text-red-500" />
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-black">Confirmar Eliminación</h3>
+          <p className="text-sm text-black mt-1">Esta acción no se puede deshacer</p>
+        </div>
+      </div>
+      
+      <div className="mb-6">
+        <p className="text-black mb-2">¿Está seguro que desea eliminar el proveedor:</p>
+        <div className="bg-gray-50 p-3 rounded-lg border">
+          <p className="font-semibold text-black">
+            {supplier.razonSocial || `${supplier.nombres} ${supplier.apellidos}`}
+          </p>
+          {supplier.numeroIdentificacion && (
+            <p className="text-sm text-black">
+              {supplier.tipoIdentificacion}: {supplier.numeroIdentificacion}
+            </p>
+          )}
+          {supplier.email && (
+            <p className="text-sm text-black">Email: {supplier.email}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex justify-end space-x-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isDeleting}
+          className="px-4 py-2 text-sm font-medium text-black bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={isDeleting}
+          className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center space-x-2"
+        >
+          {isDeleting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Eliminando...</span>
+            </>
+          ) : (
+            <>
+              <Trash2 className="w-4 h-4" />
+              <span>Eliminar Proveedor</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function ProveedoresPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([
-    {
-      id: '1',
-      name: 'Frutas del Valle S.A.',
-      ruc: '12345678901',
-      contactName: 'María González',
-      email: 'maria@frutasdelvalle.com',
-      phone: '+34 123 456 789',
-      website: 'https://frutasdelvalle.com',
-      paymentType: 'contado',
-      createdAt: '2024-01-15',
-      productsCount: 25
-    },
-    {
-      id: '2',
-      name: 'Verduras Frescas Ltda.',
-      ruc: '23456789012',
-      contactName: 'Carlos Rodríguez',
-      email: 'carlos@verdurasfrescas.com',
-      phone: '+34 987 654 321',
-      website: 'https://verdurasfrescas.com',
-      paymentType: 'credito7',
-      createdAt: '2024-01-10',
-      productsCount: 18
-    },
-    {
-      id: '3',
-      name: 'Distribuidora Tropical',
-      ruc: '34567890123',
-      contactName: 'Ana Martínez',
-      email: 'ana@tropical.com',
-      phone: '+34 555 123 456',
-      website: '',
-      paymentType: 'credito15',
-      createdAt: '2024-01-05',
-      productsCount: 12
-    }
-  ]);
+  // Estados principales
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null);
+  const [statusChangedId, setStatusChangedId] = useState<string | null>(null);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  // Estados de modales y vistas
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    supplier: Supplier;
+    isDeleting: boolean;
+  } | null>(null);
+
+  // Estados de filtros
   const [searchTerm, setSearchTerm] = useState('');
-  // Removed statusFilter, not needed
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
-  const [formData, setFormData] = useState({
-    name: '',
-    ruc: '',
-    contactName: '',
-    email: '',
-    phone: '',
-    website: '',
-    paymentType: 'contado'
-  });
+  // Cargar proveedores al montar el componente
+  useEffect(() => {
+    loadSuppliers();
+  }, []);
 
-  const filteredSuppliers = suppliers.filter(supplier => {
-    const matchesSearch = supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         supplier.contactName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         supplier.email.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
-  });
+  const loadSuppliers = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      setActionError('');
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (editingSupplier) {
-      setSuppliers(prev => prev.map(supplier => 
-        supplier.id === editingSupplier.id 
-          ? { ...supplier, ...formData }
-          : supplier
-      ));
-    } else {
-      const newSupplier: Supplier = {
-        id: Date.now().toString(),
-        ...formData,
-        productsCount: 0,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      setSuppliers(prev => [...prev, newSupplier]);
-    }
-    
-    setIsModalOpen(false);
-    setEditingSupplier(null);
-    setFormData({
-  name: '',
-  ruc: '',
-  contactName: '',
-  email: '',
-  phone: '',
-  website: '',
-  paymentType: 'contado'
-    });
-  };
+      const response = await fetch('/api/proveedores');
+      const result = await response.json();
 
-  const handleEdit = (supplier: Supplier) => {
-    setEditingSupplier(supplier);
-    setFormData({
-  name: supplier.name,
-  ruc: supplier.ruc,
-  contactName: supplier.contactName,
-  email: supplier.email,
-  phone: supplier.phone,
-  website: supplier.website || '',
-  paymentType: supplier.paymentType
-    });
-    setIsModalOpen(true);
-  };
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al cargar los proveedores');
+      }
 
-  const handleDelete = (id: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar este proveedor?')) {
-      setSuppliers(prev => prev.filter(supplier => supplier.id !== id));
+      // La API devuelve { success: true, data: { data: [...], pagination: {...} } }
+      const suppliersData = result.data?.data || result.data || [];
+      setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
+    } catch (error) {
+      console.error('Error al cargar proveedores:', error);
+      setError(error instanceof Error ? error.message : 'Error inesperado al cargar los proveedores');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const openModal = () => {
-    setEditingSupplier(null);
-    setFormData({
-  name: '',
-  ruc: '',
-  contactName: '',
-  email: '',
-  phone: '',
-  website: '',
-  paymentType: 'contado'
-    });
-    setIsModalOpen(true);
+  // Toggle activo/inactivo
+  const handleToggleActive = async (supplier: Supplier) => {
+    try {
+      setToggleLoadingId(supplier.id);
+      setActionError('');
+      const desired = !supplier.activo;
+      const resp = await fetch(`/api/proveedores/${supplier.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo: desired })
+      });
+      const json = await resp.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
+      if (!resp.ok || json?.success === false) {
+        const msg = json?.error || json?.message || 'No se pudo actualizar el estado';
+        throw new Error(msg);
+      }
+      const updated = json?.data || json;
+      // Actualizar lista local
+      setSuppliers(prev => prev.map(s => s.id === supplier.id ? { ...s, activo: updated?.activo ?? desired, updatedAt: updated?.updatedAt || new Date().toISOString() } : s));
+      setStatusChangedId(supplier.id);
+      setTimeout(() => setStatusChangedId(null), 2000);
+    } catch (err: any) {
+      console.error('Error al alternar estado:', err);
+      setActionError(err?.message || 'Error inesperado al actualizar el estado');
+    } finally {
+      setToggleLoadingId(null);
+    }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="w-full p-6">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Proveedores</h1>
-              <p className="text-gray-600 mt-1">{filteredSuppliers.length} proveedores encontrados</p>
-            </div>
-            <button
-              onClick={openModal}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              Crear Proveedor
-            </button>
-          </div>
+  // Filtrar proveedores - Validación robusta para asegurar que suppliers sea un array
+  const suppliersArray = Array.isArray(suppliers) ? suppliers : [];
+  const filteredSuppliers = suppliersArray.filter((supplier) => {
+    const supplierName = supplier.razonSocial || `${supplier.nombres} ${supplier.apellidos}`;
+    const matchesSearch = 
+      supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (supplier.numeroIdentificacion || '').includes(searchTerm) ||
+      (supplier.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (supplier.telefono || '').includes(searchTerm);
 
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Buscar proveedores..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              />
-            </div>
-            <div className="flex gap-2">
-              {/* Removed status filter buttons */}
-            </div>
+    const matchesStatus = 
+      statusFilter === 'all' || 
+      (statusFilter === 'active' && supplier.activo) ||
+      (statusFilter === 'inactive' && !supplier.activo);
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // Manejar creación exitosa
+  const handleCreateSuccess = () => {
+    setShowCreateForm(false);
+    loadSuppliers(); // Recargar la lista
+  };
+
+  // Manejar eliminación
+  const handleDeleteClick = (supplier: Supplier) => {
+    setDeleteConfirmation({
+      supplier,
+      isDeleting: false
+    });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmation) return;
+
+    try {
+      setDeleteConfirmation(prev => prev ? { ...prev, isDeleting: true } : null);
+      setActionError('');
+
+      const response = await fetch(`/api/proveedores/${deleteConfirmation.supplier.id}`, {
+        method: 'DELETE'
+      });
+
+      const result = await response.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al eliminar el proveedor');
+      }
+
+      // Actualizar lista local
+      setSuppliers(prev => prev.filter(s => s.id !== deleteConfirmation.supplier.id));
+      setDeleteConfirmation(null);
+    } catch (error) {
+      console.error('Error al eliminar proveedor:', error);
+      setActionError(error instanceof Error ? error.message : 'Error inesperado al eliminar el proveedor');
+      setDeleteConfirmation(prev => prev ? { ...prev, isDeleting: false } : null);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    if (!deleteConfirmation?.isDeleting) {
+      setDeleteConfirmation(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center space-x-3">
+            <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+            <span className="text-black font-medium">Cargando proveedores...</span>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mx-auto">
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <span className="font-medium text-red-700">Error al cargar proveedores</span>
+          </div>
+          <p className="text-red-600 mt-2">{error}</p>
+          <button
+            onClick={loadSuppliers}
+            className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-black">Proveedores</h1>
+          <p className="text-black mt-1">
+            {filteredSuppliers.length} proveedor{filteredSuppliers.length !== 1 ? 'es' : ''} encontrado{filteredSuppliers.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreateForm(true)}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Agregar Proveedor</span>
+        </button>
+      </div>
+
+      {/* Filtros */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, documento, email o teléfono..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black bg-white"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="active">Solo activos</option>
+              <option value="inactive">Solo inactivos</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Error de acciones */}
+      {actionError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <span className="font-medium text-red-700">Error en la operación</span>
+          </div>
+          <p className="text-red-600 mt-1">{actionError}</p>
+        </div>
+      )}
+
+      {/* Lista de proveedores */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        {filteredSuppliers.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-black">
+              {searchTerm || statusFilter !== 'all' 
+                ? 'No se encontraron proveedores con los filtros aplicados' 
+                : 'No hay proveedores registrados'}
+            </p>
+            {!searchTerm && statusFilter === 'all' && (
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Agregar primer proveedor
+              </button>
+            )}
+          </div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
-                    Empresa
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Proveedor
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Documento
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Contacto
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
-                    Email
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
-                    Teléfono
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
-                    Ubicación
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
-                    Productos
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Estado
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredSuppliers.map((supplier) => (
-                  <tr key={supplier.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="font-medium text-gray-900">{supplier.name}</div>
+                  <tr key={supplier.id} className={statusChangedId === supplier.id ? 'bg-green-50' : ''}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-black">
+                          {supplier.razonSocial || `${supplier.nombres} ${supplier.apellidos}`}
+                        </div>
+                        {supplier.representanteLegal && (
+                          <div className="text-sm text-gray-500">
+                            Rep. Legal: {supplier.representanteLegal}
+                          </div>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{supplier.contactName}</div>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-black">
+                        {supplier.tipoIdentificacion}: {supplier.numeroIdentificacion}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{supplier.email}</div>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-black">{supplier.telefono}</div>
+                      <div className="text-sm text-gray-500">{supplier.email}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{supplier.phone}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{supplier.ruc}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{supplier.website}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{
-                        supplier.paymentType === 'contado' ? 'Pago al Contado' :
-                        supplier.paymentType === 'credito7' ? 'Crédito (7 días)' :
-                        supplier.paymentType === 'credito15' ? 'Crédito (15 días)' :
-                        supplier.paymentType === 'credito30' ? 'Crédito (30 días)' : supplier.paymentType
-                      }</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {supplier.productsCount} productos
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        supplier.activo 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {supplier.activo ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center justify-end gap-2">
                       <button
-                        onClick={() => handleEdit(supplier)}
-                        className="text-indigo-600 hover:text-indigo-900 mr-3"
+                        onClick={() => handleToggleActive(supplier)}
+                        className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${toggleLoadingId === supplier.id ? 'bg-blue-300 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                        title="Editar estado"
+                        disabled={toggleLoadingId === supplier.id}
                       >
-                        Editar
+                        {toggleLoadingId === supplier.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Pencil className="w-4 h-4" />
+                        )}
+                        <span>Editar</span>
                       </button>
                       <button
-                        onClick={() => handleDelete(supplier.id)}
-                        className="text-red-600 hover:text-red-900"
+                        onClick={() => handleDeleteClick(supplier)}
+                        className="text-red-600 hover:text-red-900 transition-colors p-2 rounded-lg hover:bg-red-50"
+                        title="Eliminar proveedor"
                       >
-                        Eliminar
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -266,128 +427,39 @@ export default function ProveedoresPage() {
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* Modal Form */}
-        <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingSupplier(null); }}>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="supplier-name">
-                Razón Social*
-              </label>
-              <input
-                id="supplier-name"
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                placeholder="Ej: Frutas del Valle S.A."
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="supplier-ruc">
-                RUC/DNI*
-              </label>
-              <input
-                id="supplier-ruc"
-                type="text"
-                value={formData.ruc}
-                onChange={(e) => setFormData({ ...formData, ruc: e.target.value })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                placeholder="Ej: 12345678901"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="supplier-contact">
-                Nombre de Contacto*
-              </label>
-              <input
-                id="supplier-contact"
-                type="text"
-                value={formData.contactName}
-                onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                placeholder="Ej: María González"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="supplier-email">
-                Email*
-              </label>
-              <input
-                id="supplier-email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                placeholder="contacto@empresa.com"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="supplier-phone">
-                Teléfono*
-              </label>
-              <input
-                id="supplier-phone"
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                placeholder="+34 123 456 789"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="supplier-website">
-                Sitio Web
-              </label>
-              <input
-                id="supplier-website"
-                type="text"
-                value={formData.website}
-                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500"
-                placeholder="https://empresa.com"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="supplier-payment-type">
-                Tipo de Pago
-              </label>
-              <select
-                id="supplier-payment-type"
-                value={formData.paymentType}
-                onChange={(e) => setFormData({ ...formData, paymentType: e.target.value })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900"
-              >
-                <option value="contado">Pago al Contado</option>
-                <option value="credito7">Crédito (7 días)</option>
-                <option value="credito15">Crédito (15 días)</option>
-                <option value="credito30">Crédito (30 días)</option>
-              </select>
-            </div>
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={() => { setIsModalOpen(false); setEditingSupplier(null); }}
-                className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-sm"
-              >
-                {editingSupplier ? 'Actualizar Proveedor' : 'Crear Proveedor'}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        )}
       </div>
+
+      {/* Formulario de creación */}
+      <Modal 
+        isOpen={showCreateForm} 
+        onClose={() => setShowCreateForm(false)}
+        ariaLabel="Crear nuevo proveedor"
+      >
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-bold text-gray-900">Nuevo Proveedor</h3>
+          <p className="text-sm text-gray-600 mt-1">Completa los datos del proveedor</p>
+        </div>
+        <AddSupplierForm
+          onSuccess={handleCreateSuccess}
+          onCancel={() => setShowCreateForm(false)}
+        />
+      </Modal>
+
+      {/* Modal de confirmación de eliminación */}
+      <Modal 
+        isOpen={!!deleteConfirmation} 
+        onClose={deleteConfirmation?.isDeleting ? () => {} : handleDeleteCancel}
+      >
+        {deleteConfirmation && (
+          <DeleteConfirmation
+            supplier={deleteConfirmation.supplier}
+            onConfirm={handleDeleteConfirm}
+            onCancel={handleDeleteCancel}
+            isDeleting={deleteConfirmation.isDeleting}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

@@ -1,0 +1,21 @@
+{
+  "timestamp": "2025-10-26T02:13:34.042Z",
+  "estadoFinal": {
+    "usuarios": 1,
+    "categorias": 5,
+    "unidades": 7,
+    "proveedores": 0,
+    "clientes": 0,
+    "productos": 0
+  },
+  "datosCreados": {
+    "unidadesMedida": 7,
+    "categorias": 5,
+    "usuarios": 1
+  },
+  "inicializacionCompleta": true,
+  "credencialesAdmin": {
+    "email": "admin@todafru.com",
+    "password": "admin123 (cambiar después del primer login)"
+  }
+}

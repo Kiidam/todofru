@@ -26,18 +26,7 @@ export interface UnidadMedida {
   updatedAt: Date;
 }
 
-export interface Proveedor {
-  id: string;
-  nombre: string;
-  ruc?: string;
-  telefono?: string;
-  email?: string;
-  direccion?: string;
-  contacto?: string;
-  activo: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+// Proveedor types moved to src/types/proveedor.ts
 
 export interface Cliente {
   id: string;
@@ -227,14 +216,7 @@ export interface ProductoForm {
   diasVencimiento?: number;
 }
 
-export interface ProveedorForm {
-  nombre: string;
-  ruc?: string;
-  telefono?: string;
-  email?: string;
-  direccion?: string;
-  contacto?: string;
-}
+// ProveedorForm types moved to src/types/proveedor.ts
 
 export interface ClienteForm {
   nombre: string;

@@ -899,3 +899,10 @@ npm run build
 **Responsable**: Equipo TodoFrut
 
 **⚠️ ESTE DOCUMENTO REFLEJA EL ESTADO REAL ACTUAL DEL SISTEMA**
+## Entrada numérica consistente
+
+- Todos los campos numéricos (cantidad, precio unitario, totales editables) deben seleccionar su contenido al recibir foco. Al escribir, el nuevo valor reemplaza el existente, evitando concatenaciones.
+- Los inputs deben usar `type="number"` con `min` y `step` apropiados según el contexto.
+- No se debe mostrar texto auxiliar dentro de las opciones de selección (por ejemplo, evitar paréntesis o descripciones largas). Las opciones de unidad deben ser cortas y claras: `unidad`, `kg`, `g`, `t`, `lt`, `ml`.
+- Mantener recalculo en tiempo real de subtotales y totales cuando cambie cantidad o precio.
+- Aplicar esta regla en todos los formularios donde el usuario ingrese cantidades o precios.

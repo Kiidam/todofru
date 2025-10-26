@@ -1,0 +1,25 @@
+{
+  "timestamp": "2025-10-26T04:26:33.921Z",
+  "estadoBaseDatos": {
+    "usuarios": 1,
+    "categorias": 5,
+    "unidades": 7,
+    "proveedores": 6,
+    "clientes": 0,
+    "productos": 0,
+    "pedidosCompra": 0,
+    "pedidosVenta": 0,
+    "movimientos": 0
+  },
+  "integridadReferencial": {
+    "productosConCategoriaInvalida": 0,
+    "productosConUnidadInvalida": 0,
+    "pedidosConProveedorInvalido": 0
+  },
+  "archivosVerificados": {
+    "directorioProveedores": true,
+    "apiProveedores": true
+  },
+  "verificacionCompleta": true,
+  "erroresEncontrados": 0
+}

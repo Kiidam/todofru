@@ -1,14 +1,15 @@
 /**
  * Servicio de Sincronización entre Productos e Inventario
  * 
- * Este módulo asegura que:
- * 1. Los productos son la fuente única de verdad
+ * Este mÃ³dulo asegura que:
+ * 1. Los productos son la fuente Ãºnica de verdad
  * 2. No existen productos "fantasma" en inventario
  * 3. Los movimientos de inventario solo pueden usar productos existentes
  * 4. La sincronización es automática y bidireccional
  */
 
 import { prisma } from './prisma';
+import { logger } from './logger';
 import { Prisma } from '@prisma/client';
 
 export interface ProductoInventarioSync {
@@ -17,6 +18,7 @@ export interface ProductoInventarioSync {
   sku: string | null;
   stock: number;
   stockMinimo: number;
+  precio: number;
   activo: boolean;
   categoria?: {
     nombre: string;
@@ -101,8 +103,8 @@ export async function validateProductoInventarioSync(): Promise<SyncValidationRe
 }
 
 /**
- * Obtiene productos válidos para usar en inventario
- * Solo devuelve productos activos del catálogo
+ * Obtiene productos vÃ¡lidos para usar en inventario
+ * Solo devuelve productos activos del catÃ¡logo
  */
 export async function getProductosParaInventario(): Promise<ProductoInventarioSync[]> {
   try {
@@ -116,6 +118,7 @@ export async function getProductosParaInventario(): Promise<ProductoInventarioSy
         sku: true,
         stock: true,
         stockMinimo: true,
+        precio: true,
         activo: true,
         categoria: {
           select: {
@@ -135,13 +138,13 @@ export async function getProductosParaInventario(): Promise<ProductoInventarioSy
 
     return productos;
   } catch (error) {
-    console.error('Error al obtener productos para inventario:', error);
+    logger.error('Error al obtener productos para inventario', { error });
     return [];
   }
 }
 
 /**
- * Valida si un producto existe y está activo antes de permitir movimientos
+ * Valida si un producto existe y estÃ¡ activo antes de permitir movimientos
  */
 export async function validateProductoParaMovimiento(productoId: string): Promise<{
   isValid: boolean;
@@ -157,6 +160,7 @@ export async function validateProductoParaMovimiento(productoId: string): Promis
         sku: true,
         stock: true,
         stockMinimo: true,
+        precio: true,
         activo: true,
         categoria: {
           select: {
@@ -174,14 +178,14 @@ export async function validateProductoParaMovimiento(productoId: string): Promis
     if (!producto) {
       return {
         isValid: false,
-        error: 'El producto no existe en el catálogo'
+        error: 'El producto no existe en el catÃ¡logo'
       };
     }
 
     if (!producto.activo) {
       return {
         isValid: false,
-        error: 'El producto está inactivo y no puede tener movimientos'
+        error: 'El producto estÃ¡ inactivo y no puede tener movimientos'
       };
     }
 
@@ -198,7 +202,7 @@ export async function validateProductoParaMovimiento(productoId: string): Promis
 }
 
 /**
- * Actualiza el stock de un producto después de un movimiento
+ * Actualiza el stock de un producto despuÃ©s de un movimiento
  */
 export async function actualizarStockProducto(
   productoId: string,
@@ -218,8 +222,8 @@ export async function actualizarStockProducto(
 }
 
 /**
- * Migra productos huérfanos en inventario
- * Crea entradas en el catálogo para productos que solo existen en movimientos
+ * Migra productos huÃ©rfanos en inventario
+ * Crea entradas en el catÃ¡logo para productos que solo existen en movimientos
  */
 export async function migrarProductosHuerfanos(): Promise<{
   success: boolean;
@@ -239,26 +243,26 @@ export async function migrarProductosHuerfanos(): Promise<{
       return result;
     }
 
-    // Para cada producto huérfano, intentar crear una entrada en el catálogo
+    // Para cada producto huÃ©rfano, intentar crear una entrada en el catÃ¡logo
     for (const productoId of validation.orphanedInventory) {
       try {
-        // Obtener información del primer movimiento para crear el producto
+        // Obtener informaciÃ³n del primer movimiento para crear el producto
         const primerMovimiento = await prisma.movimientoInventario.findFirst({
           where: { productoId },
           orderBy: { createdAt: 'asc' }
         });
 
         if (primerMovimiento) {
-          // Crear producto en catálogo con información básica
+          // Crear producto en catÃ¡logo con informaciÃ³n bÃ¡sica
           await prisma.producto.create({
             data: {
               id: productoId,
               nombre: `Producto Migrado ${productoId.slice(-8)}`,
               sku: `MIG-${productoId.slice(-8)}`,
-              descripcion: 'Producto migrado automáticamente desde inventario',
-              unidadMedidaId: 'unidad-default', // Necesitará una unidad por defecto
-              stock: 0, // Se calculará después
-              activo: false, // Marcado como inactivo para revisión manual
+              descripcion: 'Producto migrado automÃ¡ticamente desde inventario',
+              unidadMedidaId: 'unidad-default', // NecesitarÃ¡ una unidad por defecto
+              stock: 0, // Se calcularÃ¡ despuÃ©s
+              activo: false, // Marcado como inactivo para revisiÃ³n manual
             }
           });
 
@@ -272,7 +276,7 @@ export async function migrarProductosHuerfanos(): Promise<{
 
   } catch (error) {
     result.success = false;
-    result.errors.push(`Error general en migración: ${error}`);
+    result.errors.push(`Error general en migraciÃ³n: ${error}`);
   }
 
   return result;
@@ -280,7 +284,7 @@ export async function migrarProductosHuerfanos(): Promise<{
 
 /**
  * Limpia productos huérfanos eliminando sus movimientos
- * PRECAUCIÓN: Esta operación es irreversible
+ * PRECAUCIÃ“N: Esta operaciÃ³n es irreversible
  */
 export async function limpiarProductosHuerfanos(): Promise<{
   success: boolean;
@@ -300,7 +304,7 @@ export async function limpiarProductosHuerfanos(): Promise<{
       return result;
     }
 
-    // Eliminar movimientos de productos huérfanos
+ // Eliminar movimientos de productos huérfanos
     const deleteResult = await prisma.movimientoInventario.deleteMany({
       where: {
         productoId: {
@@ -313,7 +317,7 @@ export async function limpiarProductosHuerfanos(): Promise<{
 
   } catch (error) {
     result.success = false;
-    result.errors.push(`Error al limpiar productos huérfanos: ${error}`);
+ result.errors.push(`Error al limpiar productos huérfanos: ${error}`);
   }
 
   return result;
@@ -324,12 +328,12 @@ export async function limpiarProductosHuerfanos(): Promise<{
  */
 export const ProductoInventarioHooks = {
   /**
-   * Hook para después de crear un producto
+   * Hook para despuÃ©s de crear un producto
    */
   afterCreateProducto: async (_productoId: string) => {
     void _productoId;
     // Por ahora no hacemos nada, el stock inicial es 0
-    // En el futuro podrían agregarse movimientos automáticos de inicialización
+    // En el futuro podrÃ­an agregarse movimientos automÃ¡ticos de inicializaciÃ³n
   },
 
   /**
@@ -357,7 +361,7 @@ export const ProductoInventarioHooks = {
     } catch (error) {
       return {
         canDelete: false,
-        reason: `Error al validar eliminación: ${error}`
+        reason: `Error al validar eliminaciÃ³n: ${error}`
       };
     }
   }

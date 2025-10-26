@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,555 +7,271 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Modelos para autenticación con NextAuth.js
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  password      String?
-  image         String?
-  role          Role      @default(USER)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  accounts      Account[]
-  sessions      Session[]
+model Categoria {
+  id          String   @id
+  nombre      String   @unique(map: "nombre") @db.VarChar(255)
+  descripcion String?  @db.Text
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.DateTime(0)
+  updatedAt   DateTime @default(now()) @db.DateTime(0)
+  productos   Producto[]
+
+  @@map("categoria")
+}
+
+model Cliente {
+  id                    String              @id
+  nombre                String              @db.VarChar(255)
+  ruc                   String?             @unique(map: "ruc") @db.VarChar(11)
+  telefono              String?             @db.VarChar(50)
+  email                 String?
+  direccion             String?             @db.VarChar(255)
+  contacto              String?             @db.VarChar(255)
+  tipoCliente           cliente_tipoCliente @default(MINORISTA)
+  activo                Boolean             @default(true)
+  createdAt             DateTime            @default(now()) @db.DateTime(0)
+  updatedAt             DateTime            @default(now()) @db.DateTime(0)
   
-  // Relaciones con módulos TODAFRU
-  movimientosInventario MovimientoInventario[]
-  pedidosCompra         PedidoCompra[]
-  pedidosVenta          PedidoVenta[]
-  cuentasPorPagar       CuentaPorPagar[]
-  cuentasPorCobrar      CuentaPorCobrar[]
-  pagosCuentasPorPagar  PagoCuentaPorPagar[]
-  pagosCuentasPorCobrar PagoCuentaPorCobrar[]
+  // Nuevos campos para estructura refactorizada
+  tipoEntidad           String?             @db.VarChar(20) // 'PERSONA_NATURAL' | 'PERSONA_JURIDICA'
+  numeroIdentificacion  String?             @unique(map: "numeroIdentificacion") @db.VarChar(11) // DNI (8) o RUC (11)
+  nombres               String?             @db.VarChar(100) // Para personas naturales
+  apellidos             String?             @db.VarChar(100) // Para personas naturales
+  razonSocial           String?             @db.VarChar(200) // Para personas jurídicas
+  mensajePersonalizado  String?             @db.Text // Mensaje personalizado para correos
+  
+  pedidos               PedidoVenta[]
+
+  @@map("cliente")
 }
 
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
+model MovimientoInventario {
+  productoId       String
+  tipo             movimientoinventario_tipo
+  cantidad         Float
+  cantidadAnterior Float
+  cantidadNueva    Float
+  precio           Float?
+  motivo           String?   @db.VarChar(255)
+  numeroGuia       String?
+  pedidoCompraId   String?
+  pedidoVentaId    String?
+  usuarioId        String
+  createdAt        DateTime  @default(now()) @db.DateTime(0)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pedidoCompra     PedidoCompra? @relation(fields: [pedidoCompraId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_pc")
+  producto         Producto      @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_producto")
+  pedidoVenta      PedidoVenta?  @relation(fields: [pedidoVentaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_pv")
+  usuario          User          @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_usuario")
 
-  @@unique([provider, providerAccountId])
+  @@index([pedidoCompraId], map: "fk_mi_pc")
+  @@index([pedidoVentaId], map: "fk_mi_pv")
+  @@index([usuarioId], map: "fk_mi_usuario")
+  @@index([createdAt], map: "idx_mi_created")
+  @@index([productoId], map: "idx_mi_producto")
+  @@index([tipo], map: "idx_mi_tipo")
+  @@id([productoId, createdAt])
+  @@map("movimientoinventario")
 }
 
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model PedidoCompra {
+  id             String   @id
+  numero         String   @unique(map: "numero")
+  proveedorId    String
+  fecha          DateTime @default(now()) @db.DateTime(0)
+  fechaEntrega   DateTime? @db.DateTime(0)
+  subtotal       Float    @default(0)
+  impuestos      Float    @default(0)
+  total          Float    @default(0)
+  observaciones  String?  @db.Text
+  numeroGuia     String?
+  archivoGuia    String?
+  usuarioId      String
+  createdAt      DateTime @default(now()) @db.DateTime(0)
+  updatedAt      DateTime @default(now()) @db.DateTime(0)
+  proveedor      Proveedor @relation(fields: [proveedorId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pc_proveedor")
+  usuario        User      @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pc_usuario")
+  items          PedidoCompraItem[]
+  movimientos    MovimientoInventario[]
+
+  @@index([usuarioId], map: "fk_pc_usuario")
+  @@index([fecha], map: "idx_pc_fecha")
+  @@index([proveedorId], map: "idx_pc_proveedor")
+  @@map("pedidocompra")
 }
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
+model PedidoCompraItem {
+  id         String  @id
+  pedidoId   String
+  productoId String
+  cantidad   Float
+  precio     Float
+  subtotal   Float
+  pedido     PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pci_pedido")
+  producto   Producto     @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pci_producto")
 
-  @@unique([identifier, token])
+  @@unique([pedidoId, productoId], map: "uq_pci_pedido_producto")
+  @@index([pedidoId], map: "idx_pci_pedido")
+  @@index([productoId], map: "idx_pci_producto")
+  @@map("pedidocompraitem")
 }
 
-enum Role {
+model PedidoVenta {
+  id            String             @id
+  numero        String             @unique(map: "numero")
+  clienteId     String
+  fecha         DateTime           @default(now()) @db.DateTime(0)
+  subtotal      Float              @default(0)
+  impuestos     Float              @default(0)
+  total         Float              @default(0)
+  estado        pedidoventa_estado @default(PENDIENTE)
+  observaciones String?            @db.Text
+  numeroGuia    String?
+  archivoGuia   String?
+  usuarioId     String
+  createdAt     DateTime           @default(now()) @db.DateTime(0)
+  updatedAt     DateTime           @default(now()) @db.DateTime(0)
+  cliente       Cliente            @relation(fields: [clienteId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pv_cliente")
+  usuario       User               @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pv_usuario")
+  items         PedidoVentaItem[]
+  movimientos   MovimientoInventario[]
+
+  @@index([usuarioId], map: "fk_pv_usuario")
+  @@index([clienteId], map: "idx_pv_cliente")
+  @@index([fecha], map: "idx_pv_fecha")
+  @@map("pedidoventa")
+}
+
+model PedidoVentaItem {
+  id         String  @id
+  pedidoId   String
+  productoId String
+  cantidad   Float
+  precio     Float
+  subtotal   Float
+  pedido     PedidoVenta @relation(fields: [pedidoId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pvi_pedido")
+  producto   Producto    @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pvi_producto")
+
+  @@unique([pedidoId, productoId], map: "uq_pvi_pedido_producto")
+  @@index([pedidoId], map: "idx_pvi_pedido")
+  @@index([productoId], map: "idx_pvi_producto")
+  @@map("pedidoventaitem")
+}
+
+model Producto {
+  id              String   @id
+  nombre          String   @db.VarChar(255)
+  sku             String?  @unique(map: "sku")
+  descripcion     String?  @db.Text
+  categoriaId     String?
+  unidadMedidaId  String
+  precio          Float    @default(0)
+  porcentajeMerma Float    @default(0)
+  stock           Float    @default(0)
+  stockMinimo     Float    @default(0)
+  perecedero      Boolean  @default(true)
+  diasVencimiento Int?
+  tieneIGV        Boolean  @default(true)
+  activo          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.DateTime(0)
+  updatedAt       DateTime @default(now()) @db.DateTime(0)
+  categoria       Categoria?   @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prod_categoria")
+  unidadMedida    UnidadMedida @relation(fields: [unidadMedidaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prod_unidad")
+  comprasItems    PedidoCompraItem[]
+  ventasItems     PedidoVentaItem[]
+  movimientos     MovimientoInventario[]
+
+  @@index([categoriaId], map: "fk_prod_categoria")
+  @@index([unidadMedidaId], map: "fk_prod_unidad")
+  @@index([activo], map: "idx_prod_activo")
+  @@index([nombre], map: "idx_prod_nombre")
+  @@map("producto")
+}
+
+enum TipoEntidad {
+  PERSONA_NATURAL
+  PERSONA_JURIDICA
+}
+
+model Proveedor {
+  id                 String         @id
+  tipoEntidad        TipoEntidad    @default(PERSONA_NATURAL)
+  nombre             String         @db.VarChar(255)
+  numeroIdentificacion String?      @unique(map: "numero_identificacion") @db.VarChar(11)
+  telefono           String?        @db.VarChar(50)
+  email              String?
+  direccion          String?        @db.VarChar(255)
+  contacto           String?        @db.VarChar(255)
+  
+  // Campos específicos para persona natural
+  nombres            String?        @db.VarChar(100)
+  apellidos          String?        @db.VarChar(100)
+  
+  // Campos específicos para persona jurídica
+  razonSocial        String?        @db.VarChar(255)
+  representanteLegal String?        @db.VarChar(255)
+  
+  // Campos de compatibilidad (deprecated)
+  ruc                String?        @db.VarChar(11)
+  dni                String?        @db.VarChar(8)
+  
+  activo             Boolean        @default(true)
+  createdAt          DateTime       @default(now()) @db.DateTime(0)
+  updatedAt          DateTime       @default(now()) @db.DateTime(0)
+  pedidosCompra      PedidoCompra[]
+  
+  @@index([tipoEntidad], map: "idx_proveedor_tipo")
+  @@index([numeroIdentificacion], map: "idx_proveedor_numero_identificacion")
+  @@map("proveedor")
+}
+
+model UnidadMedida {
+  id        String    @id
+  nombre    String    @unique(map: "nombre") @db.VarChar(255)
+  simbolo   String    @unique(map: "simbolo") @db.VarChar(50)
+  activo    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @db.DateTime(0)
+  updatedAt DateTime  @default(now()) @db.DateTime(0)
+  productos Producto[]
+
+  @@map("unidadmedida")
+}
+
+model User {
+  id        String   @id
+  name      String   @db.VarChar(255)
+  email     String   @unique(map: "email")
+  password  String?
+  role      user_role @default(ADMIN)
+  createdAt DateTime @default(now()) @db.DateTime(0)
+  updatedAt DateTime @default(now()) @db.DateTime(0)
+  compras   PedidoCompra[]
+  ventas    PedidoVenta[]
+  registros MovimientoInventario[]
+
+  @@map("user")
+}
+
+enum movimientoinventario_tipo {
+  ENTRADA
+  SALIDA
+  AJUSTE
+}
+
+enum user_role {
   USER
   ADMIN
 }
 
-// Modelos del sistema TODAFRU
-
-// Categorías de productos
-model Categoria {
-  id        String    @id @default(cuid())
-  nombre    String    @unique
-  descripcion String?
-  activo    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  
-  productos Producto[]
-}
-
-// Unidades de medida
-model UnidadMedida {
-  id        String    @id @default(cuid())
-  nombre    String    @unique // kg, und, docena, caja, etc.
-  simbolo   String    @unique // kg, un, dz, cja, etc.
-  activo    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  
-  // Relaciones actualizadas
-  productos              Producto[]
-  productosUnidadCosteo  Producto[] @relation("ProductoUnidadCosteo")
-}
-
-// Proveedores
-model Proveedor {
-  id           String    @id @default(cuid())
-  nombre       String
-  ruc          String?   @unique
-  telefono     String?
-  email        String?
-  direccion    String?
-  contacto     String?   // nombre del contacto principal
-  activo       Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  
-  pedidosCompra PedidoCompra[]
-  cuentasPorPagar CuentaPorPagar[]
-}
-
-// Clientes
-model Cliente {
-  id           String    @id @default(cuid())
-  nombre       String
-  ruc          String?   @unique
-  telefono     String?
-  email        String?
-  direccion    String?
-  contacto     String?   // nombre del contacto principal
-  tipoCliente  TipoCliente @default(MINORISTA)
-  activo       Boolean   @default(true)
-  grupoClienteId String? // Relación con GrupoCliente
-  grupoCliente   GrupoCliente? @relation("GrupoClienteClientes", fields: [grupoClienteId], references: [id])
-  metodoPago   MetodoPago? // Enum de métodos de pago
-  website      String? // Sitio web del cliente
-  mensajePersonalizado String? // Mensaje personalizado para correos
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  
-  pedidosVenta PedidoVenta[]
-  cuentasPorCobrar CuentaPorCobrar[]
-}
-// Grupo de clientes
-model GrupoCliente {
-  id          String    @id @default(cuid())
-  nombre      String    @unique
-  descripcion String?
-  descuento   Float?    // Porcentaje de descuento para el grupo
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  clientes    Cliente[] @relation("GrupoClienteClientes")
-}
-
-// Productos (frutas y verduras) - ACTUALIZADO CON CAMPOS COMPLETOS
-model Producto {
-  id               String     @id @default(cuid())
-  nombre           String
-  sku              String?    @unique
-  descripcion      String?
-  
-  // Relaciones con entidades de clasificación
-  categoriaId      String?
-  tipoArticuloId   String?
-  familiaId        String?
-  subfamiliaId     String?
-  unidadMedidaId   String
-  unidadCosteoId   String?
-  marcaId          String?
-  agrupadorId      String?
-  
-  // Precios y costos
-  precio           Float      @default(0)
-  porcentajeMerma  Float      @default(0) // % de merma esperada
-  
-  // Inventario
-  stock            Float      @default(0)
-  stockMinimo      Float      @default(0)
-  
-  // Características del producto
-  perecedero       Boolean    @default(true)
-  diasVencimiento  Int?       // días de vida útil
-  tieneIGV         Boolean    @default(true) // Si aplica IGV
-  
-  // Estado y metadata
-  activo           Boolean    @default(true)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  
-  // Relaciones principales
-  categoria        Categoria?  @relation(fields: [categoriaId], references: [id])
-  tipoArticulo     TipoArticulo? @relation(fields: [tipoArticuloId], references: [id])
-  familia          Familia?    @relation(fields: [familiaId], references: [id])
-  subfamilia       Subfamilia? @relation(fields: [subfamiliaId], references: [id])
-  unidadMedida     UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
-  unidadCosteo     UnidadMedida? @relation("ProductoUnidadCosteo", fields: [unidadCosteoId], references: [id])
-  marca            Marca?      @relation(fields: [marcaId], references: [id])
-  agrupador        AgrupadorProducto? @relation(fields: [agrupadorId], references: [id])
-  
-  // Relaciones many-to-many
-  razonSocialProductos ProductoRazonSocial[]
-  
-  // Relaciones de inventario y movimientos
-  movimientos      MovimientoInventario[]
-  itemsPedidoCompra PedidoCompraItem[]
-  itemsPedidoVenta PedidoVentaItem[]
-  
-  // Precios específicos por razón social
-  preciosRazonSocial ProductoPrecioRazonSocial[]
-}
-
-// Tipos de artículo
-model TipoArticulo {
-  id          String    @id @default(cuid())
-  nombre      String    @unique
-  descripcion String?
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  productos   Producto[]
-}
-
-// Familias de productos
-model Familia {
-  id          String    @id @default(cuid())
-  nombre      String    @unique
-  descripcion String?
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  productos   Producto[]
-  subfamilias Subfamilia[]
-}
-
-// Subfamilias de productos
-model Subfamilia {
-  id          String    @id @default(cuid())
-  nombre      String    @unique
-  familiaId   String
-  descripcion String?
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  familia     Familia   @relation(fields: [familiaId], references: [id])
-  productos   Producto[]
-}
-
-// Marcas de productos
-model Marca {
-  id          String    @id @default(cuid())
-  nombre      String    @unique
-  descripcion String?
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  productos   Producto[]
-}
-
-// Agrupadores de productos
-model AgrupadorProducto {
-  id          String    @id @default(cuid())
-  nombre      String    @unique
-  descripcion String?
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  productos   Producto[]
-}
-
-// Tabla intermedia para productos y razones sociales (many-to-many)
-model ProductoRazonSocial {
-  id            String      @id @default(cuid())
-  productoId    String
-  razonSocialId String
-  activo        Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  
-  producto      Producto    @relation(fields: [productoId], references: [id], onDelete: Cascade)
-  razonSocial   RazonSocial @relation(fields: [razonSocialId], references: [id], onDelete: Cascade)
-  
-  @@unique([productoId, razonSocialId])
-}
-
-// Movimientos de inventario (entradas y salidas)
-model MovimientoInventario {
-  id            String           @id @default(cuid())
-  productoId    String
-  tipo          TipoMovimiento
-  cantidad      Float
-  cantidadAnterior Float
-  cantidadNueva Float
-  precio        Float?           // precio unitario del movimiento
-  motivo        String?          // descripción del movimiento
-  numeroGuia    String?          // número de guía de remisión
-  archivoGuia   String?          // ruta del archivo de la guía
-  pedidoCompraId String?         // referencia a pedido de compra si aplica
-  pedidoVentaId String?          // referencia a pedido de venta si aplica
-  usuarioId     String
-  createdAt     DateTime         @default(now())
-  
-  producto      Producto         @relation(fields: [productoId], references: [id])
-  usuario       User             @relation(fields: [usuarioId], references: [id])
-  pedidoCompra  PedidoCompra?    @relation(fields: [pedidoCompraId], references: [id])
-  pedidoVenta   PedidoVenta?     @relation(fields: [pedidoVentaId], references: [id])
-}
-
-// Pedidos de compra (a proveedores)
-model PedidoCompra {
-  id             String              @id @default(cuid())
-  numero         String              @unique // número de pedido
-  proveedorId    String
-  fecha          DateTime            @default(now())
-  fechaEntrega   DateTime?
-  subtotal       Float               @default(0)
-  impuestos      Float               @default(0)
-  total          Float               @default(0)
-  estado         EstadoPedido        @default(PENDIENTE)
-  observaciones  String?
-  numeroGuia     String?             // número de guía de remisión
-  archivoGuia    String?             // ruta del archivo de la guía
-  usuarioId      String
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  
-  proveedor      Proveedor           @relation(fields: [proveedorId], references: [id])
-  usuario        User                @relation(fields: [usuarioId], references: [id])
-  items          PedidoCompraItem[]
-  movimientos    MovimientoInventario[]
-  cuentasPorPagar CuentaPorPagar[]
-}
-
-// Items de pedidos de compra
-model PedidoCompraItem {
-  id            String       @id @default(cuid())
-  pedidoId      String
-  productoId    String
-  cantidad      Float
-  precio        Float        // precio unitario
-  subtotal      Float        // cantidad * precio
-  
-  pedido        PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  producto      Producto     @relation(fields: [productoId], references: [id])
-  
-  @@unique([pedidoId, productoId])
-}
-
-// Pedidos de venta (a clientes)
-model PedidoVenta {
-  id             String              @id @default(cuid())
-  numero         String              @unique // número de pedido
-  clienteId      String
-  razonSocialId  String?             // Nueva relación: razón social utilizada
-  fecha          DateTime            @default(now())
-  fechaEntrega   DateTime?
-  subtotal       Float               @default(0)
-  impuestos      Float               @default(0)
-  total          Float               @default(0)
-  estado         EstadoPedido        @default(PENDIENTE)
-  observaciones  String?
-  numeroGuia     String?             // número de guía de remisión
-  archivoGuia    String?             // ruta del archivo de la guía
-  usuarioId      String
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  
-  cliente        Cliente             @relation(fields: [clienteId], references: [id])
-  razonSocial    RazonSocial?        @relation(fields: [razonSocialId], references: [id])
-  usuario        User                @relation(fields: [usuarioId], references: [id])
-  items          PedidoVentaItem[]
-  movimientos    MovimientoInventario[]
-  cuentasPorCobrar CuentaPorCobrar[]
-}
-
-// Items de pedidos de venta
-model PedidoVentaItem {
-  id            String      @id @default(cuid())
-  pedidoId      String
-  productoId    String
-  cantidad      Float
-  precio        Float       // precio unitario
-  subtotal      Float       // cantidad * precio
-  
-  pedido        PedidoVenta @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  producto      Producto    @relation(fields: [productoId], references: [id])
-  
-  @@unique([pedidoId, productoId])
-}
-
-// Cuentas por pagar (lo que TODAFRU debe a proveedores)
-model CuentaPorPagar {
-  id               String         @id @default(cuid())
-  numero           String         @unique
-  proveedorId      String
-  pedidoCompraId   String?        // vinculado a un pedido de compra
-  monto            Float
-  montoAbonado     Float          @default(0)
-  saldo            Float          // monto - montoAbonado
-  fechaEmision     DateTime       @default(now())
-  fechaVencimiento DateTime
-  estado           EstadoCuenta   @default(PENDIENTE)
-  observaciones    String?
-  usuarioId        String
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  
-  proveedor        Proveedor      @relation(fields: [proveedorId], references: [id])
-  pedidoCompra     PedidoCompra?  @relation(fields: [pedidoCompraId], references: [id])
-  usuario          User           @relation(fields: [usuarioId], references: [id])
-  pagos            PagoCuentaPorPagar[]
-}
-
-// Cuentas por cobrar (lo que clientes deben a TODAFRU)
-model CuentaPorCobrar {
-  id               String         @id @default(cuid())
-  numero           String         @unique
-  clienteId        String
-  razonSocialId    String?        // Nueva relación: razón social utilizada
-  pedidoVentaId    String?        // vinculado a un pedido de venta
-  monto            Float
-  montoAbonado     Float          @default(0)
-  saldo            Float          // monto - montoAbonado
-  fechaEmision     DateTime       @default(now())
-  fechaVencimiento DateTime
-  estado           EstadoCuenta   @default(PENDIENTE)
-  observaciones    String?
-  usuarioId        String
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  
-  cliente          Cliente        @relation(fields: [clienteId], references: [id])
-  razonSocial      RazonSocial?   @relation(fields: [razonSocialId], references: [id])
-  pedidoVenta      PedidoVenta?   @relation(fields: [pedidoVentaId], references: [id])
-  usuario          User           @relation(fields: [usuarioId], references: [id])
-  pagos            PagoCuentaPorCobrar[]
-}
-
-// Pagos realizados a cuentas por pagar
-model PagoCuentaPorPagar {
-  id                 String         @id @default(cuid())
-  cuentaPorPagarId   String
-  monto              Float
-  fechaPago          DateTime       @default(now())
-  metodoPago         MetodoPago
-  numeroTransaccion  String?        // número de transferencia, cheque, etc.
-  observaciones      String?
-  usuarioId          String
-  createdAt          DateTime       @default(now())
-  
-  cuentaPorPagar     CuentaPorPagar @relation(fields: [cuentaPorPagarId], references: [id])
-  usuario            User           @relation(fields: [usuarioId], references: [id])
-}
-
-// Pagos recibidos de cuentas por cobrar
-model PagoCuentaPorCobrar {
-  id                 String         @id @default(cuid())
-  cuentaPorCobrarId  String
-  monto              Float
-  fechaPago          DateTime       @default(now())
-  metodoPago         MetodoPago
-  numeroTransaccion  String?        // número de transferencia, cheque, etc.
-  observaciones      String?
-  usuarioId          String
-  createdAt          DateTime       @default(now())
-  
-  cuentaPorCobrar    CuentaPorCobrar @relation(fields: [cuentaPorCobrarId], references: [id])
-  usuario            User            @relation(fields: [usuarioId], references: [id])
-}
-
-// Enums para el sistema
-enum TipoCliente {
+enum cliente_tipoCliente {
   MAYORISTA
   MINORISTA
 }
 
-enum TipoMovimiento {
-  ENTRADA     // compra, ajuste positivo
-  SALIDA      // venta, ajuste negativo
-  AJUSTE      // ajuste de inventario
-}
-
-enum EstadoPedido {
+enum pedidoventa_estado {
   PENDIENTE
   CONFIRMADO
   EN_PROCESO
   COMPLETADO
   ANULADO
-}
-
-enum EstadoCuenta {
-  PENDIENTE
-  PARCIAL     // pagado parcialmente
-  PAGADO
-  VENCIDO
-  ANULADO
-}
-
-enum MetodoPago {
-  EFECTIVO
-  TRANSFERENCIA
-  CHEQUE
-  TARJETA
-  YAPE
-  PLIN
-  OTRO
-}
-
-// Razones sociales de la empresa
-model RazonSocial {
-  id          String    @id @default(cuid())
-  nombre      String    @unique // Nombre de la razón social
-  ruc         String?   @unique // RUC de la razón social
-  direccion   String?
-  telefono    String?
-  email       String?
-  website     String?
-  tipoEmpresa TipoEmpresa @default(COMPANY)
-  sector      String?   // Sector objetivo (A, B, Premium, etc.)
-  descripcion String?   // Descripción del sector/mercado objetivo
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Relaciones
-  preciosProductos ProductoPrecioRazonSocial[]
-  pedidosVenta     PedidoVenta[]
-  cuentasPorCobrar CuentaPorCobrar[]
-  productosAsociados ProductoRazonSocial[] // Relación many-to-many con productos
-}
-
-// Tabla de precios por producto y razón social
-model ProductoPrecioRazonSocial {
-  id            String      @id @default(cuid())
-  productoId    String
-  razonSocialId String
-  precio        Float       // Precio específico para esta razón social
-  precioMinimo  Float?      // Precio mínimo permitido
-  descuento     Float?      // Descuento por defecto (%)
-  margen        Float?      // Margen de ganancia (%)
-  activo        Boolean     @default(true)
-  vigenciaDesde DateTime?   // Fecha desde la cual es válido
-  vigenciaHasta DateTime?   // Fecha hasta la cual es válido
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  
-  // Relaciones
-  producto      Producto    @relation(fields: [productoId], references: [id], onDelete: Cascade)
-  razonSocial   RazonSocial @relation(fields: [razonSocialId], references: [id], onDelete: Cascade)
-  
-  // Índice único para evitar duplicados
-  @@unique([productoId, razonSocialId])
-}
-
-enum TipoEmpresa {
-  INDIVIDUAL    // Persona Natural
-  COMPANY       // Empresa
-  CORPORATION   // Corporación
 }

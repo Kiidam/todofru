@@ -52,18 +52,21 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, ariaLabel }) =
           border-radius: 16px;
           box-shadow: 0 8px 32px rgba(0,0,0,0.18);
           min-width: 600px;
-          max-width: 90vw;
-          width: 40vw;
-          max-height: 90vh;
+          max-width: 95vw;
+          width: 50vw;
+          max-height: 95vh;
           overflow-y: auto;
-          padding: 2rem;
+          padding: 1.5rem;
           position: relative;
+          margin: 1rem;
         }
         @media (max-width: 768px) {
           .modal-content {
             min-width: unset;
-            width: 90vw;
+            width: 95vw;
             padding: 1rem;
+            margin: 0.5rem;
+            max-height: 98vh;
           }
         }
         .modal-close {

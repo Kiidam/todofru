@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { Search, Plus, Package, Edit2, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { suscribirseInventarioEventos } from '@/lib/inventory-channel';
 import { ProductoInventarioHooks } from '../../../src/lib/producto-inventario-sync';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
@@ -65,8 +68,13 @@ export default function ProductosPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortField, setSortField] = useState<keyof Producto>('nombre');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [selectedCategoriaId, setSelectedCategoriaId] = useState<string>('');
+  const [selectedFamiliaId, setSelectedFamiliaId] = useState<string>('');
+  const [selectedSubfamiliaId, setSelectedSubfamiliaId] = useState<string>('');
+  const [productosMenuOpen, setProductosMenuOpen] = useState(false);
 
   // Mock data para los selectores
+  // Nota: Mantengo mocks como fallback, pero los selects usarÃ¡n datos de API
   const mockCategorias = useMemo(() => [
     { id: '1', nombre: 'Frutas Citricas' },
     { id: '2', nombre: 'Frutas Tropicales' },
@@ -97,11 +105,13 @@ export default function ProductosPage() {
   ], []);
 
   const mockUnidades = useMemo(() => [
-    { id: '1', nombre: 'Kilogramo', simbolo: 'kg' },
-    { id: '2', nombre: 'Unidad', simbolo: 'und' },
-    { id: '3', nombre: 'Caja', simbolo: 'caja' },
-    { id: '4', nombre: 'Saco', simbolo: 'saco' },
-    { id: '5', nombre: 'Docena', simbolo: 'docena' },
+    { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
+    { id: 'g', nombre: 'Gramos', simbolo: 'g' },
+    { id: 'l', nombre: 'Litros', simbolo: 'l' },
+    { id: 'ml', nombre: 'Mililitros', simbolo: 'ml' },
+    { id: 'un', nombre: 'Unidades', simbolo: 'un' },
+    { id: 'cj', nombre: 'Cajas', simbolo: 'cj' },
+    { id: 'pqt', nombre: 'Paquetes', simbolo: 'pqt' },
   ], []);
 
   const mockMarcas = useMemo(() => [
@@ -118,6 +128,10 @@ export default function ProductosPage() {
     { id: '4', nombre: 'Exportacion' },
   ], []);
 
+  // Datos de API para categorÃ­as y unidades de medida
+  const [apiCategorias, setApiCategorias] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [apiUnidades, setApiUnidades] = useState<Array<{ id: string; nombre: string; simbolo: string }>>([]);
+
   const mockRazonesSociales = useMemo(() => [
     { id: '1', nombre: 'Supermercados Wong S.A.' },
     { id: '2', nombre: 'Metro S.A.' },
@@ -126,23 +140,24 @@ export default function ProductosPage() {
     { id: '5', nombre: 'Restaurantes Centrales S.A.C.' },
   ], []);
 
-  // Funcion para generar SKU automatico
+  // Funcion para generar SKU automatico (prioriza datos de API)
   const generateSKU = useCallback((nombre: string, categoriaId: string, familiaId: string) => {
     if (!nombre || !categoriaId) return '';
-    
-    const categoria = mockCategorias.find(c => c.id === categoriaId);
+
+    const sourceCategorias = apiCategorias.length ? apiCategorias : mockCategorias;
+    const categoria = sourceCategorias.find(c => c.id === categoriaId);
     const familia = mockFamilias.find(f => f.id === familiaId);
-    
+
     const nombreParts = nombre.split(' ').slice(0, 2);
     const nombreCode = nombreParts.map(part => part.substring(0, 3).toUpperCase()).join('-');
-    
+
     const categoriaCode = categoria ? categoria.nombre.substring(0, 3).toUpperCase() : 'GEN';
     const familiaCode = familia ? familia.nombre.substring(0, 3).toUpperCase() : '';
-    
+
     const timestamp = Date.now().toString().slice(-3);
-    
+
     return `${categoriaCode}-${familiaCode ? familiaCode + '-' : ''}${nombreCode}-${timestamp}`;
-  }, [mockCategorias, mockFamilias]);
+  }, [apiCategorias, mockCategorias, mockFamilias]);
 
   const [formData, setFormData] = useState<FormData>({
     nombre: '',
@@ -169,6 +184,116 @@ export default function ProductosPage() {
     fetchProductos();
   }, []);
 
+  // SuscripciÃ³n en tiempo real a eventos de inventario
+  useEffect(() => {
+    const unsubscribe = suscribirseInventarioEventos((evt) => {
+      setProductos(prev => prev.map(p => {
+        if (p.id !== evt.productoId) return p;
+        if (evt.tipo === 'AJUSTE') {
+          return { ...p, stock: evt.cantidadNueva };
+        }
+        const delta = evt.delta || 0;
+        const nuevo = evt.tipo === 'ENTRADA' ? p.stock + delta : p.stock - delta;
+        return { ...p, stock: Math.max(0, nuevo) };
+      }));
+    });
+    return () => unsubscribe && unsubscribe();
+  }, []);
+
+  // Leer query params para abrir modal de creaciÃ³n y aplicar filtros iniciales
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const add = searchParams.get('add');
+    const cat = searchParams.get('categoriaId') || '';
+    const fam = searchParams.get('familiaId') || '';
+    const sub = searchParams.get('subfamiliaId') || '';
+    if (add) {
+      resetForm();
+      setShowModal(true);
+    }
+    if (cat) setSelectedCategoriaId(cat);
+    if (fam) setSelectedFamiliaId(fam);
+    if (sub) setSelectedSubfamiliaId(sub);
+  }, [searchParams]);
+
+  // Estado para errores de API y helper centralizado de fetch con credenciales
+  const [apiError, setApiError] = useState<string>('');
+  const apiFetch = async (url: string, init?: RequestInit) => {
+    const res = await fetch(url, {
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', ...(init?.headers || {}) },
+      ...init,
+    });
+    if (res.status === 401) {
+      setApiError('No autorizado. Inicia sesiÃ³n para continuar.');
+    }
+    return res;
+  };
+
+  // SincronizaciÃ³n dinÃ¡mica de stock con Inventario
+  useEffect(() => {
+    let intervalId: any;
+    const syncStockFromInventario = async () => {
+      try {
+        const ts = Date.now();
+        const res = await apiFetch(`/api/inventario?action=productos&ts=${ts}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const invProductos = Array.isArray(data?.productos) ? data.productos : [];
+        if (invProductos.length > 0) {
+          setProductos(prev => prev.map(p => {
+            const inv = invProductos.find((ip: any) => ip.id === p.id);
+            return inv ? { ...p, stock: inv.stock ?? p.stock, stockMinimo: inv.stockMinimo ?? p.stockMinimo } : p;
+          }));
+        }
+      } catch {
+        // silencioso: si falla, no interrumpir UI
+      }
+    };
+
+    // primera sincronizaciÃ³n inmediata y luego cada 10s
+    syncStockFromInventario();
+    intervalId = setInterval(syncStockFromInventario, 10000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Cargar categorÃ­as y unidades desde API
+  useEffect(() => {
+    const cargarCatalogos = async () => {
+      try {
+        // Evitar cachÃ© del navegador/Next y forzar datos frescos
+        const ts = Date.now();
+        const [respCat, respUni] = await Promise.all([
+          apiFetch(`/api/categorias?ts=${ts}`),
+          apiFetch(`/api/unidades-medida?ts=${ts}`)
+        ]);
+
+        const [dataCat, dataUni] = await Promise.all([
+          respCat.json(),
+          respUni.json()
+        ]);
+
+        if (dataCat?.success && Array.isArray(dataCat.data)) {
+          setApiCategorias(dataCat.data.map((c: any) => ({ id: c.id, nombre: c.nombre })));
+        }
+        if (dataUni?.success && Array.isArray(dataUni.data)) {
+          const unidades = dataUni.data.map((u: any) => ({ id: u.id, nombre: u.nombre, simbolo: u.simbolo }));
+          setApiUnidades(unidades);
+          // Aplicar unidad por defecto desde localStorage si existe y no hay valor actual
+          const defaultUnidadId = typeof window !== 'undefined' ? localStorage.getItem('defaultUnidadMedidaId') : null;
+          if (defaultUnidadId && !formData.unidadMedidaId && unidades.some((u: any) => u.id === defaultUnidadId)) {
+            setFormData(prev => ({ ...prev, unidadMedidaId: defaultUnidadId as string }));
+          }
+        }
+      } catch (error) {
+        console.error('Error cargando catÃ¡logos de API:', error);
+      }
+    };
+    // Cargar una sola vez al montar para estado inicial
+    cargarCatalogos();
+  }, []);
+
   // Efecto para generar SKU automatico
   useEffect(() => {
     if (formData.nombre && formData.categoriaId && !editingProduct) {
@@ -180,45 +305,200 @@ export default function ProductosPage() {
   const fetchProductos = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/productos?limit=100');
+      const ts = Date.now();
+      const response = await apiFetch(`/api/productos?limit=100&ts=${ts}`);
+      if (!response.ok) {
+        // 401 ya fue notificado por apiFetch; evitar fallback en producciÃ³n
+        if (response.status !== 401) {
+          const text = await response.text().catch(() => '');
+          console.error('Error HTTP en productos:', response.status, text);
+          setApiError('No se pudo cargar productos. Mostrando datos de ejemplo.');
+          // Fallback inmediato con datos de ejemplo si la API falla
+          const mockProductos: Producto[] = [
+            {
+              id: 'prod-1',
+              nombre: 'Manzana Fuji Premium',
+              sku: 'FRU-MAN-001',
+              descripcion: 'Manzana Fuji de primera calidad',
+              precio: 8.5,
+              stock: 150,
+              stockMinimo: 20,
+              porcentajeMerma: 5,
+              perecedero: true,
+              diasVencimiento: 15,
+              tieneIGV: true,
+              activo: true,
+              categoria: { id: '1', nombre: 'Frutas Citricas' },
+              familia: { id: '1', nombre: 'Frutas' },
+              subfamilia: { id: '1', nombre: 'Citricos' },
+              unidadMedida: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
+              unidadCosteo: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
+              marca: { id: '1', nombre: 'TODAFRU Premium' },
+              agrupador: { id: '1', nombre: 'Alta Rotacion' },
+              razonSocialProductos: [
+                { razonSocial: { id: '1', nombre: 'Supermercados Wong S.A.' } },
+              ]
+            },
+            {
+              id: 'prod-2',
+              nombre: 'Lechuga Romana',
+              sku: 'VER-LEC-001',
+              descripcion: 'Lechuga fresca lista para consumo',
+              precio: 3.2,
+              stock: 80,
+              stockMinimo: 15,
+              porcentajeMerma: 4,
+              perecedero: true,
+              diasVencimiento: 7,
+              tieneIGV: true,
+              activo: true,
+              categoria: { id: '3', nombre: 'Verduras de Hoja' },
+              familia: { id: '2', nombre: 'Verduras' },
+              subfamilia: { id: '4', nombre: 'De Hoja Verde' },
+              unidadMedida: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
+              unidadCosteo: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
+              marca: { id: '4', nombre: 'Sin Marca' },
+              agrupador: { id: '2', nombre: 'Estacional' },
+              razonSocialProductos: []
+            },
+            {
+              id: 'prod-3',
+              nombre: 'Leche Entera 1L',
+              sku: 'LAC-LEC-001',
+              descripcion: 'Leche entera pasteurizada',
+              precio: 4.8,
+              stock: 200,
+              stockMinimo: 30,
+              porcentajeMerma: 2,
+              perecedero: true,
+              diasVencimiento: 20,
+              tieneIGV: true,
+              activo: true,
+              categoria: { id: 'cat-lacteos', nombre: 'LÃ¡cteos' },
+              familia: { id: '3', nombre: 'Hierbas' },
+              subfamilia: { id: '6', nombre: 'De Fruto' },
+              unidadMedida: { id: 'l', nombre: 'Litros', simbolo: 'l' },
+              unidadCosteo: { id: 'l', nombre: 'Litros', simbolo: 'l' },
+              marca: { id: '3', nombre: 'TODAFRU Tradicional' },
+              agrupador: { id: '3', nombre: 'Premium' },
+              razonSocialProductos: []
+            }
+          ];
+          setProductos(mockProductos);
+        }
+        return;
+      }
       const data = await response.json();
       
       if (data.success) {
-        // Los datos de la API ya vienen en el formato correcto
-        setProductos(data.data);
+        const apiList: Producto[] = data.data || [];
+        if (apiList.length === 0) {
+          // Sin datos: mostrar ejemplos para ilustrar la vista
+          const mockProductos: Producto[] = [
+            {
+              id: 'prod-1',
+              nombre: 'Manzana Fuji Premium',
+              sku: 'FRU-MAN-001',
+              descripcion: 'Manzana Fuji de primera calidad',
+              precio: 8.5,
+              stock: 150,
+              stockMinimo: 20,
+              porcentajeMerma: 5,
+              perecedero: true,
+              diasVencimiento: 15,
+              tieneIGV: true,
+              activo: true,
+              categoria: { id: '1', nombre: 'Frutas Citricas' },
+              familia: { id: '1', nombre: 'Frutas' },
+              subfamilia: { id: '1', nombre: 'Citricos' },
+              unidadMedida: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
+              unidadCosteo: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
+              marca: { id: '1', nombre: 'TODAFRU Premium' },
+              agrupador: { id: '1', nombre: 'Alta Rotacion' },
+              razonSocialProductos: []
+            },
+            {
+              id: 'prod-2',
+              nombre: 'Lechuga Romana',
+              sku: 'VER-LEC-001',
+              descripcion: 'Lechuga fresca lista para consumo',
+              precio: 3.2,
+              stock: 80,
+              stockMinimo: 15,
+              porcentajeMerma: 4,
+              perecedero: true,
+              diasVencimiento: 7,
+              tieneIGV: true,
+              activo: true,
+              categoria: { id: '3', nombre: 'Verduras de Hoja' },
+              familia: { id: '2', nombre: 'Verduras' },
+              subfamilia: { id: '4', nombre: 'De Hoja Verde' },
+              unidadMedida: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
+              unidadCosteo: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
+              marca: { id: '4', nombre: 'Sin Marca' },
+              agrupador: { id: '2', nombre: 'Estacional' },
+              razonSocialProductos: []
+            },
+            {
+              id: 'prod-3',
+              nombre: 'Leche Entera 1L',
+              sku: 'LAC-LEC-001',
+              descripcion: 'Leche entera pasteurizada',
+              precio: 4.8,
+              stock: 200,
+              stockMinimo: 30,
+              porcentajeMerma: 2,
+              perecedero: true,
+              diasVencimiento: 20,
+              tieneIGV: true,
+              activo: true,
+              categoria: { id: 'cat-lacteos', nombre: 'LÃ¡cteos' },
+              familia: { id: '3', nombre: 'Hierbas' },
+              subfamilia: { id: '6', nombre: 'De Fruto' },
+              unidadMedida: { id: 'l', nombre: 'Litros', simbolo: 'l' },
+              unidadCosteo: { id: 'l', nombre: 'Litros', simbolo: 'l' },
+              marca: { id: '3', nombre: 'TODAFRU Tradicional' },
+              agrupador: { id: '3', nombre: 'Premium' },
+              razonSocialProductos: []
+            }
+          ];
+          setProductos(mockProductos);
+        } else {
+          setProductos(apiList);
+        }
       } else {
         console.error('Error en la respuesta de la API:', data.error);
-        // Fallback a datos mock solo si la API falla
-        const mockProductos: Producto[] = [
-          {
-            id: '1',
-            nombre: 'Manzana Fuji Premium',
-            sku: 'FRU-CIT-MAN-001',
-            descripcion: 'Manzana Fuji de primera calidad, importada',
-            precio: 8.50,
-            stock: 150,
-            stockMinimo: 20,
-            porcentajeMerma: 5,
-            perecedero: true,
-            diasVencimiento: 15,
-            tieneIGV: true,
-            activo: true,
-            categoria: { id: '1', nombre: 'Frutas Citricas' },
-            tipoArticulo: { id: '1', nombre: 'Producto Natural' },
-            familia: { id: '1', nombre: 'Frutas' },
-            subfamilia: { id: '1', nombre: 'Citricos' },
-            unidadMedida: { id: '1', nombre: 'Kilogramo', simbolo: 'kg' },
-            unidadCosteo: { id: '1', nombre: 'Kilogramo', simbolo: 'kg' },
-            marca: { id: '1', nombre: 'TODAFRU Premium' },
-            agrupador: { id: '1', nombre: 'Alta Rotacion' },
-            razonSocialProductos: [
-              { razonSocial: { id: '1', nombre: 'Supermercados Wong S.A.' } },
-              { razonSocial: { id: '2', nombre: 'Metro S.A.' } }
-            ]
-          }
-        ];
-        
-        setProductos(mockProductos);
+        setApiError(data.error || 'Error al cargar productos');
+        // Fallback a datos mock solo en desarrollo si la API falla
+        if (process.env.NODE_ENV !== 'production') {
+          const mockProductos: Producto[] = [
+            {
+              id: 'prod-1',
+              nombre: 'Manzana Fuji Premium',
+              sku: 'FRU-MAN-001',
+              descripcion: 'Manzana Fuji de primera calidad',
+              precio: 8.5,
+              stock: 150,
+              stockMinimo: 20,
+              porcentajeMerma: 5,
+              perecedero: true,
+              diasVencimiento: 15,
+              tieneIGV: true,
+              activo: true,
+              categoria: { id: '1', nombre: 'Frutas Citricas' },
+              familia: { id: '1', nombre: 'Frutas' },
+              subfamilia: { id: '1', nombre: 'Citricos' },
+              unidadMedida: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
+              unidadCosteo: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
+              marca: { id: '1', nombre: 'TODAFRU Premium' },
+              agrupador: { id: '1', nombre: 'Alta Rotacion' },
+              razonSocialProductos: [
+                { razonSocial: { id: '1', nombre: 'Supermercados Wong S.A.' } }
+              ]
+            }
+          ];
+          setProductos(mockProductos);
+        }
       }
     } catch (error) {
       console.error('Error al cargar productos:', error);
@@ -298,83 +578,73 @@ export default function ProductosPage() {
         return;
       }
 
+      if (!formData.descripcion.trim()) {
+        alert('La descripciÃ³n es requerida');
+        return;
+      }
+
       if (!formData.unidadMedidaId) {
         alert('La unidad de medida es requerida');
         return;
       }
 
-      if (formData.precio <= 0) {
-        alert('El precio debe ser mayor a 0');
-        return;
-      }
-
-      if (formData.perecedero && (!formData.diasVencimiento || formData.diasVencimiento <= 0)) {
-        alert('Los dias de vencimiento son requeridos para productos perecederos');
-        return;
-      }
-
-      if (formData.porcentajeMerma < 0 || formData.porcentajeMerma > 100) {
-        alert('El porcentaje de merma debe estar entre 0 y 100');
-        return;
-      }
+      // Validaciones de precio, stock mÃ­nimo, merma, IGV y dÃ­as de vencimiento removidas
 
       // Generar SKU si no existe
       const finalSKU = formData.sku || generateSKU(formData.nombre, formData.categoriaId, formData.familiaId);
 
       if (editingProduct) {
-        const updatedProductos = productos.map(p => 
-          p.id === editingProduct.id 
-            ? { 
-                ...p, 
-                ...formData, 
-                sku: finalSKU,
-                id: editingProduct.id,
-                // Mapear las relaciones
-                categoria: mockCategorias.find(c => c.id === formData.categoriaId),
-                tipoArticulo: mockTiposArticulo.find(t => t.id === formData.tipoArticuloId),
-                familia: mockFamilias.find(f => f.id === formData.familiaId),
-                subfamilia: mockSubfamilias.find(s => s.id === formData.subfamiliaId),
-                unidadMedida: mockUnidades.find(u => u.id === formData.unidadMedidaId)!,
-                unidadCosteo: mockUnidades.find(u => u.id === formData.unidadCosteoId),
-                marca: mockMarcas.find(m => m.id === formData.marcaId),
-                agrupador: mockAgrupadores.find(a => a.id === formData.agrupadorId),
-                razonSocialProductos: formData.razonSocialIds.map(id => ({
-                  razonSocial: mockRazonesSociales.find(r => r.id === id)!
-                }))
-              }
-            : p
-        );
-        setProductos(updatedProductos);
-        alert('Producto actualizado exitosamente');
+        // En futuras iteraciones implementar PUT /api/productos/[id]
+        alert('EdiciÃ³n por API aÃºn no implementada.');
       } else {
-        const nuevoProducto: Producto = {
-          id: Date.now().toString(),
-          nombre: formData.nombre,
-          sku: finalSKU,
-          descripcion: formData.descripcion,
-          precio: formData.precio,
-          stock: 0,
-          stockMinimo: formData.stockMinimo,
-          porcentajeMerma: formData.porcentajeMerma,
-          perecedero: formData.perecedero,
-          diasVencimiento: formData.diasVencimiento,
-          tieneIGV: formData.tieneIGV,
+        const resp = await apiFetch('/api/productos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre: formData.nombre,
+            sku: finalSKU,
+            descripcion: formData.descripcion,
+            categoriaId: formData.categoriaId,
+            unidadMedidaId: formData.unidadMedidaId,
+            perecedero: formData.perecedero,
+          })
+        });
+
+        const result = await resp.json();
+
+        if (!resp.ok || !result.success) {
+          const message = result?.error || 'Error al crear producto';
+          alert(message);
+          return;
+        }
+
+        const productoCreado: Producto = {
+          id: result.data.id,
+          nombre: result.data.nombre,
+          sku: result.data.sku,
+          descripcion: result.data.descripcion,
+          precio: result.data.precio,
+          stock: result.data.stock ?? 0,
+          stockMinimo: result.data.stockMinimo,
+          porcentajeMerma: 0,
+          perecedero: result.data.perecedero,
+          diasVencimiento: result.data.diasVencimiento,
+          tieneIGV: false,
           activo: true,
-          categoria: mockCategorias.find(c => c.id === formData.categoriaId),
-          tipoArticulo: mockTiposArticulo.find(t => t.id === formData.tipoArticuloId),
-          familia: mockFamilias.find(f => f.id === formData.familiaId),
-          subfamilia: mockSubfamilias.find(s => s.id === formData.subfamiliaId),
-          unidadMedida: mockUnidades.find(u => u.id === formData.unidadMedidaId)!,
-          unidadCosteo: mockUnidades.find(u => u.id === formData.unidadCosteoId),
-          marca: mockMarcas.find(m => m.id === formData.marcaId),
-          agrupador: mockAgrupadores.find(a => a.id === formData.agrupadorId),
-          razonSocialProductos: formData.razonSocialIds.map(id => ({
-            razonSocial: mockRazonesSociales.find(r => r.id === id)!
-          }))
+          categoria: result.data.categoria,
+          unidadMedida: result.data.unidadMedida,
+          tipoArticulo: undefined,
+          familia: undefined,
+          subfamilia: undefined,
+          unidadCosteo: undefined,
+          marca: undefined,
+          agrupador: undefined,
+          razonSocialProductos: []
         };
-        
-        setProductos(prev => [...prev, nuevoProducto]);
-        alert('Producto creado exitosamente');
+
+        // Revalidar lista desde el servidor para reflejar cambios de inmediato
+        await fetchProductos();
+        alert(result.message || 'Producto creado exitosamente');
       }
 
       setShowModal(false);
@@ -393,12 +663,12 @@ export default function ProductosPage() {
       nombre: producto.nombre,
       sku: producto.sku || '',
       descripcion: producto.descripcion || '',
-      precio: producto.precio,
-      stockMinimo: producto.stockMinimo,
-      porcentajeMerma: producto.porcentajeMerma,
+      precio: 0,
+      stockMinimo: 0,
+      porcentajeMerma: 0,
       perecedero: producto.perecedero,
-      diasVencimiento: producto.diasVencimiento || 7,
-      tieneIGV: producto.tieneIGV,
+      diasVencimiento: 0,
+      tieneIGV: false,
       categoriaId: producto.categoria?.id || '',
       tipoArticuloId: producto.tipoArticulo?.id || '',
       familiaId: producto.familia?.id || '',
@@ -425,21 +695,24 @@ export default function ProductosPage() {
       if (confirm('¿Estás seguro de que deseas eliminar este producto?\n\nEsta acción eliminará el producto del catálogo y ya no estará disponible para nuevos movimientos de inventario.')) {
         setProductos(prev => prev.filter(p => p.id !== id));
         alert('Producto eliminado exitosamente');
+        await fetchProductos();
       }
     } catch (error) {
       console.error('Error al validar eliminación:', error);
-      // Fallback al comportamiento anterior si hay error en la validación
+      // Fallback al comportamiento anterior si hay error en la validaciÃ³n
       if (confirm('¿Estás seguro de que deseas eliminar este producto?')) {
         setProductos(prev => prev.filter(p => p.id !== id));
         alert('Producto eliminado exitosamente');
+        await fetchProductos();
       }
     }
   };
 
-  const toggleEstado = (id: string) => {
+  const toggleEstado = async (id: string) => {
     setProductos(prev => prev.map(p => 
       p.id === id ? { ...p, activo: !p.activo } : p
     ));
+    await fetchProductos();
   };
 
   const filteredAndSortedProductos = productos
@@ -451,7 +724,11 @@ export default function ProductosPage() {
         (statusFilter === 'active' && producto.activo) ||
         (statusFilter === 'inactive' && !producto.activo);
 
-      return matchesSearch && matchesStatus;
+      const matchesCategory = !selectedCategoriaId || producto.categoria?.id === selectedCategoriaId;
+      const matchesFamilia = !selectedFamiliaId || producto.familia?.id === selectedFamiliaId;
+      const matchesSubfamilia = !selectedSubfamiliaId || producto.subfamilia?.id === selectedSubfamiliaId;
+
+      return matchesSearch && matchesStatus && matchesCategory && matchesFamilia && matchesSubfamilia;
     })
     .sort((a, b) => {
       let aValue = a[sortField];
@@ -461,7 +738,7 @@ export default function ProductosPage() {
       if (aValue === undefined || aValue === null) aValue = '';
       if (bValue === undefined || bValue === null) bValue = '';
 
-      // Convertir a string para comparación
+      // Convertir a string para comparaciÃ³n
       const aStr = String(aValue).toLowerCase();
       const bStr = String(bValue).toLowerCase();
 
@@ -472,7 +749,7 @@ export default function ProductosPage() {
       }
     });
 
-  // Calcular paginación
+  // Calcular paginaciÃ³n
   const totalItems = filteredAndSortedProductos.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -489,6 +766,15 @@ export default function ProductosPage() {
     setCurrentPage(1); // Reset to first page when sorting
   };
 
+  // Helper para indicador de stock (color y etiqueta accesible)
+  const getStockIndicator = (p: Producto) => {
+    const isLow = p.stock < p.stockMinimo;
+    return {
+      color: isLow ? '#ef4444' : '#2563eb',
+      label: isLow ? 'Stock bajo' : 'Stock adecuado'
+    };
+  };
+
   return (
     <div className="w-full min-h-screen bg-gray-50">
       <div className="w-full p-6">
@@ -497,50 +783,54 @@ export default function ProductosPage() {
             <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
             <p className="text-gray-600">Gestion completa de productos con clasificacion avanzada</p>
           </div>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Nuevo Producto
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                resetForm();
+                setShowModal(true);
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Agregar Producto
+            </button>
+            {/* Dropdown de Productos movido al Sidebar */}
+          </div>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
+        {apiError && (
+          <div className="mb-4 rounded-md bg-red-50 border border-red-200 p-3" role="alert" aria-live="polite">
+            <p className="text-sm text-red-700">{apiError}</p>
+          </div>
+        )}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[240px]">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar productos por nombre o SKU..."
+              placeholder="Buscar productos por nombre o SKU"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
           </div>
-          
-          <div>
-            <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700 mb-1">
-              Filtrar por estado
-            </label>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700">Estado</span>
             <select
               id="statusFilter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
             >
-              <option value="all">Todos los productos</option>
-              <option value="active">Solo activos</option>
-              <option value="inactive">Solo inactivos</option>
+              <option value="all">Todos</option>
+              <option value="active">Activos</option>
+              <option value="inactive">Inactivos</option>
             </select>
           </div>
-          
-          <div>
-            <label htmlFor="itemsPerPage" className="block text-sm font-medium text-gray-700 mb-1">
-              Productos por página
-            </label>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700">Por página</span>
             <select
               id="itemsPerPage"
               value={itemsPerPage}
@@ -548,12 +838,12 @@ export default function ProductosPage() {
                 setItemsPerPage(Number(e.target.value));
                 setCurrentPage(1);
               }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
             >
-              <option value={5}>5 productos</option>
-              <option value={10}>10 productos</option>
-              <option value={20}>20 productos</option>
-              <option value={50}>50 productos</option>
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
             </select>
           </div>
         </div>
@@ -565,7 +855,7 @@ export default function ProductosPage() {
               <p className="mt-2 text-gray-600">Cargando productos...</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -581,24 +871,14 @@ export default function ProductosPage() {
                       </button>
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
-                      Clasificación
+                      CategorÃ­a
+                    </th>
+                    {/* Columna de Stock removida: el badge al lado del nombre muestra esta info */}
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
+                      Unidad
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
-                      <button 
-                        onClick={() => handleSort('precio')}
-                        className="flex items-center gap-1 hover:text-gray-900"
-                      >
-                        Precio/Stock
-                        {sortField === 'precio' && (
-                          sortDirection === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
-                        )}
-                      </button>
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
-                      Características
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
-                      Razones Sociales
+                      DescripciÃ³n
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
                       Acciones
@@ -609,79 +889,71 @@ export default function ProductosPage() {
                   {paginatedProductos.map((producto) => (
                     <tr key={producto.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <Package className="h-8 w-8 text-green-600 mr-3" />
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {producto.nombre}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              SKU: {producto.sku || 'Sin SKU'}
-                            </div>
-                            {producto.descripcion && (
-                              <div className="text-xs text-gray-400 mt-1">
-                                {producto.descripcion}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            {/* Indicador visual de stock: rojo si bajo, azul si ok */}
+                            {(() => {
+                              const ind = getStockIndicator(producto);
+                              return (
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 12 12"
+                                  className="mr-2 flex-shrink-0"
+                                  aria-label={ind.label}
+                                >
+                                  <circle cx="6" cy="6" r="5" fill={ind.color} />
+                                </svg>
+                              );
+                            })()}
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {producto.nombre}
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-xs space-y-1">
-                          {producto.categoria && (
-                            <div><span className="font-medium">Cat:</span> {producto.categoria.nombre}</div>
-                          )}
-                          {producto.familia && (
-                            <div><span className="font-medium">Fam:</span> {producto.familia.nombre}</div>
-                          )}
-                          {producto.subfamilia && (
-                            <div><span className="font-medium">Sub:</span> {producto.subfamilia.nombre}</div>
-                          )}
-                          {producto.marca && (
-                            <div><span className="font-medium">Marca:</span> {producto.marca.nombre}</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-900">
-                            S/ {producto.precio.toFixed(2)} / {producto.unidadMedida.simbolo}
-                          </div>
-                          <div className="text-gray-500">
-                            Stock: {producto.stock} {producto.unidadMedida.simbolo}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            Min: {producto.stockMinimo} {producto.unidadMedida.simbolo}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-xs space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              producto.perecedero 
-                                ? 'bg-yellow-100 text-yellow-800' 
-                                : 'bg-green-100 text-green-800'
-                            }`}>
-                              {producto.perecedero ? 'Perecedero' : 'No Perecedero'}
-                            </span>
-                          </div>
-                          {producto.perecedero && producto.diasVencimiento && (
-                            <div>Vida util: {producto.diasVencimiento} dias</div>
-                          )}
-                          <div>Merma: {producto.porcentajeMerma}%</div>
-                          <div>{producto.tieneIGV ? 'Con IGV' : 'Sin IGV'}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-xs space-y-1">
-                          {producto.razonSocialProductos?.map((rsp, index) => (
-                            <div key={index} className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                              {rsp.razonSocial.nombre}
+                              <div className="text-sm text-gray-500">
+                                SKU: {producto.sku || 'Sin SKU'}
+                              </div>
                             </div>
-                          )) || (
-                            <div className="text-gray-400">Sin asignar</div>
+                          </div>
+                          {/* Icono representativo al costado derecho: rojo si stock bajo, azul si adecuado */}
+                          {(() => {
+                            const isLow = producto.stock < producto.stockMinimo;
+                            const pkgColorClass = isLow ? 'text-red-600' : 'text-blue-600';
+return (
+  <div className="relative ml-3" aria-live="polite" title={`Stock: ${producto.stock}`}>
+    <Package className={`h-6 w-6 ${pkgColorClass}`} aria-label={isLow ? 'Stock bajo' : 'Stock adecuado'} />
+    <span className={`absolute -top-2 -right-3 text-[10px] font-semibold ${pkgColorClass}`}>{producto.stock}</span>
+  </div>
+);
+                          })()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          {producto.categoria ? (
+                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">
+                              {producto.categoria.nombre}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">Sin categorÃ­a</span>
                           )}
+                        </div>
+                      </td>
+                      {/* Celda de Stock removida: badge junto al nombre ocupa su lugar */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          {producto.unidadMedida ? (
+                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded bg-green-50 text-green-700 border border-green-200">
+                              {producto.unidadMedida.nombre} ({producto.unidadMedida.simbolo})
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">Sin unidad</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-700 line-clamp-2">
+                          {producto.descripcion || 'â€”'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -717,7 +989,6 @@ export default function ProductosPage() {
                   ))}
                 </tbody>
               </table>
-              
               {paginatedProductos.length === 0 && (
                 <div className="p-8 text-center text-gray-500">
                   {searchTerm 
@@ -726,10 +997,10 @@ export default function ProductosPage() {
                   }
                 </div>
               )}
-            </div>
+            </>
           )}
           
-          {/* Paginación */}
+          {/* PaginaciÃ³n */}
           {totalPages > 1 && (
             <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
               <div className="flex items-center justify-between">
@@ -820,19 +1091,7 @@ export default function ProductosPage() {
               />
             </div>
 
-            <div>
-              <label htmlFor="sku" className="block text-sm font-medium text-gray-900 mb-2">
-                SKU
-              </label>
-              <input
-                id="sku"
-                type="text"
-                value={formData.sku}
-                onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                placeholder="Se genera automaticamente"
-              />
-            </div>
+            
 
             <div>
               <label htmlFor="descripcion" className="block text-sm font-medium text-gray-900 mb-2">
@@ -845,8 +1104,11 @@ export default function ProductosPage() {
                 rows={3}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
                 placeholder="Descripcion detallada del producto"
+                required
               />
             </div>
+
+            {/* Campos removidos: Precio, Stock mÃ­nimo, IGV y Merma */}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -861,61 +1123,8 @@ export default function ProductosPage() {
                   required
                 >
                   <option value="">Seleccionar categoria</option>
-                  {mockCategorias.map(cat => (
+                  {(apiCategorias.length ? apiCategorias : mockCategorias).map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.nombre}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="tipoArticulo" className="block text-sm font-medium text-gray-900 mb-2">
-                  Tipo de Articulo
-                </label>
-                <select
-                  id="tipoArticulo"
-                  value={formData.tipoArticuloId}
-                  onChange={(e) => setFormData(prev => ({ ...prev, tipoArticuloId: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="">Seleccionar tipo</option>
-                  {mockTiposArticulo.map(tipo => (
-                    <option key={tipo.id} value={tipo.id}>{tipo.nombre}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="familia" className="block text-sm font-medium text-gray-900 mb-2">
-                  Familia
-                </label>
-                <select
-                  id="familia"
-                  value={formData.familiaId}
-                  onChange={(e) => setFormData(prev => ({ ...prev, familiaId: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="">Seleccionar familia</option>
-                  {mockFamilias.map(fam => (
-                    <option key={fam.id} value={fam.id}>{fam.nombre}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="subfamilia" className="block text-sm font-medium text-gray-900 mb-2">
-                  Subfamilia
-                </label>
-                <select
-                  id="subfamilia"
-                  value={formData.subfamiliaId}
-                  onChange={(e) => setFormData(prev => ({ ...prev, subfamiliaId: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="">Seleccionar subfamilia</option>
-                  {mockSubfamilias.map(sub => (
-                    <option key={sub.id} value={sub.id}>{sub.nombre}</option>
                   ))}
                 </select>
               </div>
@@ -929,196 +1138,36 @@ export default function ProductosPage() {
                 <select
                   id="unidadMedida"
                   value={formData.unidadMedidaId}
-                  onChange={(e) => setFormData(prev => ({ ...prev, unidadMedidaId: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData(prev => ({ ...prev, unidadMedidaId: value }));
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('defaultUnidadMedidaId', value);
+                    }
+                  }}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
                   required
                 >
                   <option value="">Seleccionar unidad</option>
-                  {mockUnidades.map(unidad => (
-                    <option key={unidad.id} value={unidad.id}>{unidad.nombre} ({unidad.simbolo})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="unidadCosteo" className="block text-sm font-medium text-gray-900 mb-2">
-                  Unidad de Costeo
-                </label>
-                <select
-                  id="unidadCosteo"
-                  value={formData.unidadCosteoId}
-                  onChange={(e) => setFormData(prev => ({ ...prev, unidadCosteoId: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="">Seleccionar unidad de costeo</option>
-                  {mockUnidades.map(unidad => (
+                  {(apiUnidades.length ? apiUnidades : mockUnidades).map(unidad => (
                     <option key={unidad.id} value={unidad.id}>{unidad.nombre} ({unidad.simbolo})</option>
                   ))}
                 </select>
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="marca" className="block text-sm font-medium text-gray-900 mb-2">
-                  Marca
-                </label>
-                <select
-                  id="marca"
-                  value={formData.marcaId}
-                  onChange={(e) => setFormData(prev => ({ ...prev, marcaId: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="">Seleccionar marca</option>
-                  {mockMarcas.map(marca => (
-                    <option key={marca.id} value={marca.id}>{marca.nombre}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="agrupador" className="block text-sm font-medium text-gray-900 mb-2">
-                  Agrupador
-                </label>
-                <select
-                  id="agrupador"
-                  value={formData.agrupadorId}
-                  onChange={(e) => setFormData(prev => ({ ...prev, agrupadorId: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="">Seleccionar agrupador</option>
-                  {mockAgrupadores.map(agrup => (
-                    <option key={agrup.id} value={agrup.id}>{agrup.nombre}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">
-                Razones Sociales
-              </label>
-              <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-md p-3">
-                {mockRazonesSociales.map(razon => (
-                  <div key={razon.id} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id={`razon-${razon.id}`}
-                      checked={formData.razonSocialIds.includes(razon.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormData(prev => ({
-                            ...prev,
-                            razonSocialIds: [...prev.razonSocialIds, razon.id]
-                          }));
-                        } else {
-                          setFormData(prev => ({
-                            ...prev,
-                            razonSocialIds: prev.razonSocialIds.filter(id => id !== razon.id)
-                          }));
-                        }
-                      }}
-                      className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor={`razon-${razon.id}`} className="ml-2 text-sm text-gray-900">
-                      {razon.nombre}
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="precio" className="block text-sm font-medium text-gray-900 mb-2">
-                  Precio de Venta *
-                </label>
-                <input
-                  id="precio"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.precio}
-                  onChange={(e) => setFormData(prev => ({ ...prev, precio: parseFloat(e.target.value) || 0 }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="stockMinimo" className="block text-sm font-medium text-gray-900 mb-2">
-                  Stock Minimo
-                </label>
-                <input
-                  id="stockMinimo"
-                  type="number"
-                  min="0"
-                  value={formData.stockMinimo}
-                  onChange={(e) => setFormData(prev => ({ ...prev, stockMinimo: parseInt(e.target.value) || 0 }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="porcentajeMerma" className="block text-sm font-medium text-gray-900 mb-2">
-                % Merma
-              </label>
-              <input
-                id="porcentajeMerma"
-                type="number"
-                step="0.1"
-                min="0"
-                max="100"
-                value={formData.porcentajeMerma}
-                onChange={(e) => setFormData(prev => ({ ...prev, porcentajeMerma: parseFloat(e.target.value) || 0 }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center">
+              <div className="flex items-center gap-2">
                 <input
                   id="perecedero"
                   type="checkbox"
                   checked={formData.perecedero}
                   onChange={(e) => setFormData(prev => ({ ...prev, perecedero: e.target.checked }))}
-                  className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-green-600 border-gray-300 rounded"
                 />
-                <label htmlFor="perecedero" className="ml-2 block text-sm text-gray-900">
-                  Producto Perecedero
-                </label>
+                <label htmlFor="perecedero" className="text-sm font-medium text-gray-900">Perecedero</label>
               </div>
-
-              <div>
-                <label htmlFor="diasVencimiento" className="block text-sm font-medium text-gray-900 mb-2">
-                  Dias de Vencimiento
-                </label>
-                <input
-                  id="diasVencimiento"
-                  type="number"
-                  min="1"
-                  value={formData.diasVencimiento}
-                  onChange={(e) => setFormData(prev => ({ ...prev, diasVencimiento: parseInt(e.target.value) || 7 }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                  disabled={!formData.perecedero}
-                />
-              </div>
+              {/* Campo DÃ­as de vencimiento removido */}
             </div>
-
-            <div className="flex items-center">
-              <input
-                id="tieneIGV"
-                type="checkbox"
-                checked={formData.tieneIGV}
-                onChange={(e) => setFormData(prev => ({ ...prev, tieneIGV: e.target.checked }))}
-                className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-              />
-              <label htmlFor="tieneIGV" className="ml-2 block text-sm text-gray-900">
-                Tiene IGV
-              </label>
-            </div>
-
             <div className="flex justify-end space-x-3 pt-6 border-t">
               <button
                 type="button"
@@ -1139,6 +1188,9 @@ export default function ProductosPage() {
           </div>
         </div>
       </Modal>
+
+      {/* GestiÃ³n de categorÃ­as ahora se realiza desde la secciÃ³n del Sidebar */}
     </div>
   );
 }
+

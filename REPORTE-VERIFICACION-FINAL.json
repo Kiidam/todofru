@@ -1,0 +1,74 @@
+{
+  "timestamp": "2025-10-26T02:16:53.228Z",
+  "systemStatus": "HEALTHY",
+  "checks": [
+    {
+      "name": "Conexión a la base de datos",
+      "status": "PASSED",
+      "message": "Conexión exitosa",
+      "timestamp": "2025-10-26T02:16:53.242Z"
+    },
+    {
+      "name": "Integridad de datos iniciales",
+      "status": "PASSED",
+      "message": "Datos iniciales correctos",
+      "timestamp": "2025-10-26T02:16:53.254Z"
+    },
+    {
+      "name": "Estructura de directorios",
+      "status": "PASSED",
+      "message": "Estructura de directorios correcta",
+      "timestamp": "2025-10-26T02:16:53.255Z"
+    },
+    {
+      "name": "Archivos críticos del sistema",
+      "status": "PASSED",
+      "message": "Archivos críticos presentes",
+      "timestamp": "2025-10-26T02:16:53.256Z"
+    },
+    {
+      "name": "API de proveedores",
+      "status": "PASSED",
+      "message": "API de proveedores configurada",
+      "timestamp": "2025-10-26T02:16:53.257Z"
+    },
+    {
+      "name": "Componentes de proveedores",
+      "status": "PASSED",
+      "message": "Componentes UI presentes",
+      "timestamp": "2025-10-26T02:16:53.257Z"
+    },
+    {
+      "name": "Configuración de base de datos",
+      "status": "PASSED",
+      "message": "Configuración de BD presente",
+      "timestamp": "2025-10-26T02:16:53.258Z"
+    },
+    {
+      "name": "Usuario administrador",
+      "status": "PASSED",
+      "message": "Usuario administrador configurado",
+      "timestamp": "2025-10-26T02:16:53.260Z"
+    },
+    {
+      "name": "Índices de base de datos",
+      "status": "PASSED",
+      "message": "Consultas rápidas: 4ms",
+      "timestamp": "2025-10-26T02:16:53.265Z"
+    },
+    {
+      "name": "Archivos temporales eliminados",
+      "status": "PASSED",
+      "message": "Archivos temporales eliminados",
+      "timestamp": "2025-10-26T02:16:53.266Z"
+    }
+  ],
+  "totalChecks": 10,
+  "passedChecks": 10,
+  "failedChecks": 0,
+  "warnings": [],
+  "errors": [],
+  "recommendations": [
+    "Sistema completamente operativo"
+  ]
+}

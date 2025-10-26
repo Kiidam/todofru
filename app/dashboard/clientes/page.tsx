@@ -2,484 +2,504 @@
 
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import NewClientForm from '../../../src/components/clientes/NewClientForm';
+import { Trash2, AlertTriangle, Loader2, Plus, Search, Filter, Eye, EyeOff, Pencil } from 'lucide-react';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
-
-interface GrupoCliente {
-  id: string;
-  nombre: string;
-}
 
 interface Client {
   id: string;
   nombre: string;
-  ruc?: string;
+  numeroIdentificacion?: string;
+  tipoEntidad?: 'PERSONA_NATURAL' | 'PERSONA_JURIDICA';
   telefono?: string;
   email?: string;
   direccion?: string;
   contacto?: string;
   tipoCliente: 'MAYORISTA' | 'MINORISTA';
   activo: boolean;
-  grupoClienteId?: string;
-  metodoPago?: string;
-  website?: string;
   mensajePersonalizado?: string;
   createdAt: string;
-  totalOrders: number;
-  totalSpent: number;
+  updatedAt?: string;
+}
+
+interface DeleteConfirmationProps {
+  client: Client;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isDeleting: boolean;
+}
+
+function DeleteConfirmation({ client, onConfirm, onCancel, isDeleting }: DeleteConfirmationProps) {
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 max-w-md mx-auto">
+      <div className="flex items-center space-x-3 mb-4">
+        <div className="flex-shrink-0">
+          <AlertTriangle className="w-8 h-8 text-red-500" />
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-black">Confirmar Eliminación</h3>
+          <p className="text-sm text-black mt-1">Esta acción no se puede deshacer</p>
+        </div>
+      </div>
+      
+      <div className="mb-6">
+        <p className="text-black mb-2">¿Está seguro que desea eliminar el cliente:</p>
+        <div className="bg-gray-50 p-3 rounded-lg border">
+          <p className="font-semibold text-black">{client.nombre}</p>
+          {client.numeroIdentificacion && (
+            <p className="text-sm text-black">
+              {client.tipoEntidad === 'PERSONA_NATURAL' ? 'DNI' : 'RUC'}: {client.numeroIdentificacion}
+            </p>
+          )}
+          {client.email && (
+            <p className="text-sm text-black">Email: {client.email}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex justify-end space-x-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isDeleting}
+          className="px-4 py-2 text-sm font-medium text-black bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={isDeleting}
+          className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center space-x-2"
+        >
+          {isDeleting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Eliminando...</span>
+            </>
+          ) : (
+            <>
+              <Trash2 className="w-4 h-4" />
+              <span>Eliminar Cliente</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function ClientesPage() {
-// ...existing code...
+  // Estados principales
+  const [clients, setClients] = useState<Client[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null);
+  const [statusChangedId, setStatusChangedId] = useState<string | null>(null);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [clients, setClients] = useState<Client[]>([
-    {
-      id: '1',
-      nombre: 'Restaurante El Jardín',
-      ruc: '12345678901',
-      telefono: '+34 123 456 789',
-      email: 'jardin@restaurante.com',
-      direccion: 'Calle Mayor 123',
-      contacto: 'Ana Pérez',
-      tipoCliente: 'MAYORISTA',
-      activo: true,
-      grupoClienteId: '',
-      metodoPago: 'TRANSFERENCIA',
-      website: 'https://eljardin.com',
-      mensajePersonalizado: 'Gracias por confiar en nosotros.',
-      createdAt: '2025-09-01',
-      totalOrders: 12,
-      totalSpent: 1500.50
-    },
-    {
-      id: '2',
-      nombre: 'Frutería La Esquina',
-      ruc: '98765432109',
-      telefono: '+34 987 654 321',
-      email: 'contacto@laesquina.com',
-      direccion: 'Avenida Central 45',
-      contacto: 'Luis Gómez',
-      tipoCliente: 'MINORISTA',
-      activo: true,
-      grupoClienteId: '',
-      metodoPago: 'EFECTIVO',
-      website: '',
-      mensajePersonalizado: '',
-      createdAt: '2025-08-15',
-      totalOrders: 5,
-      totalSpent: 320.00
-    },
-    {
-      id: '3',
-      nombre: 'Supermercado Central',
-      ruc: '11223344556',
-      telefono: '+34 555 666 777',
-      email: 'compras@supercentral.com',
-      direccion: 'Plaza Mayor 1',
-      contacto: 'Marta Ruiz',
-      tipoCliente: 'MAYORISTA',
-      activo: false,
-      grupoClienteId: '',
-      metodoPago: 'CHEQUE',
-      website: 'https://supercentral.com',
-      mensajePersonalizado: '',
-      createdAt: '2025-07-10',
-      totalOrders: 20,
-      totalSpent: 5000.00
-    }
-  ]);
-  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  // Estados de modales
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    client: Client;
+    isDeleting: boolean;
+  } | null>(null);
+
+  // Estados de filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'individual' | 'business'>('all');
+  // Eliminado: filtro de tipo
+  // const [typeFilter, setTypeFilter] = useState<'all' | 'MAYORISTA' | 'MINORISTA'>('all');
 
-  const [formData, setFormData] = useState({
-    nombre: '',
-    ruc: '',
-    telefono: '',
-    email: '',
-    direccion: '',
-    contacto: '',
-    tipoCliente: 'MINORISTA' as 'MAYORISTA' | 'MINORISTA',
-    activo: true,
-    grupoClienteId: '',
-    metodoPago: '',
-    website: '',
-    mensajePersonalizado: ''
-  });
-
-  const [grupos, setGrupos] = useState<GrupoCliente[]>([]);
-
+  // Cargar clientes al montar el componente
   useEffect(() => {
-    fetch('/api/grupo-cliente')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) setGrupos(data.data);
-      });
+    loadClients();
   }, []);
 
-  const filteredClients = clients.filter((client: Client): boolean => {
-    const matchesSearch = client.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.email || '').toLowerCase().includes(searchTerm.toLowerCase());
-    // Puedes agregar más filtros aquí si es necesario
-    return matchesSearch;
+  const loadClients = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      setActionError('');
+
+      const response = await fetch('/api/clientes');
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al cargar los clientes');
+      }
+
+      setClients(result.data || []);
+    } catch (error) {
+      console.error('Error al cargar clientes:', error);
+      setError(error instanceof Error ? error.message : 'Error inesperado al cargar los clientes');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Toggle activo/inactivo
+  const handleToggleActive = async (client: Client) => {
+    try {
+      setToggleLoadingId(client.id);
+      setActionError('');
+      const desired = !client.activo;
+      const resp = await fetch(`/api/clientes/${client.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo: desired })
+      });
+      const json = await resp.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
+      if (!resp.ok || json?.success === false) {
+        const msg = json?.error || json?.message || 'No se pudo actualizar el estado';
+        throw new Error(msg);
+      }
+      const updated = json?.data || json;
+      // Actualizar lista local
+      setClients(prev => prev.map(c => c.id === client.id ? { ...c, activo: updated?.activo ?? desired, updatedAt: updated?.updatedAt || new Date().toISOString() } : c));
+      setStatusChangedId(client.id);
+      setTimeout(() => setStatusChangedId(null), 2000);
+    } catch (err: any) {
+      console.error('Error al alternar estado:', err);
+      setActionError(err?.message || 'Error inesperado al actualizar el estado');
+    } finally {
+      setToggleLoadingId(null);
+    }
+  };
+
+  // Filtrar clientes
+  const filteredClients = clients.filter((client) => {
+    const matchesSearch = 
+      client.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.numeroIdentificacion || '').includes(searchTerm) ||
+      (client.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.telefono || '').includes(searchTerm);
+
+    const matchesStatus = 
+      statusFilter === 'all' || 
+      (statusFilter === 'active' && client.activo) ||
+      (statusFilter === 'inactive' && !client.activo);
+
+    return matchesSearch && matchesStatus;
   });
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-    
-    if (editingClient) {
-      setClients((prev: Client[]) => prev.map((client: Client) =>
-        client.id === editingClient.id
-          ? { ...client, ...formData }
-          : client
-      ));
-    } else {
-      const newClient: Client = {
-        id: Date.now().toString(),
-        ...formData,
-        totalOrders: 0,
-        totalSpent: 0,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      setClients((prev: Client[]) => [...prev, newClient]);
-    }
-    
-    setIsModalOpen(false);
-    setEditingClient(null);
-    setFormData({
-      nombre: '',
-      ruc: '',
-      telefono: '',
-      email: '',
-      direccion: '',
-      contacto: '',
-      tipoCliente: 'MINORISTA',
-      activo: true,
-      grupoClienteId: '',
-      metodoPago: '',
-      website: '',
-      mensajePersonalizado: ''
+  // Manejar creación exitosa
+  const handleCreateSuccess = () => {
+    setIsCreateModalOpen(false);
+    loadClients(); // Recargar la lista
+  };
+
+  // Manejar eliminación
+  const handleDeleteClick = (client: Client) => {
+    setDeleteConfirmation({
+      client,
+      isDeleting: false
     });
   };
 
-  const handleEdit = (client: Client) => {
-    setEditingClient(client);
-    setFormData({
-      nombre: client.nombre,
-      ruc: client.ruc || '',
-      telefono: client.telefono || '',
-      email: client.email || '',
-      direccion: client.direccion || '',
-      contacto: client.contacto || '',
-      tipoCliente: client.tipoCliente,
-      activo: client.activo,
-      grupoClienteId: client.grupoClienteId || '',
-      metodoPago: client.metodoPago || '',
-      website: client.website || '',
-      mensajePersonalizado: client.mensajePersonalizado || ''
-    });
-    setIsModalOpen(true);
-  };
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmation) return;
 
-  const handleDelete = (id: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar este cliente?')) {
-      setClients((prev: Client[]) => prev.filter((client: Client) => client.id !== id));
+    try {
+      setDeleteConfirmation(prev => prev ? { ...prev, isDeleting: true } : null);
+
+      const response = await fetch(`/api/clientes/${deleteConfirmation.client.id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al eliminar el cliente');
+      }
+
+      // Actualizar la lista local
+      setClients(prev => prev.filter(c => c.id !== deleteConfirmation.client.id));
+      setDeleteConfirmation(null);
+
+    } catch (error) {
+      console.error('Error al eliminar cliente:', error);
+      alert(error instanceof Error ? error.message : 'Error inesperado al eliminar el cliente');
+      
+      // Resetear estado de eliminación en caso de error
+      setDeleteConfirmation(prev => prev ? { ...prev, isDeleting: false } : null);
     }
   };
 
-  const openModal = () => {
-    setEditingClient(null);
-    setFormData({
-      nombre: '',
-      ruc: '',
-      telefono: '',
-      email: '',
-      direccion: '',
-      contacto: '',
-      tipoCliente: 'MINORISTA',
-      activo: true,
-      grupoClienteId: '',
-      metodoPago: '',
-      website: '',
-      mensajePersonalizado: ''
-    });
-    setIsModalOpen(true);
+  const handleDeleteCancel = () => {
+    setDeleteConfirmation(null);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount);
+  // Formatear fecha
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return dateString;
+    }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="w-full p-6">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-              <p className="text-gray-600 mt-1">{filteredClients.length} clientes encontrados</p>
-            </div>
-            <button
-              onClick={openModal}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              Crear Cliente
-            </button>
-          </div>
+  // Formatear tipo de entidad
+  const formatEntityType = (tipoEntidad?: string) => {
+    switch (tipoEntidad) {
+      case 'PERSONA_NATURAL':
+        return 'Persona Natural';
+      case 'PERSONA_JURIDICA':
+        return 'Persona Jurídica';
+      default:
+        return 'No especificado';
+    }
+  };
 
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Buscar clientes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              />
-            </div>
-            <div className="flex gap-2">
-              <select
-                aria-label="Filtrar por tipo de cliente"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as 'all' | 'individual' | 'business')}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="all">Todos los tipos</option>
-                <option value="individual">Individual</option>
-                <option value="business">Empresa</option>
-              </select>
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  statusFilter === 'all'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                onClick={() => setStatusFilter('active')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  statusFilter === 'active'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                Activos
-              </button>
-              <button
-                onClick={() => setStatusFilter('inactive')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  statusFilter === 'inactive'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                Inactivos
-              </button>
-            </div>
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center space-x-3">
+            <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+            <span className="text-black font-medium">Cargando clientes...</span>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mx-auto">
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <span className="font-medium text-red-700">Error al cargar clientes</span>
+          </div>
+          <p className="text-red-600 mt-2">{error}</p>
+          <button
+            onClick={loadClients}
+            className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-black">Clientes</h1>
+          <p className="text-black mt-1">
+            {filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''} encontrado{filteredClients.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+        >
+          <Plus className="w-5 h-5" />
+          <span>Crear Cliente</span>
+        </button>
+      </div>
+
+      {/* Banner de error de acción */}
+      {actionError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <span className="text-red-700 font-medium">{actionError}</span>
+          </div>
+          <button onClick={() => setActionError('')} className="text-sm text-red-700 hover:underline">Cerrar</button>
+        </div>
+      )}
+
+      {/* Filtros */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Búsqueda */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar clientes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black bg-white"
+            />
+          </div>
+
+          {/* Filtro de estado */}
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black bg-white appearance-none"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="active">Activos</option>
+              <option value="inactive">Inactivos</option>
+            </select>
+          </div>
+
+          {/* Botón limpiar filtros */}
+          <button
+            onClick={() => {
+              setSearchTerm('');
+              setStatusFilter('all');
+            }}
+            className="px-4 py-2 text-sm font-medium text-black bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            Limpiar Filtros
+          </button>
+        </div>
+      </div>
+
+      {/* Tabla de clientes */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        {filteredClients.length === 0 ? (
+          <div className="p-8 text-center">
+            <div className="text-gray-400 mb-4">
+              <Search className="w-12 h-12 mx-auto" />
+            </div>
+            <h3 className="text-lg font-medium text-black mb-2">No se encontraron clientes</h3>
+            <p className="text-black">
+              {searchTerm || statusFilter !== 'all'
+                ? 'Intenta ajustar los filtros de búsqueda'
+                : 'Comienza creando tu primer cliente'
+              }
+            </p>
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">
                     Cliente
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">
                     Contacto
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
-                    Ubicación
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
-                    Tipo
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
-                    Pedidos
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
-                    Total Gastado
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
+                  {/* Eliminada columna Tipo */}
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">
                     Estado
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">
+                    Fecha Registro
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-black uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredClients.map((client: Client) => (
-                  <tr key={client.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
+                {filteredClients.map((client) => (
+                  <tr key={client.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="font-medium text-gray-900">{client.nombre}</div>
-                        <div className="text-sm text-gray-500">{client.email}</div>
+                        <div className="text-sm font-semibold text-black">{client.nombre}</div>
+                        {client.numeroIdentificacion && (
+                          <div className="text-sm text-black">
+                            {client.tipoEntidad === 'PERSONA_NATURAL' ? 'DNI' : 'RUC'}: {client.numeroIdentificacion}
+                          </div>
+                        )}
+                        <div className="text-xs text-black">{formatEntityType(client.tipoEntidad)}</div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{client.telefono}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{client.direccion}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        client.tipoCliente === 'MAYORISTA'
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {client.tipoCliente === 'MAYORISTA' ? 'Mayorista' : 'Minorista'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="text-gray-600">{client.totalOrders}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <div className="font-medium text-gray-900">{formatCurrency(client.totalSpent)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap border-r border-gray-200">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        client.activo
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {client.activo ? 'Activo' : 'Inactivo'}
-                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleEdit(client)}
-                          className="text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDelete(client.id)}
-                          className="text-red-600 hover:text-red-800 font-medium"
-                        >
-                          Eliminar
-                        </button>
+                      <div className="text-sm text-black">
+                        {client.telefono && (
+                          <div>📞 {client.telefono}</div>
+                        )}
+                        {client.email && (
+                          <div>✉️ {client.email}</div>
+                        )}
+                        {client.direccion && (
+                          <div className="text-xs text-black mt-1">📍 {client.direccion}</div>
+                        )}
                       </div>
+                    </td>
+                    {/* Eliminada celda de Tipo */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        {client.activo ? (
+                          <>
+                            <Eye className="w-4 h-4 text-green-500 mr-2" />
+                            <span className="text-sm font-medium text-green-600">Activo</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-4 h-4 text-red-500 mr-2" />
+                            <span className="text-sm font-medium text-red-600">Inactivo</span>
+                          </>
+                        )}
+                        {statusChangedId === client.id && (
+                          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Actualizado</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-black">
+                      {formatDate(client.createdAt)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleToggleActive(client)}
+                        className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${toggleLoadingId === client.id ? 'bg-blue-300 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                        title="Editar estado"
+                        disabled={toggleLoadingId === client.id}
+                      >
+                        {toggleLoadingId === client.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Pencil className="w-4 h-4" />
+                        )}
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(client)}
+                        className="text-red-600 hover:text-red-900 transition-colors p-2 rounded-lg hover:bg-red-50"
+                        title="Eliminar cliente"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* Modal */}
-        <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingClient(null); }} ariaLabel={editingClient ? 'Editar Cliente' : 'Crear Nuevo Cliente'}>
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-gray-900">
-              {editingClient ? 'Editar Cliente' : 'Crear Nuevo Cliente'}
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">
-              {editingClient ? 'Modifica los datos del cliente seleccionado' : 'Completa los datos para crear un nuevo cliente'}
-            </p>
-          </div>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="nombre">Nombre</label>
-                <input id="nombre" type="text" value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="Ej: Restaurante El Jardín" required />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="ruc">RUC</label>
-                <input id="ruc" type="text" value={formData.ruc} onChange={e => setFormData({ ...formData, ruc: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="RUC" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="telefono">Teléfono</label>
-                <input id="telefono" type="tel" value={formData.telefono} onChange={e => setFormData({ ...formData, telefono: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="+34 123 456 789" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="email">Email</label>
-                <input id="email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="correo@ejemplo.com" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="direccion">Dirección</label>
-                <input id="direccion" type="text" value={formData.direccion} onChange={e => setFormData({ ...formData, direccion: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="Calle Mayor 123" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="contacto">Contacto</label>
-                <input id="contacto" type="text" value={formData.contacto} onChange={e => setFormData({ ...formData, contacto: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="Nombre del contacto" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="tipoCliente">Tipo de Cliente</label>
-                <select id="tipoCliente" value={formData.tipoCliente} onChange={e => setFormData({ ...formData, tipoCliente: e.target.value as 'MAYORISTA' | 'MINORISTA' })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900">
-                  <option value="MAYORISTA">Mayorista</option>
-                  <option value="MINORISTA">Minorista</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="grupoClienteId">Grupo de Cliente</label>
-                <select id="grupoClienteId" value={formData.grupoClienteId} onChange={e => setFormData({ ...formData, grupoClienteId: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900">
-                  <option value="">Sin grupo</option>
-                  {grupos.map(grupo => (
-                    <option key={grupo.id} value={grupo.id}>{grupo.nombre}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="metodoPago">Tipo de Pago</label>
-                <select id="metodoPago" value={formData.metodoPago} onChange={e => setFormData({ ...formData, metodoPago: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900">
-                  <option value="">Seleccione</option>
-                  <option value="EFECTIVO">Efectivo</option>
-                  <option value="TRANSFERENCIA">Transferencia</option>
-                  <option value="CHEQUE">Cheque</option>
-                  <option value="TARJETA">Tarjeta</option>
-                  <option value="YAPE">Yape</option>
-                  <option value="PLIN">Plin</option>
-                  <option value="OTRO">Otro</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="website">Sitio Web</label>
-                <input id="website" type="text" value={formData.website} onChange={e => setFormData({ ...formData, website: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="https://" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="mensajePersonalizado">Mensaje Personalizado para Correos</label>
-              <textarea id="mensajePersonalizado" value={formData.mensajePersonalizado} onChange={e => setFormData({ ...formData, mensajePersonalizado: e.target.value })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900 placeholder-gray-500" placeholder="Mensaje personalizado..." rows={2} />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2" htmlFor="activo">Estado</label>
-              <select id="activo" value={formData.activo ? 'activo' : 'inactivo'} onChange={e => setFormData({ ...formData, activo: e.target.value === 'activo' })} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white text-gray-900">
-                <option value="activo">Activo</option>
-                <option value="inactivo">Inactivo</option>
-              </select>
-            </div>
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-              <button type="button" onClick={() => { setIsModalOpen(false); setEditingClient(null); }} className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Cancelar</button>
-              <button type="submit" className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-sm">{editingClient ? 'Actualizar Cliente' : 'Crear Cliente'}</button>
-            </div>
-          </form>
-        </Modal>
+        )}
       </div>
+
+      {/* Modal de creación */}
+      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)}>
+        <NewClientForm
+          onSuccess={handleCreateSuccess}
+          onCancel={() => setIsCreateModalOpen(false)}
+        />
+      </Modal>
+
+      {/* Modal de confirmación de eliminación */}
+      <Modal 
+        isOpen={!!deleteConfirmation} 
+        onClose={deleteConfirmation?.isDeleting ? () => {} : handleDeleteCancel}
+      >
+        {deleteConfirmation && (
+          <DeleteConfirmation
+            client={deleteConfirmation.client}
+            onConfirm={handleDeleteConfirm}
+            onCancel={handleDeleteCancel}
+            isDeleting={deleteConfirmation.isDeleting}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

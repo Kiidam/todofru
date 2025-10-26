@@ -777,3 +777,18 @@ Consulta la [documentación de despliegue de Next.js](https://nextjs.org/docs/ap
 ---
 
 **TODOFRU** - *Sistema completo de gestión empresarial para el sector de frutas y verduras* 🍎🥕
+#### Alternativa: Workbench con esquema y triggers completos
+
+Si prefieres usar MySQL Workbench con un script listo:
+
+- Abre MySQL Workbench y ejecuta el archivo `scripts/mysql-inventario-schema.sql`.
+  - Crea la base de datos `todofru` con todas las tablas, relaciones y triggers.
+  - Inserta datos iniciales de categorías, unidades, productos y entidades demo.
+  - Ejecuta automáticamente una compra y una venta de prueba, validando que el stock se actualice.
+- Configura el `.env` con tu conexión MySQL, por ejemplo:
+
+```env
+DATABASE_URL="mysql://root:tu_password@localhost:3306/todofru"
+```
+
+- Reinicia el servidor de desarrollo para que Prisma use la nueva conexión.
