@@ -132,6 +132,7 @@ export default function MovimientosComprasPage() {
 
   // Compras registradas (mock inicial + registros locales)
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [loadingPurchases, setLoadingPurchases] = useState(true);
 
   // Selectores
   const [productos, setProductos] = useState<ProductoOption[]>([]);
@@ -169,7 +170,41 @@ export default function MovimientosComprasPage() {
   });
   const [simpleOrders, setSimpleOrders] = useState<PurchaseItem[]>([]);
 
+  // Función para cargar pedidos de compra
+  const fetchPurchases = async (showLoading = true) => {
+    try {
+      if (showLoading) setLoadingPurchases(true);
+      const res = await fetch('/api/pedidos-compra?page=1&limit=50');
+      if (res.ok) {
+        const json = await res.json();
+        const arr = Array.isArray(json?.data) ? json.data : [];
+        const purchasesList: Purchase[] = arr.map((p: any) => ({
+          id: p.id,
+          numero: p.numero || `PC-${p.id}`,
+          fecha: p.fecha || new Date().toISOString(),
+          proveedorId: p.proveedorId || '',
+          proveedorNombre: p.proveedor?.nombre || 'Proveedor',
+          usuario: 'Sistema',
+          items: Array.isArray(p.items) ? p.items.map((item: any) => ({
+            productoId: item.productoId || '',
+            nombre: item.producto?.nombre || 'Producto',
+            cantidad: Number(item.cantidad) || 0,
+            precioUnitario: Number(item.precio) || 0,
+            unidad: item.producto?.unidadMedida?.simbolo || 'unidad',
+          })) : [],
+          total: Number(p.total) || 0,
+        }));
+        setPurchases(purchasesList);
+      }
+    } catch (error) {
+      console.error('Error al cargar pedidos de compra:', error);
+    } finally {
+      if (showLoading) setLoadingPurchases(false);
+    }
+  };
+
   useEffect(() => {
+
     const fetchProductos = async () => {
       try {
         setLoadingProductos(true);
@@ -232,6 +267,7 @@ export default function MovimientosComprasPage() {
         setLoadingProveedores(false);
       }
     };
+    fetchPurchases();
     fetchProductos();
     fetchProveedores();
   }, []);
@@ -279,36 +315,32 @@ export default function MovimientosComprasPage() {
 
   const canSaveSimple = Boolean(simpleEntry.productoId && simpleEntry.cantidad > 0 && (simpleEntry.calcularAutomatico ? simpleEntry.precioCompraTotal > 0 : simpleEntry.precioUnitario > 0));
 
-  // Derivar filas para listado principal (similar a ventas)
-  const rows = useMemo(() => {
-    return purchases.map((c) => ({
-      id: c.id,
-      fecha: c.fecha,
-      producto: c.items.length === 1 ? c.items[0].nombre : `${c.items[0].nombre} (+${c.items.length - 1})`,
-      tipo: 'COMPRA',
-      cantidad: c.items.reduce((acc, it) => acc + it.cantidad, 0),
-      motivo: `Orden de compra #${c.numero}`,
-      usuario: c.usuario,
-    }));
-  }, [purchases]);
-
-  const filtered = useMemo(() => {
-    let rs = rows;
+  // Filtrar compras directamente
+  const filteredPurchases = useMemo(() => {
+    let rs = purchases;
     const { searchTerm, fechaDesde, fechaHasta } = filters;
+    
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      rs = rs.filter(r => r.producto.toLowerCase().includes(term) || (r.motivo ?? '').toLowerCase().includes(term));
+      rs = rs.filter(purchase => 
+        purchase.numero.toLowerCase().includes(term) ||
+        purchase.proveedorNombre.toLowerCase().includes(term) ||
+        purchase.items.some(item => item.nombre.toLowerCase().includes(term))
+      );
     }
+    
     if (fechaDesde) {
       const desde = new Date(fechaDesde).getTime();
-      rs = rs.filter(r => new Date(r.fecha).getTime() >= desde);
+      rs = rs.filter(purchase => new Date(purchase.fecha).getTime() >= desde);
     }
+    
     if (fechaHasta) {
       const hasta = new Date(fechaHasta).getTime();
-      rs = rs.filter(r => new Date(r.fecha).getTime() <= hasta);
+      rs = rs.filter(purchase => new Date(purchase.fecha).getTime() <= hasta);
     }
+    
     return rs;
-  }, [rows, filters]);
+  }, [purchases, filters]);
 
   // Auto-agregar item al seleccionar producto
   const autoAddFromSelection = (prod: ProductoOption) => {
@@ -367,27 +399,12 @@ export default function MovimientosComprasPage() {
         return;
       }
 
-      const { data } = json;
-      const numero = data?.numero || `PC-${String(Date.now()).slice(-6)}`;
-      const id = data?.id || `c-${Date.now()}`;
-      const fechaIso = new Date(form.fecha).toISOString();
-      const total = typeof data?.total === 'number' ? data.total : purchaseItems.reduce((sum, it) => sum + it.cantidad * it.precioUnitario, 0);
-
-      const compra: Purchase = {
-        id,
-        numero,
-        fecha: fechaIso,
-        proveedorId: selectedProveedor?.id || form.proveedorId,
-        proveedorNombre: selectedProveedor?.nombre || 'Proveedor',
-        usuario: user?.name ?? 'usuario',
-        items: purchaseItems,
-        total: Number(total.toFixed(2)),
-      };
-      setPurchases(prev => [compra, ...prev]);
+      // Recargar la lista de compras después de registrar exitosamente
+      await fetchPurchases(false);
 
       // Emitir eventos de inventario por cada ítem (ENTRADA) para refrescos locales
       try {
-        compra.items.forEach(it => {
+        purchaseItems.forEach((it: PurchaseItem) => {
           if (it.productoId && it.cantidad > 0) {
             emitirInventarioEvento({ tipo: 'ENTRADA', productoId: it.productoId, delta: it.cantidad });
           }
@@ -443,11 +460,17 @@ export default function MovimientosComprasPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {purchases.length === 0 ? (
+              {loadingPurchases ? (
                 <tr>
-                  <td className="px-4 py-2 text-sm text-gray-600" colSpan={5}>Sin compras registradas</td>
+                  <td className="px-4 py-2 text-sm text-gray-600" colSpan={5}>Cargando compras...</td>
                 </tr>
-              ) : purchases.map((c) => (
+              ) : filteredPurchases.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-2 text-sm text-gray-600" colSpan={5}>
+                    {purchases.length === 0 ? 'Sin compras registradas' : 'No se encontraron compras con los filtros aplicados'}
+                  </td>
+                </tr>
+              ) : filteredPurchases.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 text-sm text-gray-900">{c.numero}</td>
                   <td className="px-4 py-2 text-sm text-gray-900">{c.proveedorNombre}</td>
@@ -483,9 +506,21 @@ export default function MovimientosComprasPage() {
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
               <select value={form.proveedorId} onChange={(e) => setForm({ ...form, proveedorId: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" required>
-                <option value="" disabled>{loadingProveedores ? 'Cargando proveedores...' : 'Seleccione un proveedor'}</option>
+                <option value="" disabled>
+                  {loadingProveedores 
+                    ? 'Cargando proveedores...' 
+                    : proveedores.length === 0 
+                      ? 'No hay proveedores disponibles' 
+                      : 'Seleccione un proveedor'
+                  }
+                </option>
                 {proveedores.map(p => (<option key={p.id} value={p.id}>{p.nombre}</option>))}
               </select>
+              {!loadingProveedores && proveedores.length === 0 && (
+                <p className="mt-1 text-sm text-amber-600">
+                  No se encontraron proveedores. <a href="/dashboard/proveedores" className="text-blue-600 hover:text-blue-800 underline">Agregar proveedor</a>
+                </p>
+              )}
             </div>
           </div>
 

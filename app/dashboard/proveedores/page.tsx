@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import AddSupplierForm from "@/components/proveedores/AddSupplierForm";
-import { Trash2, AlertTriangle, Loader2, Plus, Search, Filter, Eye, EyeOff, Pencil } from 'lucide-react';
+import EditSupplierForm from "@/components/proveedores/EditSupplierForm";
+import ProductosProveedorVistaModal from "@/components/proveedores/ProductosProveedorVistaModal";
+import { Trash2, AlertTriangle, Loader2, Plus, Search, Filter, Eye, EyeOff, Pencil, Package } from 'lucide-react';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
@@ -21,6 +23,7 @@ interface Supplier {
   activo: boolean;
   createdAt: string;
   updatedAt?: string;
+  productosCount?: number;
 }
 
 interface DeleteConfirmationProps {
@@ -107,6 +110,11 @@ export default function ProveedoresPage() {
     supplier: Supplier;
     isDeleting: boolean;
   } | null>(null);
+  const [showProductsModal, setShowProductsModal] = useState<{
+    supplierId: string;
+    supplierName: string;
+  } | null>(null);
+  const [showEditForm, setShowEditForm] = useState<Supplier | null>(null);
 
   // Estados de filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -194,6 +202,11 @@ export default function ProveedoresPage() {
     loadSuppliers(); // Recargar la lista
   };
 
+  const handleEditSuccess = (updatedSupplier: Supplier) => {
+    setSuppliers(prev => prev.map(s => s.id === updatedSupplier.id ? updatedSupplier : s));
+    setShowEditForm(null);
+  };
+
   // Manejar eliminación
   const handleDeleteClick = (supplier: Supplier) => {
     setDeleteConfirmation({
@@ -233,6 +246,14 @@ export default function ProveedoresPage() {
     if (!deleteConfirmation?.isDeleting) {
       setDeleteConfirmation(null);
     }
+  };
+
+  const handleProductsClick = (supplier: Supplier) => {
+    const supplierName = supplier.razonSocial || `${supplier.nombres} ${supplier.apellidos}`.trim() || 'Sin nombre';
+    setShowProductsModal({
+      supplierId: supplier.id,
+      supplierName
+    });
   };
 
   if (isLoading) {
@@ -360,6 +381,9 @@ export default function ProveedoresPage() {
                     Contacto
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Productos
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Estado
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -392,6 +416,18 @@ export default function ProveedoresPage() {
                       <div className="text-sm text-gray-500">{supplier.email}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                       <button
+                         onClick={() => handleProductsClick(supplier)}
+                         className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors"
+                         title="Ver productos del proveedor"
+                       >
+                         <Package className="w-4 h-4" />
+                         <span className="text-sm font-medium">
+                           {supplier.productosCount || 0} producto{(supplier.productosCount || 0) !== 1 ? 's' : ''}
+                         </span>
+                       </button>
+                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                         supplier.activo 
                           ? 'bg-green-100 text-green-800' 
@@ -402,16 +438,11 @@ export default function ProveedoresPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center justify-end gap-2">
                       <button
-                        onClick={() => handleToggleActive(supplier)}
-                        className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${toggleLoadingId === supplier.id ? 'bg-blue-300 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                        title="Editar estado"
-                        disabled={toggleLoadingId === supplier.id}
+                        onClick={() => setShowEditForm(supplier)}
+                        className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors bg-blue-600 text-white hover:bg-blue-700"
+                        title="Editar proveedor"
                       >
-                        {toggleLoadingId === supplier.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Pencil className="w-4 h-4" />
-                        )}
+                        <Pencil className="w-4 h-4" />
                         <span>Editar</span>
                       </button>
                       <button
@@ -446,6 +477,29 @@ export default function ProveedoresPage() {
         />
       </Modal>
 
+      {/* Formulario de edición */}
+      <Modal 
+        isOpen={!!showEditForm} 
+        onClose={() => setShowEditForm(null)}
+        ariaLabel="Editar proveedor"
+      >
+        {showEditForm && (
+          <>
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900">Editar Proveedor</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Modifica los datos de {showEditForm.razonSocial || `${showEditForm.nombres} ${showEditForm.apellidos}`}
+              </p>
+            </div>
+            <EditSupplierForm
+              supplier={showEditForm}
+              onSuccess={handleEditSuccess}
+              onCancel={() => setShowEditForm(null)}
+            />
+          </>
+        )}
+      </Modal>
+
       {/* Modal de confirmación de eliminación */}
       <Modal 
         isOpen={!!deleteConfirmation} 
@@ -460,6 +514,14 @@ export default function ProveedoresPage() {
           />
         )}
       </Modal>
+
+      {/* Modal de productos del proveedor */}
+      <ProductosProveedorVistaModal
+        isOpen={!!showProductsModal}
+        onClose={() => setShowProductsModal(null)}
+        proveedorId={showProductsModal?.supplierId || ''}
+        proveedorNombre={showProductsModal?.supplierName}
+      />
     </div>
   );
 }

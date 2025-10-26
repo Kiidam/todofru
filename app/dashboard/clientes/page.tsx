@@ -5,22 +5,27 @@ import dynamic from 'next/dynamic';
 import NewClientForm from '../../../src/components/clientes/NewClientForm';
 import { Trash2, AlertTriangle, Loader2, Plus, Search, Filter, Eye, EyeOff, Pencil } from 'lucide-react';
 
+
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
 interface Client {
   id: string;
   nombre: string;
   numeroIdentificacion?: string;
-  tipoEntidad?: 'PERSONA_NATURAL' | 'PERSONA_JURIDICA';
+  ruc?: string;
   telefono?: string;
   email?: string;
   direccion?: string;
   contacto?: string;
   tipoCliente: 'MAYORISTA' | 'MINORISTA';
-  activo: boolean;
+  tipoEntidad?: 'PERSONA_NATURAL' | 'PERSONA_JURIDICA';
+  nombres?: string;
+  apellidos?: string;
+  razonSocial?: string;
   mensajePersonalizado?: string;
+  activo: boolean;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
 }
 
 interface DeleteConfirmationProps {
@@ -94,7 +99,7 @@ export default function ClientesPage() {
   // Estados principales
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
   const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null);
   const [statusChangedId, setStatusChangedId] = useState<string | null>(null);
@@ -117,23 +122,25 @@ export default function ClientesPage() {
     loadClients();
   }, []);
 
+
+
   const loadClients = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setIsLoading(true);
-      setError('');
-      setActionError('');
-
       const response = await fetch('/api/clientes');
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Error al cargar los clientes');
+      if (!response.ok) {
+        throw new Error('Error al cargar clientes');
       }
-
-      setClients(result.data || []);
+      const result = await response.json();
+      // La API devuelve { success: true, data: [...], message: "...", pagination: {...} }
+      // Extraer el array de clientes de la propiedad data
+      const clientsData = result.success && result.data ? result.data : result;
+      setClients(Array.isArray(clientsData) ? clientsData : []);
     } catch (error) {
-      console.error('Error al cargar clientes:', error);
-      setError(error instanceof Error ? error.message : 'Error inesperado al cargar los clientes');
+      console.error('Error loading clients:', error);
+      setError('Error al cargar los clientes');
+      setClients([]); // Establecer array vacío en caso de error
     } finally {
       setIsLoading(false);
     }
@@ -141,35 +148,46 @@ export default function ClientesPage() {
 
   // Toggle activo/inactivo
   const handleToggleActive = async (client: Client) => {
+    setToggleLoadingId(client.id);
+    setActionError('');
+    
     try {
-      setToggleLoadingId(client.id);
-      setActionError('');
-      const desired = !client.activo;
-      const resp = await fetch(`/api/clientes/${client.id}`, {
+      const response = await fetch(`/api/clientes/${client.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ activo: desired })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          activo: !client.activo
+        }),
       });
-      const json = await resp.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
-      if (!resp.ok || json?.success === false) {
-        const msg = json?.error || json?.message || 'No se pudo actualizar el estado';
-        throw new Error(msg);
+
+      if (!response.ok) {
+        throw new Error('Error al actualizar el cliente');
       }
-      const updated = json?.data || json;
-      // Actualizar lista local
-      setClients(prev => prev.map(c => c.id === client.id ? { ...c, activo: updated?.activo ?? desired, updatedAt: updated?.updatedAt || new Date().toISOString() } : c));
+
+      // Actualizar el estado local
+      setClients(prevClients => 
+        prevClients.map(c => 
+          c.id === client.id 
+            ? { ...c, activo: !c.activo }
+            : c
+        )
+      );
+      
       setStatusChangedId(client.id);
       setTimeout(() => setStatusChangedId(null), 2000);
-    } catch (err: any) {
-      console.error('Error al alternar estado:', err);
-      setActionError(err?.message || 'Error inesperado al actualizar el estado');
+      
+    } catch (error) {
+      console.error('Error al cambiar estado del cliente:', error);
+      setActionError('Error al actualizar el estado del cliente');
     } finally {
       setToggleLoadingId(null);
     }
   };
 
-  // Filtrar clientes
-  const filteredClients = clients.filter((client) => {
+  // Filtrar clientes - Asegurar que clients sea un array
+  const filteredClients = (Array.isArray(clients) ? clients : []).filter((client) => {
     const matchesSearch = 
       client.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (client.numeroIdentificacion || '').includes(searchTerm) ||
@@ -291,6 +309,8 @@ export default function ClientesPage() {
 
   return (
     <div className="p-6 space-y-6">
+
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>

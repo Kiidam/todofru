@@ -60,6 +60,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
 
       const proveedoresConProductos = proveedores.map(p => ({
         ...p,
+        nombre: p.nombre || p.razonSocial || `${p.nombres || ''} ${p.apellidos || ''}`.trim() || 'Sin nombre',
         productosCount: productosPorProveedor[p.id || ''] || 0,
       }));
 
@@ -105,6 +106,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
         const rows = await prisma.$queryRawUnsafe<Array<{ 
           id: string; 
           tipoEntidad: string | null;
+          nombre: string | null;
           nombres: string | null;
           apellidos: string | null;
           numeroIdentificacion: string | null;
@@ -118,7 +120,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
           createdAt: Date; 
           activo: number 
         }>>(
-        `SELECT id, tipoEntidad, nombres, apellidos, numeroIdentificacion, fechaNacimiento, razonSocial, ruc, representanteLegal, telefono, email, direccion, createdAt, activo FROM proveedor ${whereSql} ${orderSql} ${limitSql};`
+        `SELECT id, tipoEntidad, nombre, nombres, apellidos, numeroIdentificacion, fechaNacimiento, razonSocial, ruc, representanteLegal, telefono, email, direccion, createdAt, activo FROM proveedor ${whereSql} ${orderSql} ${limitSql};`
         );
         const countRows = await prisma.$queryRawUnsafe<Array<{ total: number }>>(
         `SELECT COUNT(*) as total FROM proveedor ${whereSql};`
@@ -141,7 +143,11 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
           productosPorProveedor = Object.fromEntries(prodRows.map(r => [r.proveedorId, Number(r.productos || 0)]));
         }
 
-        const data = dataBase.map(r => ({ ...r, productosCount: productosPorProveedor[r.id] || 0 }));
+        const data = dataBase.map(r => ({ 
+          ...r, 
+          nombre: r.nombre || r.razonSocial || `${r.nombres || ''} ${r.apellidos || ''}`.trim() || 'Sin nombre',
+          productosCount: productosPorProveedor[r.id] || 0 
+        }));
      
          const response = successResponse(
            {
