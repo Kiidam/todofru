@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Plus, Loader2, Check, AlertCircle, User, Building2 } from "lucide-react";
-import { validateDocumentNumber } from "../../utils/decolecta-utils";
 
 // Tipos para el formulario
 interface ClienteFormData {
@@ -66,8 +65,6 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
   // Estados de envío
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  // Agregar estado para éxito de envío
-  const [submitSuccess, setSubmitSuccess] = useState('');
 
   // Estados de validación
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -88,7 +85,7 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
   }, []);
 
   // Validar campos en tiempo real
-  const validateField = useCallback((field: string, value: any) => {
+  const validateField = useCallback((field: string, value: unknown) => {
     const errors: Record<string, string> = {};
 
     switch (field) {
@@ -96,7 +93,7 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
         // Validar según el valor actual, no según el estado previo
         // Si tiene 9+ dígitos, tratamos como RUC; si no, como DNI
         {
-          const strVal = String(value || '').replace(/[^0-9]/g, '');
+    const strVal = String(value || '').replace(/[^0-9]/g, '');
           const computedType: 'DNI' | 'RUC' = strVal.length >= 9 ? 'RUC' : 'DNI';
           if (!strVal || strVal.trim() === '') {
             errors[field] = 'El número de identificación es obligatorio';
@@ -156,6 +153,151 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
     return Object.keys(errors).length === 0;
   }, [formData.tipoIdentificacion]);
 
+  // Aplicar resultado de búsqueda al formulario
+  const applyLookupResult = useCallback((result: ProxyResponse, identification: string) => {
+    if (!result.success || !result.data) {
+      setLookupStatus('error');
+      setLookupError(result.error || 'No se encontraron datos para este documento');
+      return;
+    }
+
+    const { data } = result;
+    const isDNI = identification.length === 8;
+    const fieldsUpdated = new Set<string>();
+
+    console.log('🔍 Aplicando resultado de búsqueda:', { isDNI, data });
+
+    setFormData(prev => {
+      const updated = { ...prev };
+
+      if (isDNI) {
+        // Para DNI (Persona Natural)
+        const nombres = String(data.nombres || '').trim();
+        const apellidos = String(data.apellidos || '').trim();
+        
+        if (nombres) {
+          updated.nombres = nombres;
+          fieldsUpdated.add('nombres');
+          console.log('✅ Nombres actualizados:', nombres);
+        }
+        if (apellidos) {
+          updated.apellidos = apellidos;
+          fieldsUpdated.add('apellidos');
+          console.log('✅ Apellidos actualizados:', apellidos);
+        }
+        // Limpiar campos de persona jurídica
+        updated.razonSocial = '';
+        updated.representanteLegal = '';
+      } else {
+        // Para RUC (Persona Jurídica)
+        const razon = String(data.razonSocial || '').trim();
+        if (razon) {
+          updated.razonSocial = razon;
+          fieldsUpdated.add('razonSocial');
+          console.log('✅ Razón Social actualizada:', razon);
+        }
+        // Limpiar campos de persona natural
+        updated.nombres = '';
+        updated.apellidos = '';
+      }
+
+      // Dirección (común para ambos)
+      const direccion = String(data.direccion || '').trim();
+      if (direccion) {
+        updated.direccion = direccion;
+        fieldsUpdated.add('direccion');
+        console.log('✅ Dirección actualizada:', direccion);
+      }
+
+      console.log('✅ Campos actualizados:', Array.from(fieldsUpdated));
+      return updated;
+    });
+
+    setAutocompletedFields(fieldsUpdated);
+    setLookupSource(isDNI ? 'RENIEC' : 'SUNAT');
+    setLookupStatus('success');
+    setLookupError('');
+  }, []);
+
+  // Realizar búsqueda usando proxy unificado (RENIEC/SUNAT)
+  const performLookup = useCallback(async (identification: string) => {
+    try {
+      setLookupStatus('loading');
+      setLookupError('');
+
+      console.log('🔍 Iniciando búsqueda para:', identification);
+
+      // Verificar cache primero
+      const cached = cacheRef.current.get(identification);
+      if (cached) {
+        console.log('✅ Datos encontrados en caché');
+        applyLookupResult(cached, identification);
+      return;
+    }
+
+  // Use the clients API endpoint for RUC/DNI lookup
+  const endpoint = `/api/clientes/ruc?ruc=${identification}`;
+      console.log('📡 Llamando a:', endpoint);
+      
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        cache: 'no-store'
+      });
+
+      console.log('📥 Respuesta recibida:', response.status, response.ok);
+
+      const raw: unknown = await response.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
+      console.log('📦 Datos parseados:', raw);
+      
+      const result = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
+
+      if (!response.ok || result?.success === false) {
+        const tipoDoc = identification.length === 8 ? 'DNI' : 'RUC';
+        const fuente = identification.length === 8 ? 'RENIEC' : 'SUNAT';
+        const msg = String(result?.error ?? `Error ${response.status} al consultar ${fuente}`);
+        console.error('❌ Error en respuesta:', msg);
+        setLookupStatus('error');
+        setLookupError(`${tipoDoc} no disponible: ${msg}`);
+        return;
+      }
+
+      // Extraer data correctamente de la respuesta
+      const dataField = result?.data;
+      const normalizedData: Record<string, unknown> = {};
+      
+      if (dataField && typeof dataField === 'object') {
+        const dataObj = dataField as Record<string, unknown>;
+        
+        console.log('🔄 Normalizando datos:', dataObj);
+        
+        // Mapear campos de la respuesta
+        normalizedData.razonSocial = dataObj.razonSocial || dataObj.nombre || '';
+        normalizedData.nombres = dataObj.nombres || '';
+        normalizedData.apellidos = dataObj.apellidos || '';
+        normalizedData.direccion = dataObj.direccion || '';
+        normalizedData.tipoContribuyente = dataObj.tipoContribuyente || '';
+        normalizedData.esPersonaNatural = dataObj.esPersonaNatural || false;
+        
+        console.log('✅ Datos normalizados:', normalizedData);
+      }
+
+      // Guardar en cache y aplicar resultado
+      const proxyResult: ProxyResponse = { 
+        success: true, 
+        data: normalizedData as ProxyResponse['data']
+      };
+      cacheRef.current.set(identification, proxyResult);
+      applyLookupResult(proxyResult, identification);
+
+    } catch (error) {
+      console.error('❌ Error en búsqueda de RUC/DNI:', error);
+      setLookupStatus('error');
+      const tipoDoc = identification.length === 8 ? 'DNI' : 'RUC';
+      setLookupError(`Error de conexión al consultar ${tipoDoc}`);
+    }
+  }, [applyLookupResult]);
+
   // Manejar cambio en número de identificación con debounce y auto detección de tipo
   const handleIdentificationChange = useCallback((rawValue: string) => {
     // Limpiar timeout anterior
@@ -196,109 +338,7 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
     debounceRef.current = setTimeout(() => {
       performLookup(value);
     }, 800);
-  }, []);
-
-  // Realizar búsqueda usando proxy unificado (RENIEC/SUNAT)
-  const performLookup = useCallback(async (identification: string) => {
-    try {
-      setLookupStatus('loading');
-      setLookupError('');
-
-      // Verificar cache primero
-      const cached = cacheRef.current.get(identification);
-      if (cached) {
-        applyLookupResult(cached, identification);
-        return;
-      }
-
-      // Usar endpoint correcto para clientes (RUC/DNI)
-      const endpoint = `/api/clientes/ruc?ruc=${identification}`;
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-        cache: 'no-store'
-      });
-
-      const result: any = await response.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
-
-      if (!response.ok || result?.success === false) {
-        const tipoDoc = identification.length === 8 ? 'DNI' : 'RUC';
-        const fuente = identification.length === 8 ? 'RENIEC' : 'SUNAT';
-        const msg = result?.error || `Error ${response.status} al consultar ${fuente}`;
-        setLookupStatus('error');
-        setLookupError(`${tipoDoc} no disponible: ${msg}`);
-        return;
-      }
-
-      // Guardar en cache y aplicar resultado
-      const data = result?.data || result;
-      cacheRef.current.set(identification, data);
-      applyLookupResult({ success: true, data }, identification);
-
-    } catch (error) {
-      console.error('Error en búsqueda de RUC/DNI:', error);
-      setLookupStatus('error');
-      const tipoDoc = identification.length === 8 ? 'DNI' : 'RUC';
-      setLookupError(`Error de conexión al consultar ${tipoDoc}`);
-    }
-  }, []);
-
-  // Aplicar resultado de búsqueda al formulario
-  const applyLookupResult = useCallback((result: ProxyResponse, identification: string) => {
-    if (!result.success || !result.data) {
-      setLookupStatus('error');
-      setLookupError(result.error || 'No se encontraron datos para este documento');
-      return;
-    }
-
-    const { data } = result;
-    const isDNI = identification.length === 8;
-    const fieldsUpdated = new Set<string>();
-
-    setFormData(prev => {
-      const updated = { ...prev };
-
-      if (isDNI) {
-        // Para DNI (Persona Natural)
-        const nombres = (data.nombres || '').trim();
-        const apellidos = (data.apellidos || '').trim();
-        if (nombres) {
-          updated.nombres = nombres;
-          fieldsUpdated.add('nombres');
-        }
-        if (apellidos) {
-          updated.apellidos = apellidos;
-          fieldsUpdated.add('apellidos');
-        }
-        // Limpiar campos de persona jurídica
-        updated.razonSocial = '';
-        updated.representanteLegal = '';
-      } else {
-        // Para RUC (Persona Jurídica)
-        const razon = (data.razonSocial || '').trim();
-        if (razon) {
-          updated.razonSocial = razon;
-          fieldsUpdated.add('razonSocial');
-        }
-        // Limpiar campos de persona natural
-        updated.nombres = '';
-        updated.apellidos = '';
-      }
-
-      // Dirección (común para ambos)
-      if (data.direccion && data.direccion.trim()) {
-        updated.direccion = data.direccion.trim();
-        fieldsUpdated.add('direccion');
-      }
-
-      return updated;
-    });
-
-    setAutocompletedFields(fieldsUpdated);
-    setLookupSource(isDNI ? 'RENIEC' : 'SUNAT');
-    setLookupStatus('success');
-    setLookupError('');
-  }, []);
+  }, [performLookup, validateField]);
 
   // Manejar cambio de tipo de identificación manual
   const handleTipoIdentificacionChange = (tipo: 'DNI' | 'RUC') => {
@@ -344,14 +384,12 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
 
     if (hasErrors) {
       setSubmitError('Por favor, corrija los errores en el formulario');
-      setSubmitSuccess('');
       return;
     }
 
     try {
-      setIsSubmitting(true);
-      setSubmitError('');
-      setSubmitSuccess('');
+  setIsSubmitting(true);
+  setSubmitError('');
 
       // Preparar payload para la API
       const payload = {
@@ -380,21 +418,22 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
         body: JSON.stringify(payload),
       });
 
-      let result: any = null;
+      let rawResult: unknown = null;
       try {
-        result = await response.json();
+        rawResult = await response.json();
       } catch (e) {
         console.error('Respuesta no-JSON del servidor al crear cliente:', e);
       }
 
-      if (!response.ok || !(result && result.success)) {
+      const result = (rawResult && typeof rawResult === 'object') ? rawResult as Record<string, unknown> : null;
+
+  if (!response.ok || !(result && result.success)) {
         const serverMessage = (result && (result.error || result.message)) || response.statusText || 'Error al crear el cliente';
         const detailsText = result && result.details ? ` (${JSON.stringify(result.details)})` : '';
         throw new Error(`${serverMessage}${detailsText}`);
       }
 
-      // Éxito
-      setSubmitSuccess('Cliente creado exitosamente');
+  // Éxito
       // Opcional: limpiar el formulario después de crear
       setFormData(prev => ({
         ...prev,
@@ -409,22 +448,44 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
         mensajePersonalizado: ''
       }));
 
+      // Emit a global event so selects across the app can refresh immediately
+      try {
+        // Normalize server result without using `any`.
+        const normalized = (result && typeof result === 'object') ? result as Record<string, unknown> : {};
+        // Attempt to find created id in common locations: data.id or id
+        let createdId: string | number | null = null;
+        const dataField = normalized['data'];
+        if (dataField && typeof dataField === 'object') {
+          const dataObj = dataField as Record<string, unknown>;
+          const idVal = dataObj['id'];
+          if (typeof idVal === 'string' || typeof idVal === 'number') createdId = idVal as string | number;
+        }
+        if (createdId === null) {
+          const idTop = normalized['id'];
+          if (typeof idTop === 'string' || typeof idTop === 'number') createdId = idTop as string | number;
+        }
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('entity:created', { detail: { type: 'cliente', id: createdId } }));
+        }
+      } catch (err) {
+        // Best-effort: don't block form success if event dispatch fails
+        // Log to console for diagnostics
+        // eslint-disable-next-line no-console
+        console.error('Failed to dispatch entity:created event', err);
+      }
+
       if (onSuccess) {
-        // Dar tiempo para que se vea el mensaje de éxito
-        setTimeout(() => {
-          onSuccess();
-        }, 1200);
+        // Give a small delay so callers can show success UI
+        setTimeout(() => { onSuccess(); }, 1200);
       } else {
-        // Refrescar si no hay handler externo
-        setTimeout(() => {
-          router.refresh();
-        }, 1200);
+        setTimeout(() => { router.refresh(); }, 1200);
       }
 
     } catch (error) {
       console.error('Error al crear cliente:', error);
       setSubmitError(error instanceof Error ? error.message : 'Error inesperado al crear el cliente');
-      setSubmitSuccess('');
+      
     } finally {
       setIsSubmitting(false);
     }
@@ -708,11 +769,7 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
         </div>
 
         {/* Mensaje de éxito */}
-        {submitSuccess && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm text-green-700 font-medium">{submitSuccess}</p>
-          </div>
-        )}
+  {/* success message removed; UI shows inline or via onSuccess callback */}
 
         {/* Error de envío */}
         {submitError && (

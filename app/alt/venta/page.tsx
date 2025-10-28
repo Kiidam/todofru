@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import React, { useMemo, useState } from 'react';
+import Modal from '../../../src/components/ui/Modal';
 
 const ProductList = dynamic(() => import('./components/ProductList'), {
   ssr: false,
@@ -29,6 +30,8 @@ export default function VentaPage() {
   const [items, setItems] = useState<CartItem[]>([]);
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [orderInfo, setOrderInfo] = useState<{ numero: string; total: number } | null>(null);
 
   const addToCart = (p: { id: string; nombre: string; precio: number; unidadMedida?: { simbolo: string } }) => {
     setItems((prev) => {
@@ -87,7 +90,12 @@ export default function VentaPage() {
       });
       const json = await res.json();
       if (res.ok && json?.success) {
-        setMessage('Pedido de venta creado exitosamente');
+        // Guardar información del pedido para mostrar en el modal
+        setOrderInfo({
+          numero: json.data?.numeroPedido || json.data?.numero || 'N/A',
+          total: totals.total,
+        });
+        setSuccessModalOpen(true);
         setItems([]);
         setClienteId('');
       } else {
@@ -130,9 +138,48 @@ export default function VentaPage() {
           <button onClick={handleCreateOrder} disabled={creating || items.length === 0 || !clienteId} className="w-full mt-3 px-4 py-2 bg-indigo-600 text-white rounded disabled:opacity-50">
             {creating ? 'Creando...' : 'Crear Pedido'}
           </button>
-          {message && <div className="mt-2 text-sm">{message}</div>}
+          {message && <div className="mt-2 text-sm text-red-600">{message}</div>}
         </div>
       </div>
+
+      {/* Modal de éxito */}
+      <Modal isOpen={successModalOpen} onClose={() => setSuccessModalOpen(false)} ariaLabel="Venta registrada exitosamente">
+        <div className="flex flex-col items-center justify-center p-6 space-y-6">
+          {/* Ícono de éxito */}
+          <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+            <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+
+          {/* Título */}
+          <h3 className="text-xl font-bold text-gray-900">
+            ¡Venta registrada exitosamente!
+          </h3>
+
+          {/* Información del pedido */}
+          <div className="w-full space-y-3">
+            <div className="flex justify-between items-center border-b pb-2">
+              <span className="text-sm text-gray-600">Nº de Venta:</span>
+              <span className="text-base font-semibold text-gray-900">{orderInfo?.numero}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Total:</span>
+              <span className="text-lg font-bold text-green-600">
+                {new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(orderInfo?.total || 0)}
+              </span>
+            </div>
+          </div>
+
+          {/* Botón de aceptar */}
+          <button
+            onClick={() => setSuccessModalOpen(false)}
+            className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+          >
+            Aceptar
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

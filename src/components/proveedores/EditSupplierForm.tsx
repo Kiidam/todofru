@@ -18,13 +18,18 @@ interface SupplierFormData {
 
 interface ProxyResponse {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
 }
 
+type SupplierProp = Partial<SupplierFormData> & {
+  id?: string;
+  numeroIdentificacion?: string;
+};
+
 interface EditSupplierFormProps {
-  supplier: any; // Datos del proveedor a editar
-  onSuccess?: (updatedSupplier: any) => void;
+  supplier: SupplierProp | null; // Datos del proveedor a editar
+  onSuccess?: (updatedSupplier: Record<string, unknown>) => void;
   onCancel?: () => void;
 }
 
@@ -51,21 +56,20 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
   // Estados de envío
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState('');
 
   // Estados de validación
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Referencias
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  const cacheRef = useRef<Map<string, any>>(new Map());
+  const cacheRef = useRef<Map<string, unknown>>(new Map());
 
   // Inicializar formulario con datos del proveedor
   useEffect(() => {
     if (supplier) {
-      const tipoIdentificacion = supplier.numeroIdentificacion?.length === 8 ? 'DNI' : 'RUC';
+      const tipoIdentificacion = supplier.numeroIdentificacion && supplier.numeroIdentificacion.length === 8 ? 'DNI' : 'RUC';
       setFormData({
-        tipoIdentificacion,
+        tipoIdentificacion: (tipoIdentificacion as 'DNI' | 'RUC') ?? 'DNI',
         numeroIdentificacion: supplier.numeroIdentificacion || '',
         nombres: supplier.nombres || '',
         apellidos: supplier.apellidos || '',
@@ -79,13 +83,13 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
   }, [supplier]);
 
   // Validar campo individual
-  const validateField = useCallback((field: string, value: any): boolean => {
+  const validateField = useCallback((field: string, value: unknown): boolean => {
     const errors: Record<string, string> = {};
 
     switch (field) {
       case 'numeroIdentificacion':
         const expectedLength = formData.tipoIdentificacion === 'DNI' ? 8 : 11;
-        if (!value || String(value).trim() === '') {
+  if (value === undefined || value === null || String(value).trim() === '') {
           errors[field] = `El ${formData.tipoIdentificacion} es obligatorio`;
         } else if (!/^\d+$/.test(String(value))) {
           errors[field] = `El ${formData.tipoIdentificacion} debe contener solo números`;
@@ -119,7 +123,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
         break;
 
       case 'email':
-        if (value && String(value).trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
+  if (value !== undefined && value !== null && String(value).trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
           errors[field] = 'El formato del email no es válido';
         }
         break;
@@ -131,7 +135,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
         break;
     }
 
-    setFieldErrors(prev => {
+  setFieldErrors(prev => {
       const newErrors = { ...prev, ...errors };
       if (Object.keys(errors).length === 0) {
         delete newErrors[field];
@@ -193,7 +197,9 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
       // Verificar cache primero
       const cached = cacheRef.current.get(identification);
       if (cached) {
-        applyLookupResult(cached, identification);
+        // Normalize cached entry to ProxyResponse if possible
+        const normalized: ProxyResponse = (cached && typeof cached === 'object' && 'success' in (cached as Record<string, unknown>)) ? (cached as ProxyResponse) : { success: true, data: cached };
+        applyLookupResult(normalized, identification);
         return;
       }
 
@@ -205,23 +211,24 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
         cache: 'no-store'
       });
 
-      const result: any = await response.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
+      const raw: unknown = await response.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
+      const result = raw as Record<string, unknown>;
 
       if (!response.ok || result?.success === false) {
         const tipoDoc = identification.length === 8 ? 'DNI' : 'RUC';
         const fuente = identification.length === 8 ? 'RENIEC' : 'SUNAT';
-        const msg = result?.error || `Error ${response.status} al consultar ${fuente}`;
+        const msg = String(result?.error ?? `Error ${response.status} al consultar ${fuente}`);
         setLookupStatus('error');
         setLookupError(`${tipoDoc} no disponible: ${msg}`);
         return;
       }
 
       // Guardar en cache y aplicar resultado
-      const data = result?.data || result;
+      const data = (result?.data ?? result) as unknown;
       cacheRef.current.set(identification, data);
       applyLookupResult({ success: true, data }, identification);
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error en búsqueda de RUC/DNI:', error);
       setLookupStatus('error');
       const tipoDoc = identification.length === 8 ? 'DNI' : 'RUC';
@@ -237,7 +244,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
       return;
     }
 
-    const { data } = result;
+    const data = result.data as Record<string, unknown>;
     const isDNI = identification.length === 8;
     const fieldsUpdated = new Set<string>();
 
@@ -245,9 +252,8 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
       const updated = { ...prev };
 
       if (isDNI) {
-        // Para DNI (Persona Natural)
-        const nombres = (data.nombres || '').trim();
-        const apellidos = (data.apellidos || '').trim();
+        const nombres = String(data.nombres ?? '').trim();
+        const apellidos = String(data.apellidos ?? '').trim();
         if (nombres) {
           updated.nombres = nombres;
           fieldsUpdated.add('nombres');
@@ -256,24 +262,21 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
           updated.apellidos = apellidos;
           fieldsUpdated.add('apellidos');
         }
-        // Limpiar campos de persona jurídica
         updated.razonSocial = '';
         updated.representanteLegal = '';
       } else {
-        // Para RUC (Persona Jurídica)
-        const razon = (data.razonSocial || '').trim();
+        const razon = String(data.razonSocial ?? '').trim();
         if (razon) {
           updated.razonSocial = razon;
           fieldsUpdated.add('razonSocial');
         }
-        // Limpiar campos de persona natural
         updated.nombres = '';
         updated.apellidos = '';
       }
 
-      // Dirección (común para ambos)
-      if (data.direccion && data.direccion.trim()) {
-        updated.direccion = data.direccion.trim();
+      const direccion = String(data.direccion ?? '').trim();
+      if (direccion) {
+        updated.direccion = direccion;
         fieldsUpdated.add('direccion');
       }
 
@@ -343,9 +346,8 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
       return;
     }
 
-    setIsSubmitting(true);
-    setSubmitError('');
-    setSubmitSuccess('');
+  setIsSubmitting(true);
+  setSubmitError('');
 
     try {
       const payload = {
@@ -363,24 +365,28 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
         })
       };
 
+      if (!supplier || !supplier.id) {
+        throw new Error('Proveedor inválido');
+      }
       const response = await fetch(`/api/proveedores/${supplier.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      const result = await response.json();
+      const rawResult: unknown = await response.json().catch(() => ({ success: false }));
+      const result = rawResult as Record<string, unknown>;
 
       if (!response.ok) {
-        throw new Error(result.error || `Error ${response.status}: ${response.statusText}`);
+        throw new Error(String(result.error ?? `Error ${response.status}: ${response.statusText}`));
       }
 
-      setSubmitSuccess('Proveedor actualizado exitosamente');
-      
+  // success handled via onSuccess
+
       // Llamar callback de éxito después de un breve delay
       setTimeout(() => {
         if (onSuccess) {
-          onSuccess(result);
+          onSuccess(result ?? {});
         }
       }, 1500);
 
@@ -390,7 +396,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, validateForm, onSuccess, supplier.id]);
+  }, [formData, validateForm, onSuccess, supplier]);
 
   return (
     <div className="p-6">
@@ -634,11 +640,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
           </div>
         )}
 
-        {submitSuccess && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm text-green-600">{submitSuccess}</p>
-          </div>
-        )}
+  {/* success handled via onSuccess */}
 
         {/* Botones */}
         <div className="flex gap-3 pt-4">

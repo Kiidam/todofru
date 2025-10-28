@@ -25,7 +25,7 @@ export interface DecolectaResponse {
   departamento: string;
   es_agente_retencion: boolean;
   es_buen_contribuyente: boolean;
-  locales_anexos: any;
+  locales_anexos: Record<string, unknown>[];
 }
 
 export interface MappedSupplierData {

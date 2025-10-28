@@ -344,6 +344,13 @@ export default function ConfiguracionPage() {
               <p className="text-gray-600 mt-1">Administra las configuraciones del sistema</p>
             </div>
             <div className="flex space-x-3">
+              <a
+                href="/dashboard/admin/usuarios/nuevo"
+                className="px-4 py-2 rounded-lg bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"
+                title="Crear usuario administrador"
+              >
+                Crear usuario administrador
+              </a>
               <button
                 onClick={handleReset}
                 className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"

@@ -29,17 +29,7 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
-// Función helper para verificar conexión
-export async function checkDatabaseConnection() {
-  try {
-    await prisma.$connect();
-    console.log('✅ Database connection successful');
-    return true;
-  } catch (error) {
-    console.error('❌ Database connection failed:', error);
-    return false;
-  }
-}
+
 
 // Función helper para transacciones seguras
 export async function safeTransaction<T>(

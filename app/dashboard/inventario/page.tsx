@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Package, AlertTriangle, TrendingUp, TrendingDown, Search, Eye, Edit2, RotateCcw, ShieldAlert, Trash2, CheckCircle, Ban } from 'lucide-react';
 
@@ -287,7 +287,7 @@ export default function InventariosPage() {
   };
 
   // Datos de demostración para entorno de desarrollo cuando no hay productos reales
-  const demoProductos: Producto[] = [
+  const demoProductos: Producto[] = useMemo(() => [
     {
       id: 'demo-1',
       nombre: 'Manzana Roja',
@@ -321,7 +321,7 @@ export default function InventariosPage() {
       categoria: { nombre: 'Verduras' },
       unidadMedida: { simbolo: 'und' }
     }
-  ];
+  ], []);
 
   // Handlers de acciones
   const handleEditProducto = (productoId: string) => {
@@ -397,7 +397,7 @@ export default function InventariosPage() {
     setFilteredProductos(filtered);
     // Actualizar estadísticas basadas en la fuente utilizada
     calculateStats(source);
-  }, [productos, searchTerm, stockFilter]);
+  }, [demoProductos, productos, searchTerm, stockFilter]);
 
   useEffect(() => {
     filterProductos();

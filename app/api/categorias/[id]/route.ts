@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server';
-import { logger } from '../../../../src/lib/logger';
-import { prisma, safeTransaction } from '../../../../src/lib/prisma';
-import { withAuth, withErrorHandling, successResponse, errorResponse, validateActiveRecord } from '../../../../src/lib/api-utils';
-import { Session } from 'next-auth';
+import { logger as _logger } from '../../../../src/lib/logger';
+import { prisma, safeTransaction as _safeTransaction } from '../../../../src/lib/prisma';
+import { withAuth, withErrorHandling, successResponse, errorResponse, validateActiveRecord as _validateActiveRecord } from '../../../../src/lib/api-utils';
+import { Session as _Session } from 'next-auth';
 import { z } from 'zod';
 
 const categoriaSchema = z.object({
@@ -13,7 +13,7 @@ const categoriaSchema = z.object({
 // GET /api/categorias/[id] - Obtener categoría por ID
 export const GET = withErrorHandling(withAuth(async (
   request: NextRequest,
-  session: Session,
+  _session: _Session,
   context: { params: Promise<{ id: string }> }
 ) => {
   const { id } = await context.params;
@@ -44,7 +44,7 @@ export const GET = withErrorHandling(withAuth(async (
 // PUT /api/categorias/[id] - Actualizar categoría
 export const PUT = withErrorHandling(withAuth(async (
   request: NextRequest,
-  session: Session,
+  _session: _Session,
   context: { params: Promise<{ id: string }> }
 ) => {
   const { id } = await context.params;
@@ -78,7 +78,7 @@ export const PUT = withErrorHandling(withAuth(async (
     data: validatedData
   });
 
-  logger.info('Categoría actualizada', { 
+  _logger.info('Categoría actualizada', { 
     id: categoria.id, 
     nombre: categoria.nombre 
   });
@@ -92,7 +92,7 @@ export const PUT = withErrorHandling(withAuth(async (
 // DELETE /api/categorias/[id] - Eliminar categoría (soft delete)
 export const DELETE = withErrorHandling(withAuth(async (
   request: NextRequest,
-  session: Session,
+  _session: _Session,
   context: { params: Promise<{ id: string }> }
 ) => {
   const { id } = await context.params;
@@ -121,7 +121,7 @@ export const DELETE = withErrorHandling(withAuth(async (
     data: { activo: false }
   });
 
-  logger.info('Categoría eliminada', { 
+  _logger.info('Categoría eliminada', { 
     id: existingCategoria.id, 
     nombre: existingCategoria.nombre 
   });
@@ -135,7 +135,7 @@ export const DELETE = withErrorHandling(withAuth(async (
 // PATCH /api/categorias/[id] - Actualizar estado activo/inactivo
 export const PATCH = withErrorHandling(withAuth(async (
   request: NextRequest,
-  session: Session,
+  _session: _Session,
   context: { params: Promise<{ id: string }> }
 ) => {
   const { id } = await context.params;
@@ -168,7 +168,7 @@ export const PATCH = withErrorHandling(withAuth(async (
     data: { activo }
   });
 
-  logger.info('Estado de categoría actualizado', { 
+  _logger.info('Estado de categoría actualizado', { 
     id: updated.id, 
     nombre: updated.nombre,
     activo: updated.activo 

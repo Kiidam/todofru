@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '../../../src/lib/logger';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../auth/[...nextauth]/route';
+import authOptions from '../../../src/lib/nextauth';
 import { prisma } from '../../../src/lib/prisma';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';

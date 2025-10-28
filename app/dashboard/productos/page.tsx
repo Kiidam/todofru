@@ -4,11 +4,21 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { Search, Plus, Package, Edit2, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
-import { suscribirseInventarioEventos } from '@/lib/inventory-channel';
-import { ProductoInventarioHooks } from '../../../src/lib/producto-inventario-sync';
+import { Search, Plus, Package, Edit2, Trash2, ChevronUp, ChevronDown, CheckCircle } from 'lucide-react';
+import { ProductoInventarioHooks, suscribirseInventarioEventos } from '../../../src/lib/producto-inventario-sync';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
+
+interface ApiCategoria {
+  id: string;
+  nombre: string;
+}
+
+interface ApiUnidadMedida {
+  id: string;
+  nombre: string;
+  simbolo: string;
+}
 
 interface Producto {
   id: string;
@@ -19,8 +29,7 @@ interface Producto {
   stock: number;
   stockMinimo: number;
   porcentajeMerma: number;
-  perecedero: boolean;
-  diasVencimiento?: number;
+  // diasVencimiento removed from schema
   tieneIGV: boolean;
   activo: boolean;
   categoria?: { id: string; nombre: string };
@@ -43,8 +52,7 @@ interface FormData {
   precio: number;
   stockMinimo: number;
   porcentajeMerma: number;
-  perecedero: boolean;
-  diasVencimiento: number;
+  // diasVencimiento removed from schema
   tieneIGV: boolean;
   categoriaId: string;
   tipoArticuloId: string;
@@ -72,6 +80,8 @@ export default function ProductosPage() {
   const [selectedFamiliaId, setSelectedFamiliaId] = useState<string>('');
   const [selectedSubfamiliaId, setSelectedSubfamiliaId] = useState<string>('');
   const [productosMenuOpen, setProductosMenuOpen] = useState(false);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [successProduct, setSuccessProduct] = useState<{ nombre: string; sku?: string } | null>(null);
 
   // Mock data para los selectores
   // Nota: Mantengo mocks como fallback, pero los selects usarÃ¡n datos de API
@@ -166,8 +176,7 @@ export default function ProductosPage() {
     precio: 0,
     stockMinimo: 0,
     porcentajeMerma: 0,
-    perecedero: true,
-    diasVencimiento: 7,
+    // diasVencimiento removed
     tieneIGV: true,
     categoriaId: '',
     tipoArticuloId: '',
@@ -204,9 +213,9 @@ export default function ProductosPage() {
   const searchParams = useSearchParams();
   useEffect(() => {
     const add = searchParams.get('add');
+    const sub = searchParams.get('subfamiliaId') || '';
     const cat = searchParams.get('categoriaId') || '';
     const fam = searchParams.get('familiaId') || '';
-    const sub = searchParams.get('subfamiliaId') || '';
     if (add) {
       resetForm();
       setShowModal(true);
@@ -233,7 +242,6 @@ export default function ProductosPage() {
 
   // SincronizaciÃ³n dinÃ¡mica de stock con Inventario
   useEffect(() => {
-    let intervalId: any;
     const syncStockFromInventario = async () => {
       try {
         const ts = Date.now();
@@ -243,19 +251,25 @@ export default function ProductosPage() {
         const invProductos = Array.isArray(data?.productos) ? data.productos : [];
         if (invProductos.length > 0) {
           setProductos(prev => prev.map(p => {
-            const inv = invProductos.find((ip: any) => ip.id === p.id);
-            return inv ? { ...p, stock: inv.stock ?? p.stock, stockMinimo: inv.stockMinimo ?? p.stockMinimo } : p;
+            const inv = invProductos.find((ip: { id: string; stock?: number; stockMinimo?: number }) => ip.id === p.id);
+            if (!inv) return p;
+            return {
+              ...p,
+              stock: typeof inv.stock === 'number' ? inv.stock : p.stock,
+              stockMinimo: typeof inv.stockMinimo === 'number' ? inv.stockMinimo : p.stockMinimo,
+            };
           }));
         }
-      } catch {
+      } catch (error) {
         // silencioso: si falla, no interrumpir UI
+        console.error('Error sincronizando inventario:', error);
       }
     };
 
-    // primera sincronizaciÃ³n inmediata y luego cada 10s
-    syncStockFromInventario();
-    intervalId = setInterval(syncStockFromInventario, 10000);
-    return () => clearInterval(intervalId);
+  // primera sincronizaciÃ³n inmediata y luego cada 10s
+  syncStockFromInventario();
+  const id = setInterval(syncStockFromInventario, 10000);
+  return () => clearInterval(id);
   }, []);
 
   // Cargar categorÃ­as y unidades desde API
@@ -275,14 +289,14 @@ export default function ProductosPage() {
         ]);
 
         if (dataCat?.success && Array.isArray(dataCat.data)) {
-          setApiCategorias(dataCat.data.map((c: any) => ({ id: c.id, nombre: c.nombre })));
+          setApiCategorias(dataCat.data.map((c: ApiCategoria) => ({ id: c.id, nombre: c.nombre })));
         }
         if (dataUni?.success && Array.isArray(dataUni.data)) {
-          const unidades = dataUni.data.map((u: any) => ({ id: u.id, nombre: u.nombre, simbolo: u.simbolo }));
+          const unidades = dataUni.data.map((u: ApiUnidadMedida) => ({ id: u.id, nombre: u.nombre, simbolo: u.simbolo }));
           setApiUnidades(unidades);
           // Aplicar unidad por defecto desde localStorage si existe y no hay valor actual
           const defaultUnidadId = typeof window !== 'undefined' ? localStorage.getItem('defaultUnidadMedidaId') : null;
-          if (defaultUnidadId && !formData.unidadMedidaId && unidades.some((u: any) => u.id === defaultUnidadId)) {
+          if (defaultUnidadId && !formData.unidadMedidaId && unidades.some((u: ApiUnidadMedida) => u.id === defaultUnidadId)) {
             setFormData(prev => ({ ...prev, unidadMedidaId: defaultUnidadId as string }));
           }
         }
@@ -324,8 +338,6 @@ export default function ProductosPage() {
               stock: 150,
               stockMinimo: 20,
               porcentajeMerma: 5,
-              perecedero: true,
-              diasVencimiento: 15,
               tieneIGV: true,
               activo: true,
               categoria: { id: '1', nombre: 'Frutas Citricas' },
@@ -348,8 +360,6 @@ export default function ProductosPage() {
               stock: 80,
               stockMinimo: 15,
               porcentajeMerma: 4,
-              perecedero: true,
-              diasVencimiento: 7,
               tieneIGV: true,
               activo: true,
               categoria: { id: '3', nombre: 'Verduras de Hoja' },
@@ -370,8 +380,6 @@ export default function ProductosPage() {
               stock: 200,
               stockMinimo: 30,
               porcentajeMerma: 2,
-              perecedero: true,
-              diasVencimiento: 20,
               tieneIGV: true,
               activo: true,
               categoria: { id: 'cat-lacteos', nombre: 'LÃ¡cteos' },
@@ -404,8 +412,6 @@ export default function ProductosPage() {
               stock: 150,
               stockMinimo: 20,
               porcentajeMerma: 5,
-              perecedero: true,
-              diasVencimiento: 15,
               tieneIGV: true,
               activo: true,
               categoria: { id: '1', nombre: 'Frutas Citricas' },
@@ -426,8 +432,6 @@ export default function ProductosPage() {
               stock: 80,
               stockMinimo: 15,
               porcentajeMerma: 4,
-              perecedero: true,
-              diasVencimiento: 7,
               tieneIGV: true,
               activo: true,
               categoria: { id: '3', nombre: 'Verduras de Hoja' },
@@ -448,8 +452,6 @@ export default function ProductosPage() {
               stock: 200,
               stockMinimo: 30,
               porcentajeMerma: 2,
-              perecedero: true,
-              diasVencimiento: 20,
               tieneIGV: true,
               activo: true,
               categoria: { id: 'cat-lacteos', nombre: 'LÃ¡cteos' },
@@ -481,8 +483,6 @@ export default function ProductosPage() {
               stock: 150,
               stockMinimo: 20,
               porcentajeMerma: 5,
-              perecedero: true,
-              diasVencimiento: 15,
               tieneIGV: true,
               activo: true,
               categoria: { id: '1', nombre: 'Frutas Citricas' },
@@ -513,8 +513,6 @@ export default function ProductosPage() {
           stock: 150,
           stockMinimo: 20,
           porcentajeMerma: 5,
-          perecedero: true,
-          diasVencimiento: 15,
           tieneIGV: true,
           activo: true,
           categoria: { id: '1', nombre: 'Frutas Citricas' },
@@ -546,8 +544,6 @@ export default function ProductosPage() {
       precio: 0,
       stockMinimo: 0,
       porcentajeMerma: 0,
-      perecedero: true,
-      diasVencimiento: 7,
       tieneIGV: true,
       categoriaId: '',
       tipoArticuloId: '',
@@ -606,7 +602,6 @@ export default function ProductosPage() {
             descripcion: formData.descripcion,
             categoriaId: formData.categoriaId,
             unidadMedidaId: formData.unidadMedidaId,
-            perecedero: formData.perecedero,
           })
         });
 
@@ -618,7 +613,7 @@ export default function ProductosPage() {
           return;
         }
 
-        const productoCreado: Producto = {
+  const productoCreado: Producto = {
           id: result.data.id,
           nombre: result.data.nombre,
           sku: result.data.sku,
@@ -627,8 +622,6 @@ export default function ProductosPage() {
           stock: result.data.stock ?? 0,
           stockMinimo: result.data.stockMinimo,
           porcentajeMerma: 0,
-          perecedero: result.data.perecedero,
-          diasVencimiento: result.data.diasVencimiento,
           tieneIGV: false,
           activo: true,
           categoria: result.data.categoria,
@@ -643,8 +636,9 @@ export default function ProductosPage() {
         };
 
         // Revalidar lista desde el servidor para reflejar cambios de inmediato
-        await fetchProductos();
-        alert(result.message || 'Producto creado exitosamente');
+  await fetchProductos();
+  setSuccessProduct({ nombre: result.data.nombre, sku: result.data.sku });
+  setSuccessModalOpen(true);
       }
 
       setShowModal(false);
@@ -666,8 +660,6 @@ export default function ProductosPage() {
       precio: 0,
       stockMinimo: 0,
       porcentajeMerma: 0,
-      perecedero: producto.perecedero,
-      diasVencimiento: 0,
       tieneIGV: false,
       categoriaId: producto.categoria?.id || '',
       tipoArticuloId: producto.tipoArticulo?.id || '',
@@ -1065,7 +1057,7 @@ return (
         </div>
       </div>
 
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} ariaLabel={editingProduct ? "Editar Producto" : "Crear Nuevo Producto"}>
+  <Modal isOpen={showModal} onClose={() => setShowModal(false)} ariaLabel={editingProduct ? "Editar Producto" : "Crear Nuevo Producto"}>
         <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg max-h-screen flex flex-col">
           <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <h3 className="text-lg font-bold text-gray-900">
@@ -1155,19 +1147,7 @@ return (
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-2">
-                <input
-                  id="perecedero"
-                  type="checkbox"
-                  checked={formData.perecedero}
-                  onChange={(e) => setFormData(prev => ({ ...prev, perecedero: e.target.checked }))}
-                  className="h-4 w-4 text-green-600 border-gray-300 rounded"
-                />
-                <label htmlFor="perecedero" className="text-sm font-medium text-gray-900">Perecedero</label>
-              </div>
-              {/* Campo DÃ­as de vencimiento removido */}
-            </div>
+            {/* Campo DÃ­as de vencimiento removido */}
             <div className="flex justify-end space-x-3 pt-6 border-t">
               <button
                 type="button"
@@ -1186,6 +1166,36 @@ return (
             </div>
             </form>
           </div>
+        </div>
+      </Modal>
+
+      {/* Modal de éxito para creación de producto */}
+      <Modal isOpen={successModalOpen} onClose={() => setSuccessModalOpen(false)} ariaLabel="Producto creado">
+        <div className="text-center py-6">
+          <div className="flex justify-center mb-4">
+            <div className="rounded-full bg-green-100 p-3">
+              <CheckCircle className="h-12 w-12 text-green-600" />
+            </div>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">¡Producto creado exitosamente!</h3>
+          {successProduct && (
+            <div className="mt-4 bg-gray-50 rounded-lg p-4 text-left">
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium text-gray-600">Nombre:</span>
+                <span className="text-sm font-semibold text-gray-900">{successProduct.nombre}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-gray-600">SKU:</span>
+                <span className="text-sm font-semibold text-green-600">{successProduct.sku || '—'}</span>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => setSuccessModalOpen(false)}
+            className="mt-6 px-6 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 font-medium"
+          >
+            Aceptar
+          </button>
         </div>
       </Modal>
 

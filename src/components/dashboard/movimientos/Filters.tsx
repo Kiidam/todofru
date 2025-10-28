@@ -1,7 +1,5 @@
 'use client';
 
-import React from 'react';
-
 export interface MovimientosFiltersState {
   searchTerm: string;
   fechaDesde: string; // ISO date (YYYY-MM-DD)

@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProductosParaInventario, validateProductoInventarioSync } from '../../../src/lib/producto-inventario-sync';
-import { prisma, safeTransaction } from '../../../src/lib/prisma';
-import { logger } from '../../../src/lib/logger';
+import { prisma, safeTransaction as _safeTransaction } from '../../../src/lib/prisma';
+import { logger as _logger } from '../../../src/lib/logger';
 import type { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
-import { Session } from 'next-auth';
+import { Session as _Session } from 'next-auth';
 import { 
   withAuth, 
   withErrorHandling, 
   successResponse, 
   errorResponse,
-  validateActiveRecord
+  validateActiveRecord as _validateActiveRecord
 } from '../../../src/lib/api-utils';
 
 // GET /api/inventarios - Obtener productos y movimientos de inventario
 
-export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, _session: _Session) => {
 
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'productos';
@@ -35,7 +35,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
           response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
           return response;
         } catch (productosError) {
-          logger.error('Error al obtener productos', { error: productosError });
+          _logger.error('Error al obtener productos', { error: productosError });
           return successResponse({ productos: [] }, 'No se pudieron cargar los productos');
         }
 
@@ -66,7 +66,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
           response.headers.set('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=120');
           return response;
         } catch (movimientosError) {
-          logger.error('Error al obtener movimientos', { error: movimientosError });
+          _logger.error('Error al obtener movimientos', { error: movimientosError });
           return successResponse({ movimientos: [] }, 'No se pudieron cargar los movimientos');
         }
 
@@ -78,7 +78,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
           response.headers.set('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=120');
           return response;
         } catch (error) {
-          logger.error('Error en validación de sincronización', { error });
+          _logger.error('Error en validación de sincronización', { error });
           // Devolver un objeto de validación con error
           const errorSyncValidation = {
             isValid: false,
@@ -120,7 +120,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
 }));
 
 // POST /api/inventarios - Crear movimiento de inventario
-export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, _session: _Session) => {
     const body = await request.json();
     const { productoId, tipo, cantidad, motivo, numeroGuia } = body;
 
@@ -130,11 +130,11 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
     }
 
     // Validar que el producto existe
-    const producto = await validateActiveRecord(prisma.producto, productoId, 'Producto') as { id: string; stock: number; [key: string]: any };
+  const producto = await _validateActiveRecord(prisma.producto, productoId, 'Producto') as { id: string; stock: number; [key: string]: unknown };
 
     // Obtener usuario
-    const usuario = session.user?.email 
-      ? await prisma.user.findUnique({ where: { email: session.user.email } })
+    const usuario = _session.user?.email 
+      ? await prisma.user.findUnique({ where: { email: _session.user.email } })
       : await prisma.user.findFirst(); // Fallback para modo test
 
     if (!usuario) {
@@ -147,7 +147,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
     }
 
     // Crear movimiento de inventario en transacción
-    const result = await safeTransaction(async (tx) => {
+  const result = await _safeTransaction(async (tx: Prisma.TransactionClient) => {
       // Calcular nuevo stock
       const nuevoStock = tipo === 'entrada' 
         ? producto.stock + cantidad 
@@ -180,7 +180,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
       return errorResponse(result.error || 'Error al crear movimiento de inventario', 500);
     }
 
-    logger.info('Movimiento de inventario creado', { 
+    _logger.info('Movimiento de inventario creado', { 
       movimientoId: result.data.productoId,
       productoId,
       tipo,

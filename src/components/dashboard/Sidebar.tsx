@@ -1,8 +1,8 @@
-'use client';
+ 'use client';
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 import {
   LayoutDashboard,
   Package,

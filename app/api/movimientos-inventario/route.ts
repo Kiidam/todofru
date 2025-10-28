@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '../../../src/lib/logger';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../auth/[...nextauth]/route';
+import authOptions from '../../../src/lib/nextauth';
 import { prisma } from '../../../src/lib/prisma';
 import { z } from 'zod';
 import { validateProductoParaMovimiento } from '../../../src/lib/producto-inventario-sync';
@@ -21,8 +22,8 @@ const movimientoSchema = z.object({
 // GET /api/movimientos-inventario - Listar movimientos con filtros
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
+  const session = await getServerSession(authOptions as any);
+  if (!(session as any)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
@@ -94,8 +95,8 @@ export async function GET(request: NextRequest) {
 // POST /api/movimientos-inventario - Crear nuevo movimiento
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+  const session = await getServerSession(authOptions as any);
+  if (!(session as any)?.user?.id) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
           ...validatedData,
           cantidadAnterior: producto.stock,
           cantidadNueva: nuevoStock,
-          usuarioId: session.user.id
+          usuarioId: (session as any).user.id
         },
         include: {
           producto: {

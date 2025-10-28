@@ -1,15 +1,15 @@
 import { NextRequest } from 'next/server';
 import { withAuth, withErrorHandling, successResponse, errorResponse } from '../../../../src/lib/api-utils';
-import { logger } from '../../../../src/lib/logger';
+import { logger as _logger } from '../../../../src/lib/logger';
 import { 
   validateProductoInventarioSync, 
   migrarProductosHuerfanos, 
   limpiarProductosHuerfanos 
 } from '../../../../src/lib/producto-inventario-sync';
-import { Session } from 'next-auth';
+import { Session as _Session } from 'next-auth';
 
 // GET /api/productos/sync-validation - Validar sincronización
-export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, _session: _Session) => {
   const validation = await validateProductoInventarioSync();
   
   const response = successResponse(validation);
@@ -18,13 +18,13 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
 }));
 
 // POST /api/productos/sync-validation - Ejecutar acciones de sincronización
-export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, _session: _Session) => {
   const { action } = await request.json();
 
   switch (action) {
     case 'migrate':
       const migrationResult = await migrarProductosHuerfanos();
-      logger.info('Migración de productos ejecutada', { 
+  _logger.info('Migración de productos ejecutada', { 
         success: migrationResult.success,
         migrated: migrationResult.migrated 
       });
@@ -38,7 +38,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
 
     case 'clean':
       const cleanResult = await limpiarProductosHuerfanos();
-      logger.info('Limpieza de productos ejecutada', { 
+  _logger.info('Limpieza de productos ejecutada', { 
         success: cleanResult.success,
         deleted: cleanResult.deleted 
       });

@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-10-27T06:42:00.751Z",
+  "proposito": "Respaldos de bases de datos problemáticas antes de eliminación",
+  "basesRespaldadas": [
+    "grade_db",
+    "sistema_parqueo"
+  ],
+  "razonEliminacion": "Bases de datos con estructura pero sin datos útiles",
+  "sistemaOriginal": {
+    "servidor": "DESKTOP-NUNU4GB",
+    "puerto": "3306",
+    "usuario": "root@localhost",
+    "basePrincipal": "todofru"
+  },
+  "instruccionesRestauracion": [
+    "1. Para restaurar una base de datos:",
+    "   mysql -u [usuario] -p -e \"CREATE DATABASE [nombre_base];\"",
+    "   mysql -u [usuario] -p [nombre_base] < [archivo_respaldo].sql",
+    "",
+    "2. Verificar restauración:",
+    "   mysql -u [usuario] -p -e \"USE [nombre_base]; SHOW TABLES;\""
+  ]
+}

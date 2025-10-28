@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Eye, Printer, Edit2 } from 'lucide-react';
 
 export interface MovimientoRow {

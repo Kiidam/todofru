@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '../../../../src/lib/logger';
 export const dynamic = 'force-dynamic';
 
+interface RucData {
+  ruc: string;
+  razonSocial: string;
+  direccion: string;
+  tipoContribuyente: string;
+  esPersonaNatural: boolean;
+  estado?: string;
+  condicion?: string;
+  esActivo?: boolean;
+  fechaInscripcion?: string;
+  fechaInicioActividades?: string;
+  nombres?: string;
+  apellidos?: string;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const token = process.env.DECOLECTA_API_TOKEN;
@@ -67,7 +82,7 @@ export async function GET(request: NextRequest) {
       const mockTipoContribuyente = mockIsDNI ? 'Persona Natural (Mock)' : 'Sociedad Anónima (Mock)';
       const mockEsPersonaNatural = mockIsDNI;
       
-      const mockData: any = { 
+      const mockData: RucData = { 
         ruc, 
         razonSocial: mockRazonSocial, 
         direccion: mockDireccion, 
@@ -151,9 +166,6 @@ export async function GET(request: NextRequest) {
       direccion = String(raw['address'] ?? raw['direccion'] ?? '');
       tipoContribuyente = 'Persona Natural (RENIEC)';
       esPersonaNatural = true;
-      
-      // Para personas naturales, incluir campos separados
-      const apellidos = `${apPat} ${apMat}`.trim();
     } else {
       // RUC (SUNAT via Decolecta)
       // Usar el endpoint correcto configurado en las variables de entorno
@@ -226,7 +238,7 @@ export async function GET(request: NextRequest) {
                       !tipoContribuyente.toLowerCase().includes('inactivo');
     }
 
-    const responseData: any = {
+    const responseData: RucData = {
       ruc,
       razonSocial,
       direccion,
@@ -253,6 +265,11 @@ export async function GET(request: NextRequest) {
       responseData.fechaInscripcion = fechaInscripcion;
       responseData.fechaInicioActividades = fechaInicioActividades;
       responseData.esActivo = esActivo;
+    } else {
+      // Para DNI (8 dígitos), agregar estados por defecto
+      responseData.estado = 'Activo';
+      responseData.condicion = 'Habido';
+      responseData.esActivo = true;
     }
 
     // Para personas naturales, incluir campos separados
@@ -287,7 +304,7 @@ export async function GET(request: NextRequest) {
       const mockTipoContribuyente = mockIsDNI ? 'Persona Natural (Mock)' : 'Sociedad Anónima (Mock)';
       const mockEsPersonaNatural = mockIsDNI;
       
-      const mockData: any = { 
+      const mockData: RucData = { 
         ruc, 
         razonSocial: mockRazonSocial, 
         direccion: mockDireccion, 

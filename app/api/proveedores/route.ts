@@ -1,20 +1,31 @@
 import { NextRequest } from 'next/server';
-import { withAuth, withErrorHandling, validatePagination, successResponse, errorResponse, validateActiveRecord } from '../../../src/lib/api-utils';
-import { safeTransaction } from '../../../src/lib/prisma';
+import { withAuth, withErrorHandling, validatePagination as _validatePagination, successResponse, errorResponse, validateActiveRecord as _validateActiveRecord } from '../../../src/lib/api-utils';
+import { safeTransaction as _safeTransaction } from '../../../src/lib/prisma';
 import { prisma } from '../../../src/lib/prisma';
-import { logger } from '../../../src/lib/logger';
+import { logger as _logger } from '../../../src/lib/logger';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
-import { Session } from 'next-auth';
-import * as crypto from 'crypto';
-import { proveedorPayloadSchema, validateProveedorPayload } from '../../../src/schemas/proveedor';
+import crypto from 'crypto';
+import { validateProveedorPayload } from '../../../src/schemas/proveedor';
 import { ProveedorPayload } from '../../../src/types/proveedor';
 
+// Tipos para el contexto de autenticación
+interface AuthContext {
+  session: {
+    user: {
+      id: string;
+      email?: string;
+    };
+  };
+}
+
 // GET /api/proveedores - Listar proveedores
-export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, context: AuthContext) => {
+  const { session: _session } = context;
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search') || '';
-  const { page, limit, skip } = validatePagination(searchParams);
+  const simple = searchParams.get('simple') === 'true';
+  const { page, limit, skip } = _validatePagination(searchParams);
 
     const where = {
       activo: true,
@@ -30,6 +41,35 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
     };
 
     try {
+      // If caller requests a simple list, return a minimal, direct DB query to avoid any raw SQL fallbacks
+      if (simple) {
+        const direct = await prisma.proveedor.findMany({
+          where: { activo: true },
+          orderBy: [ { nombre: 'asc' }, { createdAt: 'desc' } ],
+          select: {
+            id: true,
+            nombre: true,
+            razonSocial: true,
+            nombres: true,
+            apellidos: true,
+            numeroIdentificacion: true,
+            ruc: true,
+            telefono: true,
+            email: true,
+            direccion: true,
+            representanteLegal: true,
+            activo: true,
+            createdAt: true
+          },
+          skip,
+          take: limit
+        });
+
+        const total = await prisma.proveedor.count({ where: { activo: true } });
+        const response = successResponse({ data: direct, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
+        response.headers.set('Cache-Control', 'no-store');
+        return response;
+      }
       const [proveedores, total] = await Promise.all([
         prisma.proveedor.findMany({
           where,
@@ -64,7 +104,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
         productosCount: productosPorProveedor[p.id || ''] || 0,
       }));
 
-      const response = successResponse(
+        const response = successResponse(
         { 
           data: proveedoresConProductos,
           pagination: {
@@ -75,6 +115,16 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
           }
         }
       );
+      // Conditional debug logging: set LOG_PROVEEDORES=true in .env to enable
+      try {
+        if (process.env.LOG_PROVEEDORES === 'true') {
+          const sample = proveedoresConProductos.slice(0, 10).map(p => ({ id: p.id, nombre: p.nombre, numeroIdentificacion: p.numeroIdentificacion, activo: p.activo, createdAt: p.createdAt }));
+          // eslint-disable-next-line no-console
+          console.debug('[LOG_PROVEEDORES] outgoing payload sample:', JSON.stringify(sample));
+        }
+      } catch (e) {
+        // ignore logging errors
+      }
       response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
       return response;
     } catch (err: unknown) {
@@ -92,7 +142,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
       const direccionMissing = (unknownColumn && msg.includes('direccion')) || (code === 'P2022' && (missingColumn.includes('direccion') || msg.includes('direccion')));
 
       if (validationError || contactoMissing || direccionMissing) {
-         const safeSearch = search.replace(/[^a-zA-Z0-9\s-]/g, '');
+         const safeSearch = (search || '').replace(/[^a-zA-Z0-9\s-]/g, '');
          const clauses: string[] = ['activo = 1'];
          if (safeSearch) {
            const like = `%${safeSearch}%`;
@@ -164,13 +214,14 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
          return response;
       }
 
-      logger.error('Error inesperado en GET /api/proveedores:', { error: err });
+  _logger.error('Error inesperado en GET /api/proveedores:', { error: err });
       return errorResponse('Error interno del servidor', 500);
     }
 }));
 
 // POST /api/proveedores - Crear proveedor
-export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, context: AuthContext) => {
+  const { session: _session } = context;
   const body = await request.json();
 
   // Validar payload usando el esquema existente
@@ -214,7 +265,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
 
     return successResponse(created, 'Proveedor creado exitosamente');
   } catch (error) {
-    logger.error('Error al crear proveedor:', { error });
+  _logger.error('Error al crear proveedor:', { error });
     return errorResponse('Error interno del servidor', 500);
   }
 }));

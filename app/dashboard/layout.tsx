@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   // const pathname = usePathname();
 
-  const Sidebar = dynamic(() => import('@/components/dashboard/Sidebar'), {
+  const Sidebar = dynamic(() => import('../../src/components/dashboard/Sidebar'), {
     ssr: false,
     loading: () => (
       <div className="w-64 bg-white h-screen border-r border-gray-200 flex items-center justify-center">

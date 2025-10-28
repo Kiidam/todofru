@@ -1,19 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '../../../src/lib/prisma';
-import { logger } from '../../../src/lib/logger';
+// logger intentionally unused in this route
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
-import { Session } from 'next-auth';
 import { 
   withAuth, 
   withErrorHandling, 
-  validatePagination, 
+  validatePagination as _validatePagination, 
   successResponse, 
   errorResponse,
-  validateActiveRecord,
+  validateActiveRecord as _validateActiveRecord,
   validateUniqueness
 } from '../../../src/lib/api-utils';
+
+// Tipos para el contexto de autenticación
+interface AuthContext {
+  session: {
+    user: {
+      id: string;
+      email?: string;
+    };
+  };
+}
 
 // Esquema de validación para productos
 const productoSchema = z.object({
@@ -22,19 +31,21 @@ const productoSchema = z.object({
   descripcion: z.string().optional(),
   categoriaId: z.string().min(1, 'La categoría es requerida'),
   unidadMedidaId: z.string().min(1, 'La unidad de medida es requerida'),
-  precio: z.number().min(0, 'El precio debe ser mayor o igual a 0'),
-  stockMinimo: z.number().min(0, 'El stock mínimo debe ser mayor o igual a 0'),
-  perecedero: z.boolean(),
-  diasVencimiento: z.number().optional(),
+  // precio/stockMinimo made optional to support the simplified product creation flow from the UI
+  // provide safe defaults when absent
+  precio: z.number().min(0, 'El precio debe ser mayor o igual a 0').optional().default(0),
+  stockMinimo: z.number().min(0, 'El stock mínimo debe ser mayor o igual a 0').optional().default(0),
+  // diasVencimiento removed from schema - no longer needed
 });
 
 // GET /api/productos - Listar productos con filtros
-export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
-    const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search') || '';
-    const categoriaId = searchParams.get('categoriaId');
-    const stockBajo = searchParams.get('stockBajo') === 'true';
-    const { page, limit, skip } = validatePagination(searchParams);
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, context: AuthContext) => {
+  const { session: __unused_session } = context;
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get('search') || '';
+  const categoriaId = searchParams.get('categoriaId');
+  const stockBajo = searchParams.get('stockBajo') === 'true';
+  const { page, limit, skip } = _validatePagination(searchParams);
 
     // Construir filtros (sin comparaciones entre campos para evitar errores de Prisma)
     const where = {
@@ -89,13 +100,14 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
 }));
 
 // POST /api/productos - Crear nuevo producto
-export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, context: AuthContext) => {
+  const { session: __unused_session } = context;
     const body = await request.json();
     const validatedData = productoSchema.parse(body);
 
     // Verificar que la categoría y unidad de medida existan
-    await validateActiveRecord(prisma.categoria, validatedData.categoriaId, 'Categoría');
-    await validateActiveRecord(prisma.unidadMedida, validatedData.unidadMedidaId, 'Unidad de medida');
+  await _validateActiveRecord(prisma.categoria, validatedData.categoriaId, 'Categoría');
+  await _validateActiveRecord(prisma.unidadMedida, validatedData.unidadMedidaId, 'Unidad de medida');
 
     // Verificar SKU único si se proporciona
     if (validatedData.sku) {
@@ -112,8 +124,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
         precio: validatedData.precio,
         stockMinimo: validatedData.stockMinimo,
         porcentajeMerma: 0,
-        perecedero: validatedData.perecedero,
-        diasVencimiento: validatedData.diasVencimiento || null,
+        // diasVencimiento removed from schema
         tieneIGV: false,
         categoriaId: validatedData.categoriaId,
         unidadMedidaId: validatedData.unidadMedidaId,
@@ -125,7 +136,9 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
     try {
       revalidatePath('/dashboard/productos');
       revalidatePath('/app/dashboard/productos');
-    } catch {}
+    } catch {
+      // Ignorar errores de revalidación
+    }
 
     const response = successResponse(nuevoProducto, 'Producto creado exitosamente');
     response.headers.set('Cache-Control', 'no-store');
@@ -134,6 +147,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
       headers: response.headers
     });
 }));
+
 // Desactivar caché para este handler y sus respuestas
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

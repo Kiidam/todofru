@@ -37,6 +37,7 @@ model Cliente {
   numeroIdentificacion  String?             @unique(map: "numeroIdentificacion") @db.VarChar(11) // DNI (8) o RUC (11)
   nombres               String?             @db.VarChar(100) // Para personas naturales
   apellidos             String?             @db.VarChar(100) // Para personas naturales
+  fechaNacimiento       DateTime?           @db.Date // Para personas naturales
   razonSocial           String?             @db.VarChar(200) // Para personas jurídicas
   mensajePersonalizado  String?             @db.Text // Mensaje personalizado para correos
   
@@ -46,6 +47,7 @@ model Cliente {
 }
 
 model MovimientoInventario {
+  id               Int       @id @default(autoincrement())
   productoId       String
   tipo             movimientoinventario_tipo
   cantidad         Float
@@ -70,7 +72,7 @@ model MovimientoInventario {
   @@index([createdAt], map: "idx_mi_created")
   @@index([productoId], map: "idx_mi_producto")
   @@index([tipo], map: "idx_mi_tipo")
-  @@id([productoId, createdAt])
+  // Eliminada restricción única problemática: @@unique([productoId, createdAt])
   @@map("movimientoinventario")
 }
 
@@ -114,7 +116,6 @@ model PedidoCompraItem {
   pedido     PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pci_pedido")
   producto   Producto     @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pci_producto")
 
-  @@unique([pedidoId, productoId], map: "uq_pci_pedido_producto")
   @@index([pedidoId], map: "idx_pci_pedido")
   @@index([productoId], map: "idx_pci_producto")
   @@map("pedidocompraitem")
@@ -125,6 +126,7 @@ model PedidoVenta {
   numero        String             @unique(map: "numero")
   clienteId     String
   fecha         DateTime           @default(now()) @db.DateTime(0)
+  fechaEntrega  DateTime?          @db.DateTime(0)
   subtotal      Float              @default(0)
   impuestos     Float              @default(0)
   total         Float              @default(0)
@@ -156,7 +158,6 @@ model PedidoVentaItem {
   pedido     PedidoVenta @relation(fields: [pedidoId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pvi_pedido")
   producto   Producto    @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pvi_producto")
 
-  @@unique([pedidoId, productoId], map: "uq_pvi_pedido_producto")
   @@index([pedidoId], map: "idx_pvi_pedido")
   @@index([productoId], map: "idx_pvi_producto")
   @@map("pedidoventaitem")
@@ -173,8 +174,6 @@ model Producto {
   porcentajeMerma Float    @default(0)
   stock           Float    @default(0)
   stockMinimo     Float    @default(0)
-  perecedero      Boolean  @default(true)
-  diasVencimiento Int?
   tieneIGV        Boolean  @default(true)
   activo          Boolean  @default(true)
   version         Int      @default(1)

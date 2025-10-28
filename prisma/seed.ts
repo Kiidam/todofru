@@ -55,36 +55,30 @@ async function main() {
 
   console.log('✅ Categorías creadas:', categorias.length);
 
-  // 3. CREAR UNIDADES DE MEDIDA
-  const unidades = await Promise.all([
-    prisma.unidadMedida.upsert({
-      where: { simbolo: 'kg' },
-      update: {},
-      create: { id: randomUUID(), nombre: 'Kilogramo', simbolo: 'kg' }
-    }),
-    prisma.unidadMedida.upsert({
-      where: { simbolo: 'und' },
-      update: {},
-      create: { id: randomUUID(), nombre: 'Unidad', simbolo: 'und' }
-    }),
-    prisma.unidadMedida.upsert({
-      where: { simbolo: 'caja' },
-      update: {},
-      create: { id: randomUUID(), nombre: 'Caja', simbolo: 'caja' }
-    }),
-    prisma.unidadMedida.upsert({
-      where: { simbolo: 'saco' },
-      update: {},
-      create: { id: randomUUID(), nombre: 'Saco', simbolo: 'saco' }
-    }),
-    prisma.unidadMedida.upsert({
-      where: { simbolo: 'docena' },
-      update: {},
-      create: { id: randomUUID(), nombre: 'Docena', simbolo: 'docena' }
-    })
-  ]);
+  // 3. CREAR UNIDADES DE MEDIDA (resiliente a duplicados)
+  const unidadesData = [
+    { nombre: 'Kilogramo', simbolo: 'kg' },
+    { nombre: 'Unidad', simbolo: 'und' },
+    { nombre: 'Caja', simbolo: 'caja' },
+    { nombre: 'Saco', simbolo: 'saco' },
+    { nombre: 'Docena', simbolo: 'docena' }
+  ];
+  
+  const unidades = [];
+  for (const data of unidadesData) {
+    let unidad = await prisma.unidadMedida.findUnique({ where: { simbolo: data.simbolo } });
+    if (!unidad) {
+      unidad = await prisma.unidadMedida.findUnique({ where: { nombre: data.nombre } });
+    }
+    if (!unidad) {
+      unidad = await prisma.unidadMedida.create({
+        data: { id: randomUUID(), ...data }
+      });
+    }
+    unidades.push(unidad);
+  }
 
-  console.log('✅ Unidades de medida creadas:', unidades.length);
+  console.log('✅ Unidades de medida creadas/encontradas:', unidades.length);
 
   // 3.1. TIPOS DE ARTÍCULO - COMENTADO: Modelo no existe en schema actual
   // const tiposArticulo = await Promise.all([...]);
@@ -222,9 +216,7 @@ async function main() {
       unidadMedidaId: unidades[0].id, // kg
       precio: 3.50,
       stock: 0, // Empezamos sin stock, se llenará con compras
-      stockMinimo: 50,
-      perecedero: true,
-      diasVencimiento: 15
+  stockMinimo: 50
     },
     {
       id: 'prod-002',
@@ -235,9 +227,7 @@ async function main() {
       unidadMedidaId: unidades[0].id, // kg
       precio: 4.20,
       stock: 0,
-      stockMinimo: 30,
-      perecedero: true,
-      diasVencimiento: 20
+  stockMinimo: 30
     },
     // FRUTAS TROPICALES
     {
@@ -249,9 +239,7 @@ async function main() {
       unidadMedidaId: unidades[0].id, // kg
       precio: 6.80,
       stock: 0,
-      stockMinimo: 40,
-      perecedero: true,
-      diasVencimiento: 10
+  stockMinimo: 40
     },
     {
       id: 'prod-004',
@@ -262,9 +250,7 @@ async function main() {
       unidadMedidaId: unidades[1].id, // unidad
       precio: 8.50,
       stock: 0,
-      stockMinimo: 25,
-      perecedero: true,
-      diasVencimiento: 12
+  stockMinimo: 25
     },
     // VERDURAS DE HOJA
     {
@@ -276,9 +262,7 @@ async function main() {
       unidadMedidaId: unidades[0].id, // kg
       precio: 2.50,
       stock: 0,
-      stockMinimo: 40,
-      perecedero: true,
-      diasVencimiento: 7
+  stockMinimo: 40
     },
     {
       id: 'prod-006',
@@ -289,9 +273,7 @@ async function main() {
       unidadMedidaId: unidades[0].id, // kg
       precio: 12.00,
       stock: 0,
-      stockMinimo: 15,
-      perecedero: true,
-      diasVencimiento: 5
+  stockMinimo: 15
     },
     // VERDURAS DE FRUTO
     {
@@ -303,9 +285,7 @@ async function main() {
       unidadMedidaId: unidades[0].id, // kg
       precio: 4.80,
       stock: 0,
-      stockMinimo: 35,
-      perecedero: true,
-      diasVencimiento: 8
+  stockMinimo: 35
     },
     {
       id: 'prod-008',
@@ -316,9 +296,7 @@ async function main() {
       unidadMedidaId: unidades[0].id, // kg
       precio: 7.20,
       stock: 0,
-      stockMinimo: 20,
-      perecedero: true,
-      diasVencimiento: 10
+  stockMinimo: 20
     },
     // TUBÉRCULOS
     {
@@ -330,8 +308,7 @@ async function main() {
       unidadMedidaId: unidades[3].id, // saco
       precio: 85.00,
       stock: 0,
-      stockMinimo: 10,
-      perecedero: false
+  stockMinimo: 10
     },
     {
       id: 'prod-010',
@@ -342,8 +319,7 @@ async function main() {
       unidadMedidaId: unidades[0].id, // kg
       precio: 3.80,
       stock: 0,
-      stockMinimo: 25,
-      perecedero: false
+  stockMinimo: 25
     }
   ];
 
@@ -525,6 +501,7 @@ async function main() {
   // 8. CREAR MOVIMIENTOS DE INVENTARIO POR LAS COMPRAS
   console.log('📈 Actualizando inventario por compras...');
 
+  const baseTime = new Date('2025-09-03T10:00:00.000Z');
   const movimientosCompra = [
     // Movimientos del Pedido 1
     {
@@ -537,7 +514,8 @@ async function main() {
       motivo: 'Compra a proveedor - Pedido PC-2025-001',
       numeroGuia: 'GR-001-2025',
       pedidoCompraId: pedidoCompra1.id,
-      usuarioId: admin.id
+      usuarioId: admin.id,
+      createdAt: new Date(baseTime.getTime() + 0 * 1000)
     },
     {
       productoId: productos[1].id,
@@ -549,7 +527,8 @@ async function main() {
       motivo: 'Compra a proveedor - Pedido PC-2025-001',
       numeroGuia: 'GR-001-2025',
       pedidoCompraId: pedidoCompra1.id,
-      usuarioId: admin.id
+      usuarioId: admin.id,
+      createdAt: new Date(baseTime.getTime() + 1 * 1000)
     },
     // Movimientos del Pedido 2
     {
@@ -562,7 +541,8 @@ async function main() {
       motivo: 'Compra a proveedor - Pedido PC-2025-002',
       numeroGuia: 'GR-002-2025',
       pedidoCompraId: pedidoCompra2.id,
-      usuarioId: admin.id
+      usuarioId: admin.id,
+      createdAt: new Date(baseTime.getTime() + 2 * 1000)
     },
     {
       productoId: productos[3].id,
@@ -574,7 +554,8 @@ async function main() {
       motivo: 'Compra a proveedor - Pedido PC-2025-002',
       numeroGuia: 'GR-002-2025',
       pedidoCompraId: pedidoCompra2.id,
-      usuarioId: admin.id
+      usuarioId: admin.id,
+      createdAt: new Date(baseTime.getTime() + 3 * 1000)
     },
     // Movimientos del Pedido 3
     {
@@ -587,7 +568,8 @@ async function main() {
       motivo: 'Compra a proveedor - Pedido PC-2025-003',
       numeroGuia: 'GR-003-2025',
       pedidoCompraId: pedidoCompra3.id,
-      usuarioId: admin.id
+      usuarioId: admin.id,
+      createdAt: new Date(baseTime.getTime() + 4 * 1000)
     },
     {
       productoId: productos[5].id,
@@ -599,7 +581,8 @@ async function main() {
       motivo: 'Compra a proveedor - Pedido PC-2025-003',
       numeroGuia: 'GR-003-2025',
       pedidoCompraId: pedidoCompra3.id,
-      usuarioId: admin.id
+      usuarioId: admin.id,
+      createdAt: new Date(baseTime.getTime() + 5 * 1000)
     },
     {
       productoId: productos[6].id,
@@ -611,7 +594,8 @@ async function main() {
       motivo: 'Compra a proveedor - Pedido PC-2025-003',
       numeroGuia: 'GR-003-2025',
       pedidoCompraId: pedidoCompra3.id,
-      usuarioId: admin.id
+      usuarioId: admin.id,
+      createdAt: new Date(baseTime.getTime() + 6 * 1000)
     },
     {
       productoId: productos[8].id,
@@ -623,20 +607,30 @@ async function main() {
       motivo: 'Compra a proveedor - Pedido PC-2025-003',
       numeroGuia: 'GR-003-2025',
       pedidoCompraId: pedidoCompra3.id,
-      usuarioId: admin.id
+      usuarioId: admin.id,
+      createdAt: new Date(baseTime.getTime() + 7 * 1000)
     }
   ];
 
   for (const movimiento of movimientosCompra) {
-    await prisma.movimientoInventario.create({
-      data: movimiento
-    });
-    
-    // Actualizar stock del producto
-    await prisma.producto.update({
-      where: { id: movimiento.productoId },
-      data: { stock: movimiento.cantidadNueva }
-    });
+    try {
+      const created = await prisma.movimientoInventario.create({
+        data: movimiento
+      });
+      
+      // Actualizar stock del producto
+      await prisma.producto.update({
+        where: { id: movimiento.productoId },
+        data: { stock: movimiento.cantidadNueva }
+      });
+    } catch (error: unknown) {
+      console.error(`❌ Error creando movimiento para producto ${movimiento.productoId}:`, error);
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        console.log(`⚠️  Movimiento duplicado, omitiendo...`);
+      } else {
+        throw error;
+      }
+    }
   }
 
   console.log('✅ Movimientos de inventario (compras) creados:', movimientosCompra.length);
@@ -762,89 +756,80 @@ async function main() {
   // 11. CREAR MOVIMIENTOS DE INVENTARIO POR VENTAS
   console.log('📉 Actualizando inventario por ventas...');
 
-  const movimientosVenta = [
-    // Movimientos de Venta 1
-    {
-      productoId: productos[0].id, // Naranja
-      stockAnterior: 150,
-      cantidad: 80,
-      stockNuevo: 70
-    },
-    {
-      productoId: productos[2].id, // Mango
-      stockAnterior: 60,
-      cantidad: 30,
-      stockNuevo: 30
-    },
-    {
-      productoId: productos[4].id, // Lechuga
-      stockAnterior: 100,
-      cantidad: 50,
-      stockNuevo: 50
-    },
-    // Movimientos de Venta 2
-    {
-      productoId: productos[1].id, // Limón
-      stockAnterior: 80,
-      cantidad: 15,
-      stockNuevo: 65
-    },
-    {
-      productoId: productos[5].id, // Espinaca
-      stockAnterior: 25,
-      cantidad: 8,
-      stockNuevo: 17
-    },
-    {
-      productoId: productos[6].id, // Tomate
-      stockAnterior: 70,
-      cantidad: 25,
-      stockNuevo: 45
-    }
-  ];
+  const baseTimeVentas = new Date('2025-09-07T14:00:00.000Z');
 
   for (let i = 0; i < 3; i++) {
-    const mov = movimientosVenta[i];
-    await prisma.movimientoInventario.create({
-      data: {
-        productoId: mov.productoId,
-        tipo: 'SALIDA',
-        cantidad: mov.cantidad,
-        cantidadAnterior: mov.stockAnterior,
-        cantidadNueva: mov.stockNuevo,
-        motivo: 'Venta a cliente - Pedido PV-2025-001',
-        numeroGuia: 'GV-001-2025',
-        pedidoVentaId: pedidoVenta1.id,
-        usuarioId: admin.id
-      }
-    });
+    const movData = [
+      { productoId: productos[0].id, stockAnterior: 150, cantidad: 80, stockNuevo: 70 },
+      { productoId: productos[2].id, stockAnterior: 60, cantidad: 30, stockNuevo: 30 },
+      { productoId: productos[4].id, stockAnterior: 100, cantidad: 50, stockNuevo: 50 }
+    ][i];
+    
+    try {
+      await prisma.movimientoInventario.create({
+        data: {
+          productoId: movData.productoId,
+          tipo: 'SALIDA',
+          cantidad: movData.cantidad,
+          cantidadAnterior: movData.stockAnterior,
+          cantidadNueva: movData.stockNuevo,
+          motivo: 'Venta a cliente - Pedido PV-2025-001',
+          numeroGuia: 'GV-001-2025',
+          pedidoVentaId: pedidoVenta1.id,
+          usuarioId: admin.id,
+          createdAt: new Date(baseTimeVentas.getTime() + i * 1000)
+        }
+      });
 
-    await prisma.producto.update({
-      where: { id: mov.productoId },
-      data: { stock: mov.stockNuevo }
-    });
+      await prisma.producto.update({
+        where: { id: movData.productoId },
+        data: { stock: movData.stockNuevo }
+      });
+    } catch (error: unknown) {
+      console.error(`❌ Error creando movimiento venta:`, error);
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        console.log(`⚠️  Movimiento venta duplicado, omitiendo...`);
+      } else {
+        throw error;
+      }
+    }
   }
 
-  for (let i = 3; i < 6; i++) {
-    const mov = movimientosVenta[i];
-    await prisma.movimientoInventario.create({
-      data: {
-        productoId: mov.productoId,
-        tipo: 'SALIDA',
-        cantidad: mov.cantidad,
-        cantidadAnterior: mov.stockAnterior,
-        cantidadNueva: mov.stockNuevo,
-        motivo: 'Venta a cliente - Pedido PV-2025-002',
-        numeroGuia: 'GV-002-2025',
-        pedidoVentaId: pedidoVenta2.id,
-        usuarioId: admin.id
-      }
-    });
+  for (let i = 0; i < 3; i++) {
+    const movData = [
+      { productoId: productos[1].id, stockAnterior: 80, cantidad: 15, stockNuevo: 65 },
+      { productoId: productos[5].id, stockAnterior: 25, cantidad: 8, stockNuevo: 17 },
+      { productoId: productos[6].id, stockAnterior: 70, cantidad: 25, stockNuevo: 45 }
+    ][i];
+    
+    try {
+      await prisma.movimientoInventario.create({
+        data: {
+          productoId: movData.productoId,
+          tipo: 'SALIDA',
+          cantidad: movData.cantidad,
+          cantidadAnterior: movData.stockAnterior,
+          cantidadNueva: movData.stockNuevo,
+          motivo: 'Venta a cliente - Pedido PV-2025-002',
+          numeroGuia: 'GV-002-2025',
+          pedidoVentaId: pedidoVenta2.id,
+          usuarioId: admin.id,
+          createdAt: new Date(baseTimeVentas.getTime() + (i + 3) * 1000)
+        }
+      });
 
-    await prisma.producto.update({
-      where: { id: mov.productoId },
-      data: { stock: mov.stockNuevo }
-    });
+      await prisma.producto.update({
+        where: { id: movData.productoId },
+        data: { stock: movData.stockNuevo }
+      });
+    } catch (error: unknown) {
+      console.error(`❌ Error creando movimiento venta:`, error);
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        console.log(`⚠️  Movimiento venta duplicado, omitiendo...`);
+      } else {
+        throw error;
+      }
+    }
   }
 
   console.log('✅ Movimientos de inventario (ventas) creados: 6');

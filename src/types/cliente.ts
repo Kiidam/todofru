@@ -79,6 +79,7 @@ export interface ClientePayload {
   direccion?: string;
   contacto?: string; // Persona de contacto o nombre completo
   mensajePersonalizado?: string;
+  activo?: boolean;
   
   // Campos adicionales para el nuevo schema
   nombres?: string;
@@ -128,15 +129,15 @@ export function clienteFormDataToPayload(formData: ClienteFormData): ClientePayl
 }
 
 // Función para convertir payload del API a datos del formulario
-export function clientePayloadToFormData(payload: any): ClienteFormData {
-  const numeroIdentificacion = payload.numeroIdentificacion || payload.dni || payload.ruc || '';
+export function clientePayloadToFormData(payload: ClientePayload): ClienteFormData {
+  const numeroIdentificacion = payload.numeroIdentificacion || payload.ruc || '';
   const tipoIdentificacion = payload.tipoEntidad === 'PERSONA_NATURAL' ? 'DNI' : 'RUC';
   
   return {
     tipoEntidad: payload.tipoEntidad || 'PERSONA_NATURAL',
     tipoCliente: payload.tipoCliente || 'MINORISTA',
     tipoIdentificacion,
-    numeroIdentificacion,
+    numeroIdentificacion: numeroIdentificacion as string,
     nombres: payload.nombres || '',
     apellidos: payload.apellidos || '',
     razonSocial: payload.razonSocial || '',
@@ -145,6 +146,7 @@ export function clientePayloadToFormData(payload: any): ClienteFormData {
     email: payload.email || '',
     direccion: payload.direccion || '',
     mensajePersonalizado: payload.mensajePersonalizado || '',
+    activo: payload.activo !== undefined ? payload.activo : true,
   };
 }
 
