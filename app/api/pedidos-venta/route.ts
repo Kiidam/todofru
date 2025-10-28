@@ -88,18 +88,29 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, cont
         return errorResponse('Uno o más productos no existen o están inactivos', 400);
       }
 
-      // Validar stock suficiente para cada item
+      // Validar stock suficiente agregando por producto y aplicando tolerancia para floats
       console.log('🔍 Validando stock...');
-      const stockMap = new Map(productos.map(p => [p.id, p.stock]));
+      const EPS = 1e-6;
+      const round4 = (n: number) => Number(n.toFixed(4));
+      const reqByProd = new Map<string, number>();
       for (const it of items) {
-        const stock = stockMap.get(it.productoId) ?? 0;
-        console.log(`  Producto ${it.productoId}: stock=${stock}, necesario=${it.cantidad}`);
-        if (it.cantidad > stock) {
-          console.error(`❌ Stock insuficiente para producto ${it.productoId}`);
-          return errorResponse(`Stock insuficiente para producto ${it.productoId}`, 400);
+        reqByProd.set(
+          it.productoId,
+          round4((reqByProd.get(it.productoId) ?? 0) + round4(it.cantidad))
+        );
+      }
+
+      const stockMap = new Map(productos.map(p => [p.id, round4(p.stock)]));
+      for (const [pid, neededRaw] of reqByProd.entries()) {
+        const needed = round4(neededRaw);
+        const stock = stockMap.get(pid) ?? 0;
+        console.log(`  Producto ${pid}: stock=${stock}, necesario=${needed}`);
+        if (needed - stock > EPS) {
+          console.error(`❌ Stock insuficiente para producto ${pid} (stock=${stock}, requerido=${needed})`);
+          return errorResponse(`Stock insuficiente para producto ${pid}`, 400);
         }
       }
-      console.log('✅ Stock suficiente para todos los productos');
+      console.log('✅ Stock suficiente para todos los productos (prevalidación)');
 
       // Totales (IGV 18% si el producto tieneIGV)
       let subtotal = 0;
@@ -193,8 +204,14 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, cont
         for (const it of items) {
           const prod = await tx.producto.findUnique({ where: { id: it.productoId } });
           if (!prod) throw new Error('Producto no encontrado durante la transacción');
-          const antes = prod.stock;
-          const despues = Number((antes - it.cantidad).toFixed(4));
+          const antes = round4(prod.stock);
+          const qty = round4(it.cantidad);
+          const despues = round4(antes - qty);
+
+          // Rechequeo defensivo dentro de la transacción
+          if (despues < -EPS) {
+            throw new Error(`Stock insuficiente para producto ${it.productoId}`);
+          }
 
           await tx.producto.update({ where: { id: it.productoId }, data: { stock: despues } });
           console.log(`✅ Stock actualizado para ${it.productoId}: ${antes} → ${despues}`);
@@ -203,7 +220,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, cont
             data: {
               productoId: it.productoId,
               tipo: 'SALIDA',
-              cantidad: it.cantidad,
+              cantidad: qty,
               cantidadAnterior: antes,
               cantidadNueva: despues,
               precio: it.precio,

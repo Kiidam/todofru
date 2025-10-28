@@ -617,9 +617,9 @@ export default function MovimientosVentasPage() {
       
       if (!res.ok || !json?.success) {
         const msg = json?.error || json?.message || `Error ${res.status}`;
-        setSubmitError(msg);
-        alert(`No se pudo registrar la venta: ${msg}`);
-        console.error('❌ Error al registrar venta:', msg);
+  setSubmitError(`No se pudo registrar la venta: ${msg}`);
+  // Mantenemos log para diagnóstico pero sin alert bloqueante
+  console.error('❌ Error al registrar venta:', msg);
         return;
       }
       

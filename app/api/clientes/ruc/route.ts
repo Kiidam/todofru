@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '../../../../src/lib/logger';
 import { fetchReniecByDni, fetchSunatByRuc, DecolectaError } from '../../../../src/lib/decolecta';
+import { prisma } from '../../../../src/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,6 +135,40 @@ export async function GET(request: NextRequest) {
   logger.info(`[API /clientes/ruc] Consultando ${tipoDocumento}`, { numeroDocumento });
 
   try {
+    // 1) Intentar resolver desde la base de datos primero (evita llamadas externas innecesarias)
+    const existente = await prisma.cliente.findFirst({
+      where: {
+        activo: true,
+        OR: [
+          { numeroIdentificacion: numeroDocumento },
+          { ruc: numeroDocumento }, // compatibilidad con esquema legado
+        ],
+      },
+    });
+
+    if (existente) {
+      const esPersonaNatural = existente.tipoEntidad === 'PERSONA_NATURAL' || (numeroDocumento.length === 8);
+      const data = {
+        numeroIdentificacion: numeroDocumento,
+        tipoDocumento,
+        tipoEntidad: esPersonaNatural ? 'PERSONA_NATURAL' : 'PERSONA_JURIDICA',
+        razonSocial: esPersonaNatural
+          ? `${(existente.nombres || '').trim()} ${(existente.apellidos || '').trim()}`.trim().replace(/\s+/g, ' ')
+          : (existente.razonSocial || existente.nombre || '').trim(),
+        nombres: existente.nombres || undefined,
+        apellidos: existente.apellidos || undefined,
+        direccion: existente.direccion || undefined,
+        esPersonaNatural,
+        estado: 'ACTIVO',
+        condicion: 'HABIDO',
+        esActivo: true,
+        origen: 'DB',
+      } as Record<string, unknown>;
+
+      logger.info('[API /clientes/ruc] Resuelto desde BD local', { numeroDocumento, id: existente.id });
+      return NextResponse.json({ success: true, data });
+    }
+
     // Consultar según el tipo de documento
     if (isDni) {
       // Consulta a RENIEC

@@ -350,8 +350,15 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
   setSubmitError('');
 
     try {
+      // Construir payload conforme al esquema del API (tipoEntidad + nombre requerido)
+      const tipoEntidad = formData.tipoIdentificacion === 'DNI' ? 'PERSONA_NATURAL' : 'PERSONA_JURIDICA';
+      const nombre = formData.tipoIdentificacion === 'DNI'
+        ? `${formData.nombres} ${formData.apellidos}`.trim()
+        : formData.razonSocial;
+
       const payload = {
-        tipoIdentificacion: formData.tipoIdentificacion,
+        tipoEntidad,
+        nombre,
         numeroIdentificacion: formData.numeroIdentificacion,
         direccion: formData.direccion,
         telefono: formData.telefono || undefined,

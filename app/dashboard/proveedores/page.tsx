@@ -188,13 +188,15 @@ export default function ProveedoresPage() {
           const list = j?.data?.data || j?.data || j?.productos || j || [];
           const count = Array.isArray(list) ? list.length : (typeof list === 'number' ? list : Number(j?.count ?? j?.total ?? 0) || 0);
 
+          const doc = typeof sup['numeroIdentificacion'] === 'string' ? String(sup['numeroIdentificacion']) : '';
+          const computedTipo = doc.length === 8 ? 'DNI' : (doc.length === 11 ? 'RUC' : undefined);
           const supplierObj: Supplier = {
             id: id,
             razonSocial: typeof sup['razonSocial'] === 'string' ? String(sup['razonSocial']) : undefined,
             nombres: typeof sup['nombres'] === 'string' ? String(sup['nombres']) : undefined,
             apellidos: typeof sup['apellidos'] === 'string' ? String(sup['apellidos']) : undefined,
-            numeroIdentificacion: typeof sup['numeroIdentificacion'] === 'string' ? String(sup['numeroIdentificacion']) : undefined,
-            tipoIdentificacion: (sup['tipoIdentificacion'] === 'DNI' || sup['tipoIdentificacion'] === 'RUC') ? (sup['tipoIdentificacion'] as 'DNI' | 'RUC') : undefined,
+            numeroIdentificacion: doc || undefined,
+            tipoIdentificacion: (sup['tipoIdentificacion'] === 'DNI' || sup['tipoIdentificacion'] === 'RUC') ? (sup['tipoIdentificacion'] as 'DNI' | 'RUC') : computedTipo,
             telefono: typeof sup['telefono'] === 'string' ? String(sup['telefono']) : undefined,
             email: typeof sup['email'] === 'string' ? String(sup['email']) : undefined,
             direccion: typeof sup['direccion'] === 'string' ? String(sup['direccion']) : undefined,

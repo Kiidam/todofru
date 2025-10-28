@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '../../../../src/lib/logger';
+import { prisma } from '../../../../src/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 interface RucData {
@@ -34,6 +35,53 @@ export async function GET(request: NextRequest) {
     }
 
     const base = process.env.DECOLECTA_BASE_URL || 'https://api.decolecta.com/v1';
+
+    // 1) Intentar resolver desde la BD local primero (mejor performance y evita llamadas externas innecesarias)
+    try {
+      const existing = await prisma.proveedor.findFirst({
+        where: {
+          OR: [
+            { numeroIdentificacion: ruc },
+            { ruc: ruc }
+          ],
+          activo: true,
+        },
+        select: {
+          id: true,
+          tipoEntidad: true,
+          numeroIdentificacion: true,
+          nombres: true,
+          apellidos: true,
+          razonSocial: true,
+          direccion: true,
+        },
+      });
+
+      if (existing) {
+        const esPN = existing.tipoEntidad === 'PERSONA_NATURAL';
+        const responseData: RucData = {
+          ruc,
+          razonSocial: esPN ? `${existing.nombres ?? ''} ${existing.apellidos ?? ''}`.trim() : (existing.razonSocial ?? ''),
+          direccion: existing.direccion ?? '',
+          tipoContribuyente: esPN ? 'Persona Natural (BD)' : 'Persona Jurídica (BD)',
+          esPersonaNatural: esPN,
+          // estados por defecto si provienen de BD
+          estado: 'Activo',
+          condicion: 'Habido',
+          esActivo: true,
+        };
+
+        if (esPN) {
+          responseData.nombres = existing.nombres ?? '';
+          responseData.apellidos = existing.apellidos ?? '';
+        }
+
+        return NextResponse.json({ success: true, data: responseData, raw: { source: 'db' } });
+      }
+    } catch (dbErr) {
+      // No bloquear por error de BD; continuar con flujo normal
+      logger.warn('Fallo lookup en BD para DNI/RUC, continuando con Decolecta', { error: dbErr });
+    }
 
     let url = '';
     let raw: Record<string, unknown> = {};

@@ -29,12 +29,10 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, conte
   }
 
   try {
-    const movimiento = await prisma.movimientoInventario.findUnique({
+    const movimiento = await prisma.movimientoInventario.findFirst({
       where: { 
-        productoId_createdAt: {
-          productoId,
-          createdAt: new Date(createdAt)
-        }
+        productoId,
+        createdAt: new Date(createdAt)
       },
       include: {
         producto: {
@@ -176,12 +174,10 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, conte
     const validatedData = movimientoUpdateSchema.parse(body);
 
     // Verificar que el movimiento existe
-    const movimientoExistente = await prisma.movimientoInventario.findUnique({
+  const movimientoExistente = await prisma.movimientoInventario.findFirst({
       where: { 
-        productoId_createdAt: {
-          productoId,
-          createdAt: new Date(createdAt)
-        }
+        productoId,
+        createdAt: new Date(createdAt)
       },
       select: {
         tipo: true,
@@ -214,15 +210,18 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, conte
     }
 
     // Actualizar solo los campos permitidos
-    const movimientoActualizado = await prisma.movimientoInventario.update({
+    await prisma.movimientoInventario.updateMany({
       where: { 
-        productoId_createdAt: {
-          productoId,
-          createdAt: new Date(createdAt)
-        }
+        productoId,
+        createdAt: new Date(createdAt)
       },
-      data: {
-        ...validatedData
+      data: { ...validatedData }
+    });
+
+    const movimientoActualizado = await prisma.movimientoInventario.findFirst({
+      where: { 
+        productoId,
+        createdAt: new Date(createdAt)
       },
       include: {
         producto: {
@@ -232,9 +231,7 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, conte
             unidadMedida: { select: { simbolo: true } }
           }
         },
-        usuario: {
-          select: { name: true }
-        }
+        usuario: { select: { name: true } }
       }
     });
 
@@ -307,21 +304,10 @@ export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, co
     }
 
     // Verificar que el movimiento existe
-    const movimiento = await prisma.movimientoInventario.findUnique({
+    const movimiento = await prisma.movimientoInventario.findFirst({
       where: { 
-        productoId_createdAt: {
-          productoId,
-          createdAt: new Date(createdAt)
-        }
-      },
-      include: {
-        producto: {
-          select: {
-            id: true,
-            nombre: true,
-            stock: true
-          }
-        }
+        productoId,
+        createdAt: new Date(createdAt)
       }
     });
 
@@ -341,8 +327,13 @@ export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, co
     }
 
     // Ejecutar transacción para eliminar movimiento y revertir stock
-    const result = await safeTransaction(async (tx) => {
-      const stockActual = movimiento.producto.stock;
+  const result = await safeTransaction(async (tx) => {
+      // Obtener datos del producto en la transacción para asegurar consistencia
+      const producto = await tx.producto.findUnique({
+        where: { id: movimiento.productoId },
+        select: { stock: true, nombre: true }
+      });
+      const stockActual = producto?.stock ?? 0;
       let stockRevertido: number;
 
       // Calcular stock revertido según el tipo de movimiento
@@ -366,12 +357,10 @@ export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, co
       }
 
       // Eliminar el movimiento
-      await tx.movimientoInventario.delete({
+      await tx.movimientoInventario.deleteMany({
         where: { 
-          productoId_createdAt: {
-            productoId,
-            createdAt: new Date(createdAt)
-          }
+          productoId,
+          createdAt: new Date(createdAt)
         }
       });
 
@@ -384,7 +373,8 @@ export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, co
       return {
         stockAnterior: stockActual,
         stockRevertido,
-        movimientoEliminado: movimiento
+        movimientoEliminado: movimiento,
+        productoNombre: producto?.nombre || ''
       };
     });
 
@@ -399,7 +389,7 @@ export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, co
     }
 
     // Ejecutar sincronización después de eliminar el movimiento
-    const syncResult = await syncAfterMovementDelete(movimiento.productoId);
+  const syncResult = await syncAfterMovementDelete(movimiento.productoId);
     
     if (!syncResult.success) {
       logger.warn('Sincronización fallida después de eliminar movimiento', {
@@ -427,7 +417,7 @@ export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, co
         createdAt: movimiento.createdAt,
         tipo: movimiento.tipo,
         cantidad: movimiento.cantidad,
-        producto: movimiento.producto.nombre
+        producto: result.data.productoNombre
       },
       stockInfo: {
         anterior: result.data.stockAnterior,

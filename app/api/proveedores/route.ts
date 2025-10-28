@@ -232,22 +232,36 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, cont
 
   const data = validation.data;
 
-  // Verificar unicidad de RUC si es persona jurídica
-  if (data.tipoEntidad === 'PERSONA_JURIDICA' && data.numeroIdentificacion) {
-    const existingRuc = await prisma.proveedor.findFirst({
-      where: { numeroIdentificacion: data.numeroIdentificacion }
+  // Normalizar nombre según tipoEntidad (servidor como fuente de verdad)
+  const nombre = data.tipoEntidad === 'PERSONA_NATURAL'
+    ? `${data.nombres ?? ''} ${data.apellidos ?? ''}`.trim()
+    : (data.razonSocial ?? data.nombre);
+
+  // Verificar unicidad de numeroIdentificacion/DNI/RUC
+  if (data.numeroIdentificacion) {
+    const existing = await prisma.proveedor.findFirst({
+      where: {
+        OR: [
+          { numeroIdentificacion: data.numeroIdentificacion },
+          // compatibilidad con campo legacy ruc
+          { ruc: data.numeroIdentificacion }
+        ],
+        activo: true
+      },
+      select: { id: true }
     });
-    if (existingRuc) {
-      return errorResponse('El RUC ya está registrado para otro proveedor', 409);
+    if (existing) {
+      const tipoDoc = data.tipoEntidad === 'PERSONA_JURIDICA' ? 'RUC' : 'DNI';
+      return errorResponse(`El ${tipoDoc} ya está registrado para otro proveedor`, 409);
     }
   }
 
   try {
-    const created = await prisma.proveedor.create({
+  const created = await prisma.proveedor.create({
       data: {
         id: crypto.randomUUID(),
         tipoEntidad: data.tipoEntidad,
-        nombre: data.nombre,
+    nombre: nombre ?? data.nombre,
         numeroIdentificacion: data.numeroIdentificacion,
         telefono: data.telefono,
         email: data.email,
@@ -259,7 +273,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, cont
         razonSocial: data.razonSocial,
         representanteLegal: data.representanteLegal,
         // Compatibilidad
-        ruc: data.ruc,
+    ruc: data.tipoEntidad === 'PERSONA_JURIDICA' ? (data.numeroIdentificacion || data.ruc) : null,
       }
     });
 
