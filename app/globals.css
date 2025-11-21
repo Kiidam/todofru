@@ -49,9 +49,18 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
+/* Avoid horizontal gaps due to overflowing content */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 /* Mejora de contraste para placeholders en todos los inputs */
 input::placeholder,
 textarea::placeholder {
   color: #8a8a8a !important;
   opacity: 1;
+}
+.dashboard-header-right { 
+    flex-shrink: 1 !important; /* ¡Causa el encogimiento y el corte! */
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import dynamic from 'next/dynamic';
 // Filtros personalizados locales para ventas
 import { Eye, Printer, Edit2 } from 'lucide-react';
@@ -75,7 +76,7 @@ function formatDateLocal(date: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-// Reglas de validaciÃ³n para cantidades
+// Reglas de validación para cantidades
 const MIN_QTY = 1;
 const MAX_QTY = 10000;
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
@@ -91,7 +92,7 @@ export default function MovimientosVentasPage() {
     estado: 'all',
   });
 
-  // Ventas con mÃºltiples productos (mock inicial + registros locales)
+  // Ventas con múltiples productos (mock inicial + registros locales)
   const [sales, setSales] = useState<Sale[]>([]);
 
   // Selectores
@@ -100,6 +101,7 @@ export default function MovimientosVentasPage() {
   const [loadingProductos, setLoadingProductos] = useState(false);
   const [loadingClientes, setLoadingClientes] = useState(false);
   const [loadingVentas, setLoadingVentas] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Formulario principal (atributos de la venta)
   const [form, setForm] = useState({
@@ -108,12 +110,12 @@ export default function MovimientosVentasPage() {
     clienteId: '',
   });
 
-  // Entrada de Ã­tem actual (solo seleccion de producto)
+  // Entrada de ítem actual (solo selección de producto)
   const [entry, setEntry] = useState({
     productoId: '',
   });
 
-  // Ãtems agregados a la venta actual
+  // Ítems agregados a la venta actual
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
 
   // Estado del modal y fechas del pedido (debe inicializarse antes de su uso)
@@ -140,7 +142,7 @@ export default function MovimientosVentasPage() {
   const [editing, setEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  // Eliminado: total del Ã­tem anterior, ahora se calcula sobre saleItems
+  // Eliminado: total del ítem anterior, ahora se calcula sobre saleItems
 
   const saleTotal = useMemo(() => {
     return saleItems.reduce((sum, it) => sum + it.cantidad * it.precio, 0);
@@ -150,7 +152,7 @@ export default function MovimientosVentasPage() {
     const fetchProductos = async () => {
       try {
         setLoadingProductos(true);
-        console.log('🔍 Cargando productos desde /api/productos...');
+  console.log('🔍 Cargando productos desde /api/productos...');
         const res = await fetch('/api/productos?limit=1000', { cache: 'no-store' });
         console.log('📡 Respuesta de productos:', res.status, res.ok);
         if (res.ok) {
@@ -179,9 +181,11 @@ export default function MovimientosVentasPage() {
           setProductos(opts);
         } else {
           console.error('❌ Error al cargar productos:', res.status);
+          toast.error('No se pudieron cargar los productos');
         }
       } catch (error) {
         console.error('❌ Error en fetchProductos:', error);
+        toast.error('Error al cargar productos');
       } finally {
         setLoadingProductos(false);
       }
@@ -190,7 +194,7 @@ export default function MovimientosVentasPage() {
     const fetchClientes = async () => {
       try {
         setLoadingClientes(true);
-        console.log('🔍 Cargando clientes desde /api/clientes...');
+  console.log('🔍 Cargando clientes desde /api/clientes...');
         const res = await fetch('/api/clientes?limit=1000', { cache: 'no-store' });
         console.log('📡 Respuesta de clientes:', res.status, res.ok);
         if (res.ok) {
@@ -222,9 +226,11 @@ export default function MovimientosVentasPage() {
           setClientes(opts);
         } else {
           console.error('❌ Error al cargar clientes:', res.status);
+          toast.error('No se pudieron cargar los clientes');
         }
       } catch (error) {
         console.error('❌ Error en fetchClientes:', error);
+        toast.error('Error al cargar clientes');
       } finally {
         setLoadingClientes(false);
       }
@@ -233,7 +239,7 @@ export default function MovimientosVentasPage() {
     const fetchVentas = async () => {
       try {
         setLoadingVentas(true);
-        console.log('🔍 Cargando ventas desde /api/pedidos-venta...');
+  console.log('🔍 Cargando ventas desde /api/pedidos-venta...');
         const res = await fetch('/api/pedidos-venta?limit=100', { cache: 'no-store' });
         console.log('📡 Respuesta de ventas:', res.status, res.ok);
         if (res.ok) {
@@ -266,9 +272,11 @@ export default function MovimientosVentasPage() {
           setSales(ventas);
         } else {
           console.error('❌ Error al cargar ventas:', res.status);
+          toast.error('No se pudieron cargar las ventas');
         }
       } catch (error) {
         console.error('❌ Error en fetchVentas:', error);
+        toast.error('Error al cargar ventas');
       } finally {
         setLoadingVentas(false);
       }
@@ -436,6 +444,18 @@ export default function MovimientosVentasPage() {
 
     return rs;
   }, [rows, filters]);
+
+  const totalPages = useMemo(() => {
+    const size = Math.max(1, Number(filters.pageSize || 10));
+    return Math.max(1, Math.ceil(filtered.length / size));
+  }, [filtered.length, filters.pageSize]);
+
+  const paged = useMemo(() => {
+    const size = Math.max(1, Number(filters.pageSize || 10));
+    const page = Math.max(1, Math.min(currentPage, Math.ceil(filtered.length / size) || 1));
+    const start = (page - 1) * size;
+    return filtered.slice(start, start + size);
+  }, [filtered, currentPage, filters.pageSize]);
 
   // Modal de detalle
   const [detailOpen, setDetailOpen] = useState(false);
@@ -664,7 +684,7 @@ export default function MovimientosVentasPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+  <div className="p-6 space-y-6 overflow-x-hidden">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Movimientos - Ventas</h1>
         <p className="text-gray-600">Salidas de inventario derivadas de ventas</p>
@@ -702,7 +722,7 @@ export default function MovimientosVentasPage() {
               <input
                 type="text"
                 placeholder="Buscar ventas"
-                aria-label="Buscar ventas por nÃºmero, cliente o motivo"
+                aria-label="Buscar ventas por número, cliente o motivo"
                 value={filters.searchTerm}
                 onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 w-full"
@@ -753,7 +773,7 @@ export default function MovimientosVentasPage() {
 
             {/* TamaÃ±o de pÃ¡gina */}
             <div className="flex items-center space-x-2">
-              <label htmlFor="page-size" className="text-sm text-gray-600">Por pÃ¡gina</label>
+              <label htmlFor="page-size" className="text-sm text-gray-600">Por página</label>
               <select
                 id="page-size"
                 value={filters.pageSize}
@@ -767,16 +787,16 @@ export default function MovimientosVentasPage() {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="w-full overflow-x-auto">
+          <table className="min-w-max w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NÂ° Pedido</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Pedido</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha de pedido</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha de entrega</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total de la venta</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total de la venta</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
@@ -825,8 +845,8 @@ export default function MovimientosVentasPage() {
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{numero}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{s.clienteNombre}</td>
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(s.fecha).toLocaleDateString()}</td>
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{s.fechaEntrega ? new Date(s.fechaEntrega).toLocaleDateString() : '-'}</td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(s.fecha).toLocaleDateString('es-PE')}</td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{s.fechaEntrega ? new Date(s.fechaEntrega).toLocaleDateString('es-PE') : '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           s.estado === 'ENTREGADO' ? 'bg-green-100 text-green-800' :
@@ -838,7 +858,7 @@ export default function MovimientosVentasPage() {
                           {s.estado ?? 'PENDIENTE'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right tabular-nums">
                         {new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(total)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -875,6 +895,28 @@ export default function MovimientosVentasPage() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="px-4 py-3 flex items-center justify-between border-t bg-gray-50">
+          <div className="text-sm text-gray-600">Mostrando {paged.length} de {filtered.length}</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="px-3 py-1 rounded border text-gray-700 disabled:opacity-50"
+            >
+              Anterior
+            </button>
+            <span className="text-sm text-gray-700">{currentPage} / {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="px-3 py-1 rounded border text-gray-700 disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+          </div>
         </div>
       </div>
 

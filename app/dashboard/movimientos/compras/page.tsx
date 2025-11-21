@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Eye, Printer, Edit2, CheckCircle } from 'lucide-react';
-import Filters, { MovimientosFiltersState } from '../../../../src/components/dashboard/movimientos/Filters';
+import { MovimientosFiltersState } from '../../../../src/components/dashboard/movimientos/Filters';
 import { useAuth } from '../../../../src/hooks/useAuth';
 
 const Modal = dynamic(() => import('../../../../src/components/ui/Modal'), { ssr: false });
@@ -160,6 +160,7 @@ export default function MovimientosComprasPage() {
   // Estado del modal
   const [registerOpen, setRegisterOpen] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [successData, setSuccessData] = useState<{ numero: string; total: number } | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
@@ -457,6 +458,18 @@ export default function MovimientosComprasPage() {
     
     return rs;
   }, [purchases, filters]);
+
+  const totalPages = useMemo(() => {
+    const size = Math.max(1, Number(filters.pageSize || 10));
+    return Math.max(1, Math.ceil(filteredPurchases.length / size));
+  }, [filteredPurchases.length, filters.pageSize]);
+
+  const pagedPurchases = useMemo(() => {
+    const size = Math.max(1, Number(filters.pageSize || 10));
+    const page = Math.max(1, Math.min(currentPage, Math.ceil(filteredPurchases.length / size) || 1));
+    const start = (page - 1) * size;
+    return filteredPurchases.slice(start, start + size);
+  }, [filteredPurchases, currentPage, filters.pageSize]);
 
   // Auto-agregar item al seleccionar producto
   const autoAddFromSelection = (prod: ProductoOption) => {
@@ -791,17 +804,78 @@ export default function MovimientosComprasPage() {
       {/* Lista y filtros (atributos solicitados) */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-4 border-b border-gray-200 bg-gray-50">
-          <Filters state={filters} onChange={(next) => setFilters(prev => ({ ...prev, ...next }))} />
+          <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-3 md:space-y-0">
+            <div className="relative w-full md:max-w-sm">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                <svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path fillRule="evenodd" d="M12.9 14.32a8 8 0 111.414-1.414l4.387 4.387a1 1 0 01-1.414 1.414l-4.387-4.387zM14 8a6 6 0 11-12 0 6 6 0 0112 0z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <input
+                type="text"
+                placeholder="Buscar compras"
+                aria-label="Buscar compras por número, proveedor o producto"
+                value={filters.searchTerm}
+                onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 w-full"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-600">Desde</label>
+              <input
+                type="date"
+                value={filters.fechaDesde}
+                onChange={(e) => { setFilters(prev => ({ ...prev, fechaDesde: e.target.value })); setCurrentPage(1); }}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-600">Hasta</label>
+              <input
+                type="date"
+                value={filters.fechaHasta}
+                onChange={(e) => { setFilters(prev => ({ ...prev, fechaHasta: e.target.value })); setCurrentPage(1); }}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-600">Por página</label>
+              <select
+                value={filters.pageSize}
+                onChange={(e) => { setFilters(prev => ({ ...prev, pageSize: parseInt(e.target.value, 10) })); setCurrentPage(1); }}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-600">Proveedor</label>
+              <select
+                value={form.proveedorId}
+                onChange={(e) => setForm({ ...form, proveedorId: e.target.value })}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="">Todos</option>
+                {proveedores.map(p => (<option key={p.id} value={p.id}>{p.nombre}</option>))}
+              </select>
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-max w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Compra</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proveedor</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha de compra</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total de la compra</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Compra</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proveedor</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha de compra</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total de la compra</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -815,13 +889,13 @@ export default function MovimientosComprasPage() {
                     {purchases.length === 0 ? 'Sin compras registradas' : 'No se encontraron compras con los filtros aplicados'}
                   </td>
                 </tr>
-              ) : filteredPurchases.map((c) => (
+              ) : pagedPurchases.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-sm text-gray-900">{c.numero}</td>
-                  <td className="px-4 py-2 text-sm text-gray-900">{c.proveedorNombre}</td>
-                  <td className="px-4 py-2 text-sm text-gray-900">{new Date(c.fecha).toLocaleDateString()}</td>
-                  <td className="px-4 py-2 text-sm text-gray-900">{new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(c.total)}</td>
-                  <td className="px-4 py-2 text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{c.numero}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{c.proveedorNombre}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(c.fecha).toLocaleDateString('es-PE')}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right tabular-nums">{new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(c.total)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     <div className="flex items-center gap-3">
                       <button type="button" title="Ver detalles" onClick={() => viewPurchase(c)} className="text-green-600 hover:text-green-800 transition-colors">
                         <Eye className="h-5 w-5" />
@@ -838,6 +912,29 @@ export default function MovimientosComprasPage() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="px-4 py-3 flex items-center justify-between border-t bg-gray-50">
+          <div className="text-sm text-gray-600">Mostrando {pagedPurchases.length} de {filteredPurchases.length}</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="px-3 py-1 rounded border text-gray-700 disabled:opacity-50"
+            >
+              Anterior
+            </button>
+            <span className="text-sm text-gray-700">{currentPage} / {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="px-3 py-1 rounded border text-gray-700 disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+          </div>
         </div>
       </div>
 

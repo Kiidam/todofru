@@ -89,8 +89,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   Administrador de Productos
                 </h1>
               </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-600">Bienvenido, {session?.user?.name || session?.user?.email || 'Admin'}</span>
+              <div className="flex items-center space-x-4 dashboard-header-right">
+                <span className="text-sm text-gray-600 dashboard-header-welcome whitespace-nowrap">Bienvenido, {session?.user?.name || session?.user?.email || 'Admin'}</span>
                 <button
                   onClick={handleLogout}
                   className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm transition-colors"
