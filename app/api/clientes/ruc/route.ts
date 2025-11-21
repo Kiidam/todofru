@@ -4,8 +4,9 @@
  * Soporta tanto personas naturales (DNI 8 dígitos) como jurídicas (RUC 11 dígitos)
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { logger } from '../../../../src/lib/logger';
-import { fetchReniecByDni, fetchSunatByRuc, DecolectaError } from '../../../../src/lib/decolecta';
+import { logger } from '../../../../src/lib/logger'
+import { fetchReniecByDni, fetchSunatByRuc, DecolectaError } from '../../../../src/lib/decolecta'
+import { ValidacionesService } from '../../../../src/services/validaciones'
 import { prisma } from '../../../../src/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -113,26 +114,43 @@ function normalizeRucResponse(raw: unknown): Record<string, unknown> {
  * Consulta RUC (11 dígitos) o DNI (8 dígitos)
  */
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const numeroDocumento = (searchParams.get('ruc') || searchParams.get('numero') || '').trim();
+  const { searchParams } = new URL(request.url)
+  const rawNumero = (searchParams.get('ruc') || searchParams.get('numero') || '').trim()
+  const numeroDocumento = rawNumero.replace(/[^0-9]/g, '')
 
-  // Validar formato del número de documento
-  if (!numeroDocumento || !/^\d{8}$|^\d{11}$/.test(numeroDocumento)) {
-    logger.warn('[API /clientes/ruc] Número de documento inválido', { numeroDocumento });
+  if (!numeroDocumento) {
+    logger.warn('[API /clientes/ruc] Número de documento vacío', { rawNumero })
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Número de documento inválido. Debe ser DNI (8 dígitos) o RUC (11 dígitos).' 
-      },
+      { success: false, error: 'Número de documento es requerido' },
       { status: 400 }
-    );
+    )
   }
 
-  const isDni = numeroDocumento.length === 8;
-  const tipoDocumento = isDni ? 'DNI' : 'RUC';
-  const isDev = process.env.NODE_ENV !== 'production';
+  const isDni = numeroDocumento.length === 8
+  const tipoDocumento = isDni ? 'DNI' : 'RUC'
+  const isDev = process.env.NODE_ENV !== 'production'
 
-  logger.info(`[API /clientes/ruc] Consultando ${tipoDocumento}`, { numeroDocumento });
+  if (!/^\d{8}$|^\d{11}$/.test(numeroDocumento)) {
+    logger.warn('[API /clientes/ruc] Formato inválido', { numeroDocumento, tipoDocumentoDetectado: tipoDocumento })
+    return NextResponse.json(
+      { success: false, error: 'Número de documento inválido. Debe ser DNI (8 dígitos) o RUC (11 dígitos).' },
+      { status: 400 }
+    )
+  }
+
+  const validacion = isDni
+    ? ValidacionesService.validarDNI(numeroDocumento)
+    : ValidacionesService.validarRUC(numeroDocumento)
+
+  if (!validacion.valido) {
+    logger.warn('[API /clientes/ruc] Validación de documento fallida', { numeroDocumento, tipoDocumento, mensaje: validacion.mensaje })
+    return NextResponse.json(
+      { success: false, error: validacion.mensaje || `Documento ${tipoDocumento} inválido` },
+      { status: 400 }
+    )
+  }
+
+  logger.info(`[API /clientes/ruc] Consultando ${tipoDocumento}`, { numeroDocumento, rawNumero })
 
   try {
     // 1) Intentar resolver desde la base de datos primero (evita llamadas externas innecesarias)
@@ -172,7 +190,7 @@ export async function GET(request: NextRequest) {
     // Consultar según el tipo de documento
     if (isDni) {
       // Consulta a RENIEC
-      const rawData = await fetchReniecByDni(numeroDocumento);
+      const rawData = await fetchReniecByDni(numeroDocumento)
       const normalizedData = normalizeDniResponse(rawData);
       
       logger.info('[API /clientes/ruc] Consulta DNI exitosa', { numeroDocumento });
@@ -184,7 +202,7 @@ export async function GET(request: NextRequest) {
       });
     } else {
       // Consulta a SUNAT
-      const rawData = await fetchSunatByRuc(numeroDocumento);
+      const rawData = await fetchSunatByRuc(numeroDocumento)
       const normalizedData = normalizeRucResponse(rawData);
       
       logger.info('[API /clientes/ruc] Consulta RUC exitosa', { numeroDocumento });
@@ -250,13 +268,14 @@ export async function GET(request: NextRequest) {
         });
       }
 
+      const status = err.status === 401 || err.status === 403 ? 502 : err.status
+      const mensaje = err.status === 401 || err.status === 403
+        ? 'Servicio externo no autorizado. Verifique el token de Decolecta.'
+        : err.message
       return NextResponse.json(
-        { 
-          success: false, 
-          error: err.message 
-        },
-        { status: err.status }
-      );
+        { success: false, error: mensaje },
+        { status }
+      )
     }
 
     // Error genérico no esperado

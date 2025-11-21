@@ -25,6 +25,21 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "install-pdfkit",
+			"type": "shell",
+			"command": "npm install pdfkit @types/pdfkit --save",
+			"problemMatcher": []
+		},
+		{
+			"label": "npm:install-pdfkit",
+			"type": "shell",
+			"command": "npm install pdfkit @types/pdfkit --save",
+			"problemMatcher": [
+				"$eslint-stylish"
+			],
+			"group": "build"
 		}
 	]
 }

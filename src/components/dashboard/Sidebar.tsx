@@ -58,6 +58,8 @@ function SidebarComponent() {
     
     // Módulo de Inventario
     { href: '/dashboard/inventario', label: 'Inventario', icon: <Warehouse size={20} /> },
+  // Reportes
+  { href: '/dashboard/reportes', label: 'Reportes', icon: <FileText size={20} /> },
     // Módulo de Cuentas (oculto temporalmente por refactor)
     
     // Módulos existentes
