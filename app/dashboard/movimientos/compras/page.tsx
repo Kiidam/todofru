@@ -308,17 +308,10 @@ export default function MovimientosComprasPage() {
 
           setProductos(opts);
         } else {
-          // Mock mínimo si no hay API
-          setProductos([
-            { id: 'p1', nombre: 'Manzana Fuji', sku: 'MAN-001', unidadMedida: { simbolo: 'kg' } },
-            { id: 'p2', nombre: 'Naranja Valencia', sku: 'NAR-001', unidadMedida: { simbolo: 'kg' } },
-          ]);
+          setProductos([]);
         }
       } catch {
-        setProductos([
-          { id: 'p1', nombre: 'Manzana Fuji', sku: 'MAN-001', unidadMedida: { simbolo: 'kg' } },
-          { id: 'p2', nombre: 'Naranja Valencia', sku: 'NAR-001', unidadMedida: { simbolo: 'kg' } },
-        ]);
+        setProductos([]);
       } finally {
         setLoadingProductos(false);
       }

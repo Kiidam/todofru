@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     let esPersonaNatural = false;
 
     // Determinar si usar mock: en desarrollo sin token o cuando se fuerza
-    const shouldUseMock = !token || forceMock;
+    const shouldUseMock = false;
 
     // Fallback de desarrollo cuando no hay token, se fuerza mock=1, o cuando la API externa falla
     if (shouldUseMock) {
@@ -153,11 +153,7 @@ export async function GET(request: NextRequest) {
         mockData.apellidos = 'Pérez Gómez';
       }
       
-      return NextResponse.json({
-        success: true,
-        data: mockData,
-        raw: { mock: true, source: 'dev-fallback' }
-      });
+      return NextResponse.json({ success: false, error: 'Integración externa no disponible' }, { status: 502 });
     }
 
     if (ruc.length === 8) {
@@ -177,35 +173,7 @@ export async function GET(request: NextRequest) {
       if (!resp.ok) {
         const msgUnknown = raw['message'] ?? raw['error'] ?? 'No se pudo consultar el DNI (RENIEC)';
         const msg = String(msgUnknown);
-        
-        // En desarrollo, usar mock como fallback cuando la API externa falla
-        if (isDev) {
-          logger.info('API RENIEC falló, usando mock como fallback');
-          const mockData = { 
-            ruc, 
-            razonSocial: 'Juan Pérez Gómez', 
-            direccion: 'Av. Prueba 123, Lima', 
-            tipoContribuyente: 'Persona Natural (Mock)', 
-            esPersonaNatural: true,
-            nombres: 'Juan',
-            apellidos: 'Pérez Gómez'
-          };
-          
-          return NextResponse.json({
-            success: true,
-            data: mockData,
-            raw: { mock: true, source: 'reniec-error-fallback' }
-          });
-        }
-        
-        return NextResponse.json(
-          {
-            success: false,
-            error: msg,
-            raw,
-          },
-          { status: resp.status }
-        );
+        return NextResponse.json({ success: false, error: msg, raw }, { status: resp.status });
       }
       const nombres = String(raw['first_name'] ?? raw['nombres'] ?? '');
       const apPat = String(raw['first_last_name'] ?? raw['apellido_paterno'] ?? raw['apellidoPaterno'] ?? '');
@@ -232,39 +200,8 @@ export async function GET(request: NextRequest) {
       if (!resp.ok) {
         const msgUnknown = raw['message'] ?? raw['error'] ?? 'No se pudo consultar el RUC (SUNAT)';
         const msg = String(msgUnknown);
-        const friendly = /microservice/i.test(String(msg))
-          ? 'Servicio RUC de Decolecta no disponible temporalmente'
-          : msg;
-        
-
-        
-        // En desarrollo, usar mock como fallback cuando la API externa falla
-        if (isDev) {
-          logger.info('API SUNAT falló, usando mock como fallback');
-          const mockData = { 
-            ruc, 
-            razonSocial: 'Empresa Demo S.A.', 
-            direccion: 'Calle Falsa 123, Lima', 
-            tipoContribuyente: 'Sociedad Anónima (Mock)', 
-            esPersonaNatural: false,
-            estado: 'Activo',
-            condicion: 'Habido',
-            esActivo: true,
-            fechaInscripcion: '2020-01-15',
-            fechaInicioActividades: '2020-02-01'
-          };
-          
-          return NextResponse.json({
-            success: true,
-            data: mockData,
-            raw: { mock: true, source: 'sunat-error-fallback' }
-          });
-        }
-        
-        return NextResponse.json(
-          { success: false, error: friendly, raw },
-          { status: resp.status }
-        );
+        const friendly = /microservice/i.test(String(msg)) ? 'Servicio RUC de Decolecta no disponible temporalmente' : msg;
+        return NextResponse.json({ success: false, error: friendly, raw }, { status: resp.status });
       }
       razonSocial = String(raw['razon_social'] ?? raw['razonSocial'] ?? raw['nombre'] ?? raw['name'] ?? '');
       direccion = String(raw['direccion'] ?? raw['address'] ?? '');
@@ -339,52 +276,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error('Error en proxy RUC:', { error });
     
-    // En desarrollo, usar mock como fallback cuando la API externa falla
-    const isDev = process.env.NODE_ENV !== 'production';
-    const { searchParams } = new URL(request.url);
-    const ruc = (searchParams.get('ruc') || '').trim();
-    
-    if (isDev && ruc) {
-      logger.info('Usando mock como fallback debido a error en API externa');
-      const mockIsDNI = ruc.length === 8;
-      const mockRazonSocial = mockIsDNI ? 'Juan Pérez Gómez' : 'Empresa Demo S.A.';
-      const mockDireccion = mockIsDNI ? 'Av. Prueba 123, Lima' : 'Calle Falsa 123, Lima';
-      const mockTipoContribuyente = mockIsDNI ? 'Persona Natural (Mock)' : 'Sociedad Anónima (Mock)';
-      const mockEsPersonaNatural = mockIsDNI;
-      
-      const mockData: RucData = { 
-        ruc, 
-        razonSocial: mockRazonSocial, 
-        direccion: mockDireccion, 
-        tipoContribuyente: mockTipoContribuyente, 
-        esPersonaNatural: mockEsPersonaNatural 
-      };
-      
-      // Agregar información adicional para RUC
-      if (!mockIsDNI) {
-        mockData.estado = 'Activo';
-        mockData.condicion = 'Habido';
-        mockData.esActivo = true;
-        mockData.fechaInscripcion = '2020-01-15';
-        mockData.fechaInicioActividades = '2020-02-01';
-      }
-      
-      // Para DNI, agregar nombres separados
-      if (mockIsDNI) {
-        mockData.nombres = 'Juan';
-        mockData.apellidos = 'Pérez Gómez';
-      }
-      
-      return NextResponse.json({
-        success: true,
-        data: mockData,
-        raw: { mock: true, source: 'error-fallback' }
-      });
-    }
-    
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    // No usar datos ficticios: reportar error para permitir entrada manual o corregir integración
+    return NextResponse.json({ success: false, error: 'Error interno del servidor o integración externa no disponible' }, { status: 500 });
   }
 }

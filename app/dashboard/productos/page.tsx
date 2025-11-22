@@ -83,80 +83,20 @@ export default function ProductosPage() {
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [successProduct, setSuccessProduct] = useState<{ nombre: string; sku?: string } | null>(null);
 
-  // Mock data para los selectores
-  // Nota: Mantengo mocks como fallback, pero los selects usarÃ¡n datos de API
-  const mockCategorias = useMemo(() => [
-    { id: '1', nombre: 'Frutas Citricas' },
-    { id: '2', nombre: 'Frutas Tropicales' },
-    { id: '3', nombre: 'Verduras de Hoja' },
-    { id: '4', nombre: 'Verduras de Fruto' },
-    { id: '5', nombre: 'Tuberculos' },
-  ], []);
-
-  const mockTiposArticulo = useMemo(() => [
-    { id: '1', nombre: 'Producto Natural' },
-    { id: '2', nombre: 'Producto Procesado' },
-    { id: '3', nombre: 'Producto Organico' },
-  ], []);
-
-  const mockFamilias = useMemo(() => [
-    { id: '1', nombre: 'Frutas' },
-    { id: '2', nombre: 'Verduras' },
-    { id: '3', nombre: 'Hierbas' },
-  ], []);
-
-  const mockSubfamilias = useMemo(() => [
-    { id: '1', nombre: 'Citricos' },
-    { id: '2', nombre: 'Tropicales' },
-    { id: '3', nombre: 'De Hueso' },
-    { id: '4', nombre: 'De Hoja Verde' },
-    { id: '5', nombre: 'De Raiz' },
-    { id: '6', nombre: 'De Fruto' },
-  ], []);
-
-  const mockUnidades = useMemo(() => [
-    { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-    { id: 'g', nombre: 'Gramos', simbolo: 'g' },
-    { id: 'l', nombre: 'Litros', simbolo: 'l' },
-    { id: 'ml', nombre: 'Mililitros', simbolo: 'ml' },
-    { id: 'un', nombre: 'Unidades', simbolo: 'un' },
-    { id: 'cj', nombre: 'Cajas', simbolo: 'cj' },
-    { id: 'pqt', nombre: 'Paquetes', simbolo: 'pqt' },
-  ], []);
-
-  const mockMarcas = useMemo(() => [
-    { id: '1', nombre: 'TODAFRU Premium' },
-    { id: '2', nombre: 'TODAFRU Organico' },
-    { id: '3', nombre: 'TODAFRU Tradicional' },
-    { id: '4', nombre: 'Sin Marca' },
-  ], []);
-
-  const mockAgrupadores = useMemo(() => [
-    { id: '1', nombre: 'Alta Rotacion' },
-    { id: '2', nombre: 'Estacional' },
-    { id: '3', nombre: 'Premium' },
-    { id: '4', nombre: 'Exportacion' },
-  ], []);
+  // Eliminados: datos mock para selects. Se obtendrán desde APIs reales.
 
   // Datos de API para categorÃ­as y unidades de medida
   const [apiCategorias, setApiCategorias] = useState<Array<{ id: string; nombre: string }>>([]);
   const [apiUnidades, setApiUnidades] = useState<Array<{ id: string; nombre: string; simbolo: string }>>([]);
 
-  const mockRazonesSociales = useMemo(() => [
-    { id: '1', nombre: 'Supermercados Wong S.A.' },
-    { id: '2', nombre: 'Metro S.A.' },
-    { id: '3', nombre: 'Tottus S.A.' },
-    { id: '4', nombre: 'Plaza Vea S.A.' },
-    { id: '5', nombre: 'Restaurantes Centrales S.A.C.' },
-  ], []);
+  // Eliminado: razones sociales de ejemplo.
 
   // Funcion para generar SKU automatico (prioriza datos de API)
   const generateSKU = useCallback((nombre: string, categoriaId: string, familiaId: string) => {
     if (!nombre || !categoriaId) return '';
 
-    const sourceCategorias = apiCategorias.length ? apiCategorias : mockCategorias;
-    const categoria = sourceCategorias.find(c => c.id === categoriaId);
-    const familia = mockFamilias.find(f => f.id === familiaId);
+    const categoria = apiCategorias.find(c => c.id === categoriaId);
+    const familia = undefined; // opcional: obtener de API si existe
 
     const nombreParts = nombre.split(' ').slice(0, 2);
     const nombreCode = nombreParts.map(part => part.substring(0, 3).toUpperCase()).join('-');
@@ -167,7 +107,7 @@ export default function ProductosPage() {
     const timestamp = Date.now().toString().slice(-3);
 
     return `${categoriaCode}-${familiaCode ? familiaCode + '-' : ''}${nombreCode}-${timestamp}`;
-  }, [apiCategorias, mockCategorias, mockFamilias]);
+  }, [apiCategorias]);
 
   const [formData, setFormData] = useState<FormData>({
     nombre: '',
@@ -326,73 +266,8 @@ export default function ProductosPage() {
         if (response.status !== 401) {
           const text = await response.text().catch(() => '');
           console.error('Error HTTP en productos:', response.status, text);
-          setApiError('No se pudo cargar productos. Mostrando datos de ejemplo.');
-          // Fallback inmediato con datos de ejemplo si la API falla
-          const mockProductos: Producto[] = [
-            {
-              id: 'prod-1',
-              nombre: 'Manzana Fuji Premium',
-              sku: 'FRU-MAN-001',
-              descripcion: 'Manzana Fuji de primera calidad',
-              precio: 8.5,
-              stock: 150,
-              stockMinimo: 20,
-              porcentajeMerma: 5,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: '1', nombre: 'Frutas Citricas' },
-              familia: { id: '1', nombre: 'Frutas' },
-              subfamilia: { id: '1', nombre: 'Citricos' },
-              unidadMedida: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              unidadCosteo: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              marca: { id: '1', nombre: 'TODAFRU Premium' },
-              agrupador: { id: '1', nombre: 'Alta Rotacion' },
-              razonSocialProductos: [
-                { razonSocial: { id: '1', nombre: 'Supermercados Wong S.A.' } },
-              ]
-            },
-            {
-              id: 'prod-2',
-              nombre: 'Lechuga Romana',
-              sku: 'VER-LEC-001',
-              descripcion: 'Lechuga fresca lista para consumo',
-              precio: 3.2,
-              stock: 80,
-              stockMinimo: 15,
-              porcentajeMerma: 4,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: '3', nombre: 'Verduras de Hoja' },
-              familia: { id: '2', nombre: 'Verduras' },
-              subfamilia: { id: '4', nombre: 'De Hoja Verde' },
-              unidadMedida: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
-              unidadCosteo: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
-              marca: { id: '4', nombre: 'Sin Marca' },
-              agrupador: { id: '2', nombre: 'Estacional' },
-              razonSocialProductos: []
-            },
-            {
-              id: 'prod-3',
-              nombre: 'Leche Entera 1L',
-              sku: 'LAC-LEC-001',
-              descripcion: 'Leche entera pasteurizada',
-              precio: 4.8,
-              stock: 200,
-              stockMinimo: 30,
-              porcentajeMerma: 2,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: 'cat-lacteos', nombre: 'LÃ¡cteos' },
-              familia: { id: '3', nombre: 'Hierbas' },
-              subfamilia: { id: '6', nombre: 'De Fruto' },
-              unidadMedida: { id: 'l', nombre: 'Litros', simbolo: 'l' },
-              unidadCosteo: { id: 'l', nombre: 'Litros', simbolo: 'l' },
-              marca: { id: '3', nombre: 'TODAFRU Tradicional' },
-              agrupador: { id: '3', nombre: 'Premium' },
-              razonSocialProductos: []
-            }
-          ];
-          setProductos(mockProductos);
+          setApiError('No se pudo cargar productos.');
+          setProductos([]);
         }
         return;
       }
@@ -400,137 +275,15 @@ export default function ProductosPage() {
       
       if (data.success) {
         const apiList: Producto[] = data.data || [];
-        if (apiList.length === 0) {
-          // Sin datos: mostrar ejemplos para ilustrar la vista
-          const mockProductos: Producto[] = [
-            {
-              id: 'prod-1',
-              nombre: 'Manzana Fuji Premium',
-              sku: 'FRU-MAN-001',
-              descripcion: 'Manzana Fuji de primera calidad',
-              precio: 8.5,
-              stock: 150,
-              stockMinimo: 20,
-              porcentajeMerma: 5,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: '1', nombre: 'Frutas Citricas' },
-              familia: { id: '1', nombre: 'Frutas' },
-              subfamilia: { id: '1', nombre: 'Citricos' },
-              unidadMedida: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              unidadCosteo: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              marca: { id: '1', nombre: 'TODAFRU Premium' },
-              agrupador: { id: '1', nombre: 'Alta Rotacion' },
-              razonSocialProductos: []
-            },
-            {
-              id: 'prod-2',
-              nombre: 'Lechuga Romana',
-              sku: 'VER-LEC-001',
-              descripcion: 'Lechuga fresca lista para consumo',
-              precio: 3.2,
-              stock: 80,
-              stockMinimo: 15,
-              porcentajeMerma: 4,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: '3', nombre: 'Verduras de Hoja' },
-              familia: { id: '2', nombre: 'Verduras' },
-              subfamilia: { id: '4', nombre: 'De Hoja Verde' },
-              unidadMedida: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
-              unidadCosteo: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
-              marca: { id: '4', nombre: 'Sin Marca' },
-              agrupador: { id: '2', nombre: 'Estacional' },
-              razonSocialProductos: []
-            },
-            {
-              id: 'prod-3',
-              nombre: 'Leche Entera 1L',
-              sku: 'LAC-LEC-001',
-              descripcion: 'Leche entera pasteurizada',
-              precio: 4.8,
-              stock: 200,
-              stockMinimo: 30,
-              porcentajeMerma: 2,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: 'cat-lacteos', nombre: 'LÃ¡cteos' },
-              familia: { id: '3', nombre: 'Hierbas' },
-              subfamilia: { id: '6', nombre: 'De Fruto' },
-              unidadMedida: { id: 'l', nombre: 'Litros', simbolo: 'l' },
-              unidadCosteo: { id: 'l', nombre: 'Litros', simbolo: 'l' },
-              marca: { id: '3', nombre: 'TODAFRU Tradicional' },
-              agrupador: { id: '3', nombre: 'Premium' },
-              razonSocialProductos: []
-            }
-          ];
-          setProductos(mockProductos);
-        } else {
-          setProductos(apiList);
-        }
+        setProductos(apiList);
       } else {
         console.error('Error en la respuesta de la API:', data.error);
         setApiError(data.error || 'Error al cargar productos');
-        // Fallback a datos mock solo en desarrollo si la API falla
-        if (process.env.NODE_ENV !== 'production') {
-          const mockProductos: Producto[] = [
-            {
-              id: 'prod-1',
-              nombre: 'Manzana Fuji Premium',
-              sku: 'FRU-MAN-001',
-              descripcion: 'Manzana Fuji de primera calidad',
-              precio: 8.5,
-              stock: 150,
-              stockMinimo: 20,
-              porcentajeMerma: 5,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: '1', nombre: 'Frutas Citricas' },
-              familia: { id: '1', nombre: 'Frutas' },
-              subfamilia: { id: '1', nombre: 'Citricos' },
-              unidadMedida: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              unidadCosteo: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              marca: { id: '1', nombre: 'TODAFRU Premium' },
-              agrupador: { id: '1', nombre: 'Alta Rotacion' },
-              razonSocialProductos: [
-                { razonSocial: { id: '1', nombre: 'Supermercados Wong S.A.' } }
-              ]
-            }
-          ];
-          setProductos(mockProductos);
-        }
+        setProductos([]);
       }
     } catch (error) {
       console.error('Error al cargar productos:', error);
-      // En caso de error de red, usar datos mock
-      const mockProductos: Producto[] = [
-        {
-          id: '1',
-          nombre: 'Manzana Fuji Premium',
-          sku: 'FRU-CIT-MAN-001',
-          descripcion: 'Manzana Fuji de primera calidad, importada',
-          precio: 8.50,
-          stock: 150,
-          stockMinimo: 20,
-          porcentajeMerma: 5,
-          tieneIGV: true,
-          activo: true,
-          categoria: { id: '1', nombre: 'Frutas Citricas' },
-          tipoArticulo: { id: '1', nombre: 'Producto Natural' },
-          familia: { id: '1', nombre: 'Frutas' },
-          subfamilia: { id: '1', nombre: 'Citricos' },
-          unidadMedida: { id: '1', nombre: 'Kilogramo', simbolo: 'kg' },
-          unidadCosteo: { id: '1', nombre: 'Kilogramo', simbolo: 'kg' },
-          marca: { id: '1', nombre: 'TODAFRU Premium' },
-          agrupador: { id: '1', nombre: 'Alta Rotacion' },
-          razonSocialProductos: [
-            { razonSocial: { id: '1', nombre: 'Supermercados Wong S.A.' } },
-            { razonSocial: { id: '2', nombre: 'Metro S.A.' } }
-          ]
-        }
-      ];
-      
-      setProductos(mockProductos);
+      setProductos([]);
     } finally {
       setLoading(false);
     }
@@ -1115,7 +868,7 @@ return (
                   required
                 >
                   <option value="">Seleccionar categoria</option>
-                  {(apiCategorias.length ? apiCategorias : mockCategorias).map(cat => (
+                  {apiCategorias.map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.nombre}</option>
                   ))}
                 </select>
@@ -1141,7 +894,7 @@ return (
                   required
                 >
                   <option value="">Seleccionar unidad</option>
-                  {(apiUnidades.length ? apiUnidades : mockUnidades).map(unidad => (
+                  {apiUnidades.map(unidad => (
                     <option key={unidad.id} value={unidad.id}>{unidad.nombre} ({unidad.simbolo})</option>
                   ))}
                 </select>

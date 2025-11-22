@@ -224,49 +224,12 @@ export async function GET(request: NextRequest) {
         status: err.status
       });
 
-      // Si estamos en desarrollo y falla, retornar datos mock
-      if (isDev) {
-        logger.warn('[API /clientes/ruc] Retornando datos mock (desarrollo)', { numeroDocumento });
-        
-        const mockData = isDni 
-          ? {
-              numeroIdentificacion: numeroDocumento,
-              tipoDocumento: 'DNI',
-              tipoEntidad: 'PERSONA_NATURAL',
-              razonSocial: 'Juan Carlos Pérez García',
-              nombres: 'Juan Carlos',
-              apellidos: 'Pérez García',
-              apellidoPaterno: 'Pérez',
-              apellidoMaterno: 'García',
-              direccion: 'Av. Principal 123, Lima',
-              esPersonaNatural: true,
-              estado: 'ACTIVO',
-              condicion: 'HABIDO',
-              esActivo: true,
-              origen: 'MOCK',
-            }
-          : {
-              numeroIdentificacion: numeroDocumento,
-              tipoDocumento: 'RUC',
-              tipoEntidad: 'PERSONA_JURIDICA',
-              razonSocial: 'Empresa Demo S.A.C.',
-              direccion: 'Av. Principal 123, Lima',
-              tipoContribuyente: 'Sociedad Anónima Cerrada',
-              esPersonaNatural: false,
-              estado: 'ACTIVO',
-              condicion: 'HABIDO',
-              esActivo: true,
-              fechaInscripcion: '2020-01-15',
-              fechaInicioActividades: '2020-02-01',
-              origen: 'MOCK',
-            };
-        
-        return NextResponse.json({
-          success: true,
-          data: mockData,
-          raw: { mock: true, message: 'Datos de desarrollo' }
-        });
-      }
+      // No retornar datos ficticios: exigir configuración correcta o permitir ingreso manual
+      const statusCode = err.status === 401 || err.status === 403 ? 502 : err.status;
+      const message = err.status === 401 || err.status === 403
+        ? 'Servicio externo no autorizado. Configure el token de integración.'
+        : err.message;
+      return NextResponse.json({ success: false, error: message }, { status: statusCode });
 
       const status = err.status === 401 || err.status === 403 ? 502 : err.status
       const mensaje = err.status === 401 || err.status === 403
@@ -285,12 +248,6 @@ export async function GET(request: NextRequest) {
       error: err instanceof Error ? err.message : 'Error desconocido'
     });
 
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Error interno del servidor al consultar el documento' 
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Error interno del servidor al consultar el documento' }, { status: 500 });
   }
 }

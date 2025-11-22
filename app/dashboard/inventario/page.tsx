@@ -237,21 +237,8 @@ export default function InventariosPage() {
       const response = await apiFetch('/api/inventario?action=movimientos');
 
       if (response.status === 401) {
-        // Fallback mock mÃ­nimo segÃºn requisitos
-        setApiError('No autorizado para obtener movimientos. Usando datos simulados.');
-        setMovimientos([
-          {
-            id: 'mock-1',
-            tipo: 'ENTRADA',
-            cantidad: 10,
-            cantidadAnterior: 90,
-            cantidadNueva: 100,
-            motivo: 'Carga inicial',
-            createdAt: new Date().toISOString(),
-            producto: { nombre: 'Producto Demo', sku: 'DEM-001' },
-            usuario: { name: 'Sistema' },
-          }
-        ]);
+        setApiError('No autorizado para obtener movimientos.');
+        setMovimientos([]);
         return;
       }
 
@@ -287,41 +274,7 @@ export default function InventariosPage() {
   };
 
   // Datos de demostración para entorno de desarrollo cuando no hay productos reales
-  const demoProductos: Producto[] = useMemo(() => [
-    {
-      id: 'demo-1',
-      nombre: 'Manzana Roja',
-      sku: 'APP-RED-001',
-      stock: 25,
-      stockMinimo: 10,
-      precio: 3.5,
-      activo: true,
-      categoria: { nombre: 'Frutas' },
-      unidadMedida: { simbolo: 'kg' }
-    },
-    {
-      id: 'demo-2',
-      nombre: 'Plátano',
-      sku: 'BAN-STD-010',
-      stock: 8,
-      stockMinimo: 12,
-      precio: 2.2,
-      activo: true,
-      categoria: { nombre: 'Frutas' },
-      unidadMedida: { simbolo: 'kg' }
-    },
-    {
-      id: 'demo-3',
-      nombre: 'Lechuga',
-      sku: 'VEG-LEC-005',
-      stock: 0,
-      stockMinimo: 5,
-      precio: 1.8,
-      activo: true,
-      categoria: { nombre: 'Verduras' },
-      unidadMedida: { simbolo: 'und' }
-    }
-  ], []);
+  // Eliminado: datos de demostración. Se usan únicamente datos reales desde la API/BD.
 
   // Handlers de acciones
   const handleEditProducto = (productoId: string) => {
@@ -369,9 +322,7 @@ export default function InventariosPage() {
 
   const filterProductos = useCallback(() => {
     // Fuente de datos: reales o demo si no hay y no es producción
-    const source = (productos.length === 0 && process.env.NODE_ENV !== 'production')
-      ? demoProductos
-      : productos;
+    const source = productos;
 
     let filtered = source;
 
@@ -397,7 +348,7 @@ export default function InventariosPage() {
     setFilteredProductos(filtered);
     // Actualizar estadísticas basadas en la fuente utilizada
     calculateStats(source);
-  }, [demoProductos, productos, searchTerm, stockFilter]);
+  }, [productos, searchTerm, stockFilter]);
 
   useEffect(() => {
     filterProductos();
