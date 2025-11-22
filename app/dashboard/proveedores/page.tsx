@@ -6,6 +6,7 @@ import AddSupplierForm from "../../../src/components/proveedores/AddSupplierForm
 import EditSupplierForm from "../../../src/components/proveedores/EditSupplierForm";
 import ProductosProveedorVistaModal from "../../../src/components/proveedores/ProductosProveedorVistaModal";
 import { Trash2, AlertTriangle, Loader2, Plus, Search, Filter, Eye, EyeOff, Pencil, Package, Users } from 'lucide-react';
+import { ValidacionesService } from '@/services/validaciones';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
 
@@ -149,10 +150,20 @@ export default function ProveedoresPage() {
   // Estados de filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [integrationHealth, setIntegrationHealth] = useState<{ reachable: boolean; hasToken: boolean; note?: string } | null>(null);
 
   // Cargar proveedores al montar el componente
   useEffect(() => {
     loadSuppliers();
+    (async () => {
+      try {
+        const r = await fetch('/api/integrations/decolecta/health', { cache: 'no-store' });
+        const j = await r.json().catch(() => ({}));
+        setIntegrationHealth({ reachable: Boolean(j?.reachable), hasToken: Boolean(j?.hasToken), note: typeof j?.note === 'string' ? j.note : undefined });
+      } catch {
+        setIntegrationHealth({ reachable: false, hasToken: false });
+      }
+    })();
   }, []);
 
   const loadSuppliers = async () => {
@@ -251,12 +262,10 @@ export default function ProveedoresPage() {
 
   // Función para validar formato de documento
   const validateDocumentFormat = (tipo: string, numero: string) => {
-    if (tipo === 'DNI') {
-      return numero.length === 8 && /^\d{8}$/.test(numero);
-    } else if (tipo === 'RUC') {
-      return numero.length === 11 && /^\d{11}$/.test(numero);
-    }
-    return true;
+    const clean = String(numero || '').replace(/\D/g, '')
+    if (tipo === 'DNI') return ValidacionesService.validarDNI(clean).valido
+    if (tipo === 'RUC') return ValidacionesService.validarRUC(clean).valido
+    return true
   };
 
   // Toggle activo/inactivo
@@ -437,6 +446,15 @@ export default function ProveedoresPage() {
           <p className="text-black mt-1">
             {filteredSuppliers.length} proveedor{filteredSuppliers.length !== 1 ? 'es' : ''} encontrado{filteredSuppliers.length !== 1 ? 's' : ''}
           </p>
+          {integrationHealth && (!integrationHealth.hasToken || !integrationHealth.reachable) && (
+            <div className="mt-2 p-2 rounded border text-sm flex items-center gap-2 bg-yellow-50 border-yellow-200 text-yellow-800">
+              <AlertTriangle className="w-4 h-4" />
+              <span>
+                Integración RENIEC/SUNAT {integrationHealth.reachable ? 'activa' : 'no disponible'}{!integrationHealth.hasToken ? ' — token no configurado' : ''}.
+                {integrationHealth.note ? ` (${integrationHealth.note})` : ''}
+              </span>
+            </div>
+          )}
         </div>
         <button
           onClick={() => setShowCreateForm(true)}

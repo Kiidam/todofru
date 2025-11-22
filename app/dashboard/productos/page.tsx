@@ -96,13 +96,13 @@ export default function ProductosPage() {
     if (!nombre || !categoriaId) return '';
 
     const categoria = apiCategorias.find(c => c.id === categoriaId);
-    const familia = undefined; // opcional: obtener de API si existe
+    // Sin catálogo de familias cargado aún, derivar código a partir del identificador
 
     const nombreParts = nombre.split(' ').slice(0, 2);
     const nombreCode = nombreParts.map(part => part.substring(0, 3).toUpperCase()).join('-');
 
     const categoriaCode = categoria ? categoria.nombre.substring(0, 3).toUpperCase() : 'GEN';
-    const familiaCode = familia ? familia.nombre.substring(0, 3).toUpperCase() : '';
+    const familiaCode = familiaId ? familiaId.substring(0, 3).toUpperCase() : '';
 
     const timestamp = Date.now().toString().slice(-3);
 
@@ -343,8 +343,24 @@ export default function ProductosPage() {
       const finalSKU = formData.sku || generateSKU(formData.nombre, formData.categoriaId, formData.familiaId);
 
       if (editingProduct) {
-        // En futuras iteraciones implementar PUT /api/productos/[id]
-        alert('EdiciÃ³n por API aÃºn no implementada.');
+        const resp = await apiFetch(`/api/productos/${editingProduct.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre: formData.nombre,
+            sku: finalSKU,
+            descripcion: formData.descripcion,
+            categoriaId: formData.categoriaId,
+            unidadMedidaId: formData.unidadMedidaId,
+          })
+        });
+        const result = await resp.json();
+        if (!resp.ok || result?.success === false) {
+          const message = result?.error || 'Error al actualizar producto';
+          alert(message);
+          return;
+        }
+        await fetchProductos();
       } else {
         const resp = await apiFetch('/api/productos', {
           method: 'POST',
@@ -438,25 +454,45 @@ export default function ProductosPage() {
       }
 
       if (confirm('¿Estás seguro de que deseas eliminar este producto?\n\nEsta acción eliminará el producto del catálogo y ya no estará disponible para nuevos movimientos de inventario.')) {
-        setProductos(prev => prev.filter(p => p.id !== id));
-        alert('Producto eliminado exitosamente');
+        const resp = await apiFetch(`/api/productos/${id}`, { method: 'DELETE' });
+        const result = await resp.json();
+        if (!resp.ok || result?.success === false) {
+          alert(result?.error || 'No se pudo eliminar el producto');
+          return;
+        }
         await fetchProductos();
+        alert('Producto eliminado exitosamente');
       }
     } catch (error) {
       console.error('Error al validar eliminación:', error);
-      // Fallback al comportamiento anterior si hay error en la validaciÃ³n
+      // Fallback
       if (confirm('¿Estás seguro de que deseas eliminar este producto?')) {
-        setProductos(prev => prev.filter(p => p.id !== id));
-        alert('Producto eliminado exitosamente');
+        const resp = await apiFetch(`/api/productos/${id}`, { method: 'DELETE' });
+        const result = await resp.json();
+        if (!resp.ok || result?.success === false) {
+          alert(result?.error || 'No se pudo eliminar el producto');
+          return;
+        }
         await fetchProductos();
+        alert('Producto eliminado exitosamente');
       }
     }
   };
 
   const toggleEstado = async (id: string) => {
-    setProductos(prev => prev.map(p => 
-      p.id === id ? { ...p, activo: !p.activo } : p
-    ));
+    const prod = productos.find(p => p.id === id);
+    if (!prod) return;
+    const next = !prod.activo;
+    const resp = await apiFetch(`/api/productos/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activo: next })
+    });
+    const result = await resp.json();
+    if (!resp.ok || result?.success === false) {
+      alert(result?.error || 'No se pudo cambiar el estado');
+      return;
+    }
     await fetchProductos();
   };
 

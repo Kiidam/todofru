@@ -4,10 +4,10 @@
  * Soporta tanto personas naturales (DNI 8 dígitos) como jurídicas (RUC 11 dígitos)
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { logger } from '../../../../src/lib/logger'
-import { fetchReniecByDni, fetchSunatByRuc, DecolectaError } from '../../../../src/lib/decolecta'
-import { ValidacionesService } from '../../../../src/services/validaciones'
-import { prisma } from '../../../../src/lib/prisma';
+import { logger } from '@/lib/logger'
+import { fetchReniecByDni, fetchSunatByRuc, DecolectaError } from '@/lib/decolecta'
+import { ValidacionesService } from '@/services/validaciones'
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -230,15 +230,6 @@ export async function GET(request: NextRequest) {
         ? 'Servicio externo no autorizado. Configure el token de integración.'
         : err.message;
       return NextResponse.json({ success: false, error: message }, { status: statusCode });
-
-      const status = err.status === 401 || err.status === 403 ? 502 : err.status
-      const mensaje = err.status === 401 || err.status === 403
-        ? 'Servicio externo no autorizado. Verifique el token de Decolecta.'
-        : err.message
-      return NextResponse.json(
-        { success: false, error: mensaje },
-        { status }
-      )
     }
 
     // Error genérico no esperado

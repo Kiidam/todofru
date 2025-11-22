@@ -44,6 +44,9 @@ model Cliente {
   pedidos               PedidoVenta[]
 
   @@map("cliente")
+  @@index([tipoCliente], map: "idx_cliente_tipocliente")
+  @@index([activo], map: "idx_cliente_activo")
+  @@index([nombre], map: "idx_cliente_nombre")
 }
 
 model MovimientoInventario {
@@ -61,10 +64,11 @@ model MovimientoInventario {
   usuarioId        String
   createdAt        DateTime  @default(now()) @db.DateTime(0)
 
-  pedidoCompra     PedidoCompra? @relation(fields: [pedidoCompraId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_pc")
+  pedidoCompra     PedidoCompra? @relation(fields: [pedidoCompraId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_mi_pc")
   producto         Producto      @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_producto")
-  pedidoVenta      PedidoVenta?  @relation(fields: [pedidoVentaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_pv")
+  pedidoVenta      PedidoVenta?  @relation(fields: [pedidoVentaId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_mi_pv")
   usuario          User          @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_usuario")
+  merma            Merma?
 
   @@index([pedidoCompraId], map: "fk_mi_pc")
   @@index([pedidoVentaId], map: "fk_mi_pv")
@@ -145,6 +149,7 @@ model PedidoVenta {
   @@index([usuarioId], map: "fk_pv_usuario")
   @@index([clienteId], map: "idx_pv_cliente")
   @@index([fecha], map: "idx_pv_fecha")
+  @@index([estado], map: "idx_pedidoventa_estado")
   @@map("pedidoventa")
 }
 
@@ -186,12 +191,15 @@ model Producto {
   ventasItems     PedidoVentaItem[]
   movimientos     MovimientoInventario[]
   proveedores     ProductoProveedor[]
+  mermas          Merma[]
 
   @@index([categoriaId], map: "fk_prod_categoria")
   @@index([unidadMedidaId], map: "fk_prod_unidad")
   @@index([activo], map: "idx_prod_activo")
   @@index([nombre], map: "idx_prod_nombre")
   @@index([version], map: "idx_producto_version")
+  @@index([stock], map: "idx_producto_stock")
+  @@index([stockMinimo], map: "idx_producto_stockminimo")
   @@map("producto")
 }
 
@@ -235,7 +243,73 @@ model Proveedor {
   @@index([tipoEntidad], map: "idx_proveedor_tipo")
   @@index([numeroIdentificacion], map: "idx_proveedor_numero_identificacion")
   @@index([version], map: "idx_proveedor_version")
+  @@index([activo], map: "idx_proveedor_activo")
+  @@index([nombre], map: "idx_proveedor_nombre")
+  @@index([razonSocial], map: "idx_proveedor_razonsocial")
+  @@index([nombres], map: "idx_proveedor_nombres")
+  @@index([apellidos], map: "idx_proveedor_apellidos")
+  @@index([ruc], map: "idx_proveedor_ruc")
   @@map("proveedor")
+}
+
+model TipoMerma {
+  id         String   @id
+  nombre     String   @unique(map: "uq_tipomerma_nombre") @db.VarChar(100)
+  activo     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.DateTime(0)
+  updatedAt  DateTime @default(now()) @db.DateTime(0)
+  causas     CausaMerma[]
+  mermas     Merma[]
+
+  @@map("tipomerma")
+}
+
+model CausaMerma {
+  id          String    @id
+  nombre      String    @unique(map: "uq_causamerma_nombre") @db.VarChar(150)
+  tipoMermaId String
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @db.DateTime(0)
+  updatedAt   DateTime  @default(now()) @db.DateTime(0)
+  tipo        TipoMerma @relation(fields: [tipoMermaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_causa_tipomerma")
+  mermas      Merma[]
+
+  @@index([tipoMermaId], map: "idx_causa_tipomerma")
+  @@map("causamerma")
+}
+
+enum merma_clasificacion {
+  NORMAL
+  EXTRAORDINARIA
+}
+
+model Merma {
+  id               String              @id
+  fecha            DateTime            @default(now()) @db.DateTime(0)
+  productoId       String
+  usuarioId        String
+  tipoMermaId      String
+  causaMermaId     String?
+  cantidad         Float
+  clasificacion    merma_clasificacion @default(NORMAL)
+  observaciones    String?             @db.Text
+  movimientoId     Int?    @unique
+  createdAt        DateTime            @default(now()) @db.DateTime(0)
+  updatedAt        DateTime            @default(now()) @db.DateTime(0)
+
+  producto         Producto            @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_merma_producto")
+  usuario          User                @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_merma_usuario")
+  tipo             TipoMerma           @relation(fields: [tipoMermaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_merma_tipomerma")
+  causa            CausaMerma?         @relation(fields: [causaMermaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_merma_causamerma")
+  movimiento       MovimientoInventario? @relation(fields: [movimientoId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_merma_movimiento")
+
+  @@index([fecha], map: "idx_merma_fecha")
+  @@index([productoId], map: "idx_merma_producto")
+  @@index([usuarioId], map: "idx_merma_usuario")
+  @@index([tipoMermaId], map: "idx_merma_tipomerma")
+  @@index([causaMermaId], map: "idx_merma_causamerma")
+  @@index([clasificacion], map: "idx_merma_clasificacion")
+  @@map("merma")
 }
 
 model UnidadMedida {
@@ -262,6 +336,7 @@ model User {
   ventas    PedidoVenta[]
   registros MovimientoInventario[]
   auditorias Auditoria[]
+  mermas     Merma[]
 
   @@map("user")
 }

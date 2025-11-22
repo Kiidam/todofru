@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DecolectaError, fetchSunatByRuc } from '../../../../../src/lib/decolecta';
+import { DecolectaError, fetchSunatByRuc } from '@/lib/decolecta';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

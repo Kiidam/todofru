@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { logger } from '../../../../src/lib/logger';
-import { prisma } from '../../../../src/lib/prisma';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { ValidacionesService } from '@/services/validaciones';
 export const dynamic = 'force-dynamic';
 
 interface RucData {
@@ -32,6 +33,15 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'Parámetro ruc inválido. Debe ser 8 o 11 dígitos.' },
         { status: 400 }
       );
+    }
+
+    // Validación estricta de documento
+    if (ruc.length === 8) {
+      const v = ValidacionesService.validarDNI(ruc);
+      if (!v.valido) return NextResponse.json({ success: false, error: v.mensaje || 'DNI inválido' }, { status: 400 });
+    } else if (ruc.length === 11) {
+      const v = ValidacionesService.validarRUC(ruc);
+      if (!v.valido) return NextResponse.json({ success: false, error: v.mensaje || 'RUC inválido' }, { status: 400 });
     }
 
     const base = process.env.DECOLECTA_BASE_URL || 'https://api.decolecta.com/v1';

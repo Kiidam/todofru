@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Package, AlertTriangle, TrendingUp, TrendingDown, Search, Eye, Edit2, RotateCcw, ShieldAlert, Trash2, CheckCircle, Ban } from 'lucide-react';
+import { Package, AlertTriangle, TrendingUp, TrendingDown, Search, Eye, Edit2, RotateCcw, ShieldAlert, Trash2, CheckCircle, Ban, MinusCircle } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
+import { computeNewStock } from '@/lib/mermas';
+import { canRegisterMerma } from '@/lib/mermas';
 
 interface SyncValidationResult {
   isValid: boolean;
@@ -70,6 +73,13 @@ export default function InventariosPage() {
   // Estado de errores y autenticaciÃ³n
   const [authError, setAuthError] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [mermaOpen, setMermaOpen] = useState(false);
+  const [mermaProduct, setMermaProduct] = useState<Producto | null>(null);
+  const [catalogo, setCatalogo] = useState<{ productos: Array<{id:string,nombre:string}>, tipos: Array<{id:string,nombre:string}>, causas: Array<{id:string,nombre:string,tipoMermaId:string}> } | null>(null);
+  const [mermaForm, setMermaForm] = useState({ cantidad: 0, tipoMermaId: '', causaMermaId: '', clasificacion: 'NORMAL', observaciones: '' });
+  const [mermaSubmitting, setMermaSubmitting] = useState(false);
+  const [mermaError, setMermaError] = useState<string | null>(null);
+  const tipoRef = useState<any>(null)[0];
 
   // EstadÃ­sticas del inventario
   const [stats, setStats] = useState({
@@ -259,6 +269,14 @@ export default function InventariosPage() {
     }
   }, [apiFetch]);
 
+  const fetchCatalogoMermas = useCallback(async () => {
+    try {
+      const r = await apiFetch('/api/mermas/catalogo');
+      const j = await r.json().catch(() => ({ success:false }));
+      if (r.ok && j?.success) setCatalogo(j.data);
+    } catch {}
+  }, [apiFetch]);
+
   const calculateStats = (productos: Producto[]) => {
     const totalProductos = productos.length;
     const stockBajo = productos.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= (p.stockMinimo ?? 0)).length;
@@ -359,6 +377,7 @@ export default function InventariosPage() {
     fetchProductos();
     fetchMovimientos();
     validateSync();
+    fetchCatalogoMermas();
   }, [fetchProductos, fetchMovimientos, validateSync]);
 
   const getStockStatus = (producto: Producto) => {
@@ -648,6 +667,14 @@ export default function InventariosPage() {
                               {producto.activo !== false ? <Ban className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
                             </button>
                             <button
+                              onClick={() => { setMermaProduct(producto); setMermaForm({ cantidad: 0, tipoMermaId: '', causaMermaId: '', clasificacion: 'NORMAL', observaciones: '' }); setMermaOpen(true); }}
+                              className="text-orange-600 hover:text-orange-800"
+                              title="Registrar merma"
+                              aria-label="Registrar merma"
+                            >
+                              <MinusCircle className="h-5 w-5" />
+                            </button>
+                            <button
                               onClick={() => handleEliminarProducto(producto)}
                               className="text-red-600 hover:text-red-800"
                               title="Eliminar producto"
@@ -766,6 +793,98 @@ export default function InventariosPage() {
             </div>
           )}
         </div>
+      )}
+
+      {mermaOpen && mermaProduct && (
+        <Modal
+          open={mermaOpen}
+          title={`Registrar merma — ${mermaProduct.nombre}`}
+          onClose={() => setMermaOpen(false)}
+          primaryAction={{
+            label: mermaSubmitting ? 'Registrando...' : 'Registrar Merma',
+            disabled: mermaSubmitting || !mermaForm.tipoMermaId || mermaForm.cantidad <= 0,
+            onClick: async () => {
+              try {
+                setMermaSubmitting(true);
+                const v = canRegisterMerma(mermaProduct.stock ?? 0, mermaForm.cantidad, mermaProduct.stockMinimo);
+                if (!v.ok) { setMermaError(v.error); setMermaSubmitting(false); return; }
+                const resp = await apiFetch('/api/mermas', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    productoId: mermaProduct.id,
+                    cantidad: mermaForm.cantidad,
+                    tipoMermaId: mermaForm.tipoMermaId,
+                    causaMermaId: mermaForm.causaMermaId || undefined,
+                    clasificacion: mermaForm.clasificacion,
+                    observaciones: mermaForm.observaciones
+                  })
+                });
+                const j = await resp.json().catch(() => ({ success:false }));
+                if (!resp.ok || j?.success === false) { setMermaError(j?.error || 'Error al registrar merma'); setMermaSubmitting(false); return; }
+                setMermaOpen(false);
+                await fetchProductos();
+                await fetchMovimientos();
+              } catch (e: any) {
+                setMermaError(e?.message || 'Error al registrar merma');
+              } finally { setMermaSubmitting(false); }
+            }
+          }}
+          secondaryAction={{ label: 'Cancelar', onClick: () => setMermaOpen(false) }}
+        >
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-2 bg-gray-50 rounded border">
+              <div className="text-xs text-gray-600">Stock actual</div>
+              <div className="text-sm font-semibold text-gray-900">{mermaProduct.stock} {mermaProduct.unidadMedida?.simbolo || ''}</div>
+            </div>
+            <div className="p-2 bg-gray-50 rounded border">
+              <div className="text-xs text-gray-600">Mínimo</div>
+              <div className="text-sm font-semibold text-gray-900">{mermaProduct.stockMinimo}</div>
+            </div>
+            <div className="p-2 bg-gray-50 rounded border">
+              <div className="text-xs text-gray-600">Nuevo stock (prev.)</div>
+              <div className="text-sm font-semibold text-gray-900">{computeNewStock(mermaProduct.stock ?? 0, mermaForm.cantidad || 0)}</div>
+            </div>
+          </div>
+          <form className="grid grid-cols-1 md:grid-cols-2 gap-3" onSubmit={(e)=>{ e.preventDefault(); }}>
+            <div>
+              <label className="text-sm text-gray-800">Tipo de merma</label>
+              <select value={mermaForm.tipoMermaId} onChange={e=>setMermaForm(prev=>({ ...prev, tipoMermaId: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-orange-500" required>
+                <option value="">Selecciona</option>
+                {catalogo?.tipos?.map(t => (<option key={t.id} value={t.id}>{t.nombre}</option>))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm text-gray-800">Causa (opcional)</label>
+              <select value={mermaForm.causaMermaId} onChange={e=>setMermaForm(prev=>({ ...prev, causaMermaId: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-orange-500">
+                <option value="">Selecciona</option>
+                {catalogo?.causas?.filter(c => !mermaForm.tipoMermaId || c.tipoMermaId === mermaForm.tipoMermaId).map(c => (<option key={c.id} value={c.id}>{c.nombre}</option>))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm text-gray-800">Cantidad</label>
+              <input type="number" step="0.01" value={mermaForm.cantidad} onChange={e=>setMermaForm(prev=>({ ...prev, cantidad: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-orange-500" required />
+              <div className="text-xs text-gray-600 mt-1">Máximo: {mermaProduct.stock}</div>
+            </div>
+            <div>
+              <label className="text-sm text-gray-800">Clasificación</label>
+              <select value={mermaForm.clasificacion} onChange={e=>setMermaForm(prev=>({ ...prev, clasificacion: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-orange-500">
+                <option value="NORMAL">Normal</option>
+                <option value="EXTRAORDINARIA">Extraordinaria</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-sm text-gray-800">Observaciones</label>
+              <input value={mermaForm.observaciones} onChange={e=>setMermaForm(prev=>({ ...prev, observaciones: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-orange-500" placeholder="Detalle breve de la merma" />
+            </div>
+          </form>
+          {mermaError && (<div className="mt-3 p-2 rounded bg-red-50 border border-red-200 text-red-700 text-sm">{mermaError}</div>)}
+          {!mermaError && mermaProduct && canRegisterMerma(mermaProduct.stock ?? 0, mermaForm.cantidad, mermaProduct.stockMinimo).warning && (
+            <div className="mt-3 p-2 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
+              {canRegisterMerma(mermaProduct.stock ?? 0, mermaForm.cantidad, mermaProduct.stockMinimo).warning}
+            </div>
+          )}
+        </Modal>
       )}
     </div>
   );

@@ -12,6 +12,7 @@ import {
   errorResponse,
   validateActiveRecord as _validateActiveRecord
 } from '../../../src/lib/api-utils';
+import { z } from 'zod';
 
 // GET /api/inventarios - Obtener productos y movimientos de inventario
 
@@ -121,74 +122,64 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, _sess
 
 // POST /api/inventarios - Crear movimiento de inventario
 export const POST = withErrorHandling(withAuth(async (request: NextRequest, _session: _Session) => {
-    const body = await request.json();
-    const { productoId, tipo, cantidad, motivo, numeroGuia } = body;
+  const schema = z.object({
+    productoId: z.string().min(1),
+    tipo: z.enum(['ENTRADA','SALIDA','AJUSTE']).or(z.enum(['entrada','salida','ajuste'])),
+    cantidad: z.number().positive(),
+    motivo: z.string().optional(),
+    numeroGuia: z.string().nullable().optional(),
+  })
 
-    // Validar datos requeridos
-    if (!productoId || !tipo || !cantidad) {
-      return errorResponse('Faltan datos requeridos: productoId, tipo, cantidad', 400);
-    }
+  const parsed = schema.safeParse(await request.json().catch(()=>({})))
+  if (!parsed.success) return errorResponse('Datos inválidos', 400, parsed.error.flatten())
 
-    // Validar que el producto existe
-  const producto = await _validateActiveRecord(prisma.producto, productoId, 'Producto') as { id: string; stock: number; [key: string]: unknown };
+  const body = parsed.data
+  const productoId = body.productoId
+  const tipoUpper = (typeof body.tipo === 'string' ? body.tipo.toUpperCase() : body.tipo) as 'ENTRADA'|'SALIDA'|'AJUSTE'
+  const cantidad = Math.round(body.cantidad * 100) / 100
+  const motivo = body.motivo || ''
+  const numeroGuia = body.numeroGuia ?? null
 
-    // Obtener usuario
-    const usuario = _session.user?.email 
-      ? await prisma.user.findUnique({ where: { email: _session.user.email } })
-      : await prisma.user.findFirst(); // Fallback para modo test
+  const producto = await _validateActiveRecord(prisma.producto, productoId, 'Producto') as { id: string; stock: number; stockMinimo?: number }
 
-    if (!usuario) {
-      return errorResponse('Usuario no encontrado', 404);
-    }
+  const usuario = _session.user?.email 
+    ? await prisma.user.findUnique({ where: { email: _session.user.email } })
+    : await prisma.user.findFirst()
+  if (!usuario) return errorResponse('Usuario no encontrado', 404)
 
-    // Validar stock para salidas
-    if (tipo === 'salida' && producto.stock < cantidad) {
-      return errorResponse('Stock insuficiente', 400);
-    }
+  if (tipoUpper === 'SALIDA' && producto.stock < cantidad) return errorResponse('Stock insuficiente', 400)
 
-    // Crear movimiento de inventario en transacción
   const result = await _safeTransaction(async (tx: Prisma.TransactionClient) => {
-      // Calcular nuevo stock
-      const nuevoStock = tipo === 'entrada' 
-        ? producto.stock + cantidad 
-        : producto.stock - cantidad;
+    const prod = await tx.producto.findUnique({ where: { id: productoId }, select: { stock: true, stockMinimo: true } })
+    if (!prod) throw new Error('Producto no encontrado')
+    const nuevoStockRaw = tipoUpper === 'ENTRADA' ? (prod.stock || 0) + cantidad : (prod.stock || 0) - cantidad
+    const nuevoStock = Math.max(0, Math.round(nuevoStockRaw * 100) / 100)
 
-      // Crear el movimiento
-      const movimiento = await tx.movimientoInventario.create({
-        data: {
-          productoId,
-          tipo,
-          cantidad,
-          cantidadAnterior: producto.stock,
-          cantidadNueva: nuevoStock,
-          motivo: motivo || '',
-          numeroGuia: numeroGuia || null,
-          usuarioId: usuario.id
-        }
-      });
+    const movimiento = await tx.movimientoInventario.create({
+      data: {
+        productoId,
+        tipo: tipoUpper,
+        cantidad,
+        cantidadAnterior: prod.stock || 0,
+        cantidadNueva: nuevoStock,
+        motivo,
+        numeroGuia,
+        usuarioId: usuario.id
+      }
+    })
 
-      // Actualizar stock del producto
-      await tx.producto.update({
-        where: { id: productoId },
-        data: { stock: nuevoStock }
-      });
+    await tx.producto.update({ where: { id: productoId }, data: { stock: nuevoStock } })
 
-      return movimiento;
-    });
+    const warning = prod.stockMinimo !== undefined && nuevoStock < (prod.stockMinimo || 0)
+      ? 'El nuevo stock queda por debajo del mínimo'
+      : undefined
 
-    if (!result.success || !result.data) {
-      return errorResponse(result.error || 'Error al crear movimiento de inventario', 500);
-    }
+    return { movimiento, warning }
+  })
 
-    _logger.info('Movimiento de inventario creado', { 
-      movimientoId: result.data.productoId,
-      productoId,
-      tipo,
-      cantidad,
-      usuarioId: usuario.id
-    });
+  if (!result.success || !result.data) return errorResponse(result.error || 'Error al crear movimiento de inventario', 500)
 
-    return successResponse({ 
-      movimiento: result.data 
-    }, 'Movimiento de inventario creado exitosamente');
-}));
+  _logger.info('Movimiento de inventario creado', { movimientoId: result.data.movimiento.id, productoId, tipo: tipoUpper, cantidad, usuarioId: usuario.id })
+
+  return successResponse({ movimiento: result.data.movimiento, warning: result.data.warning }, 'Movimiento de inventario creado exitosamente')
+}))

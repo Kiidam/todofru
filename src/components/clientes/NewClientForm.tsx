@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Plus, Loader2, Check, AlertCircle, User, Building2 } from "lucide-react";
+import { ValidacionesService } from "@/services/validaciones";
 
 // Tipos para el formulario
 interface ClienteFormData {
@@ -90,17 +91,17 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
 
     switch (field) {
       case 'numeroIdentificacion':
-        // Validar según el valor actual, no según el estado previo
-        // Si tiene 9+ dígitos, tratamos como RUC; si no, como DNI
         {
-    const strVal = String(value || '').replace(/[^0-9]/g, '');
+          const strVal = String(value || '').replace(/[^0-9]/g, '');
           const computedType: 'DNI' | 'RUC' = strVal.length >= 9 ? 'RUC' : 'DNI';
           if (!strVal || strVal.trim() === '') {
             errors[field] = 'El número de identificación es obligatorio';
-          } else if (computedType === 'DNI' && !/^\d{8}$/.test(strVal)) {
-            errors[field] = 'El DNI debe tener exactamente 8 dígitos';
-          } else if (computedType === 'RUC' && !/^\d{11}$/.test(strVal)) {
-            errors[field] = 'El RUC debe tener exactamente 11 dígitos';
+          } else if (computedType === 'DNI') {
+            const v = ValidacionesService.validarDNI(strVal);
+            if (!v.valido) errors[field] = v.mensaje || 'DNI inválido';
+          } else {
+            const v = ValidacionesService.validarRUC(strVal);
+            if (!v.valido) errors[field] = v.mensaje || 'RUC inválido';
           }
         }
         break;
@@ -324,8 +325,10 @@ export default function NewClientForm({ onSuccess, onCancel }: NewClientFormProp
       return;
     }
 
-    // Verificar formato básico (permitir 8 o 11)
-    const isValid = /^\d{8}$|^\d{11}$/.test(value);
+    // Validar con servicio (incluye dígito verificador de RUC)
+    const isValid = value.length === 8
+      ? ValidacionesService.validarDNI(value).valido
+      : (value.length === 11 ? ValidacionesService.validarRUC(value).valido : false);
     if (!isValid) {
       setLookupStatus('idle');
       setLookupError('');

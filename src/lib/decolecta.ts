@@ -7,6 +7,8 @@ const BASE_URL = process.env.DECOLECTA_BASE_URL || 'https://api.decolecta.pe/v1'
 const API_TOKEN = process.env.DECOLECTA_API_TOKEN || ''
 const SUNAT_PARAM = process.env.DECOLECTA_SUNAT_PARAM || 'numero'
 const RENIEC_PARAM = process.env.DECOLECTA_RENIEC_PARAM || 'numero'
+const TIMEOUT_MS = parseInt(process.env.DECOLECTA_TIMEOUT_MS || '8000', 10)
+const RETRIES = parseInt(process.env.DECOLECTA_RETRIES || '2', 10)
 
 // Clase de error personalizada para Decolecta
 export class DecolectaError extends Error {
@@ -48,16 +50,41 @@ export async function decolectaFetch<T = Json>(
   }
   const url = buildUrl(endpointUrl, params)
   logger.info('[Decolecta] Petición', { url: url.toString(), endpoint: endpointUrl, params, hasToken: !!API_TOKEN })
+  const attemptFetch = async (): Promise<Response> => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+    try {
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${API_TOKEN}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store',
+        signal: controller.signal
+      })
+      return res
+    } finally {
+      clearTimeout(timer)
+    }
+  }
   try {
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${API_TOKEN}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      },
-      cache: 'no-store'
-    })
+    let res: Response | null = null
+    let lastError: unknown
+    for (let i = 0; i <= RETRIES; i++) {
+      try {
+        res = await attemptFetch()
+        break
+      } catch (e) {
+        lastError = e
+        logger.warn('[Decolecta] Intento fallido', { attempt: i + 1, error: e instanceof Error ? e.message : String(e) })
+        if (i === RETRIES) throw e
+      }
+    }
+    if (!res) {
+      throw lastError instanceof Error ? lastError : new Error('fetch failed')
+    }
     const contentType = res.headers.get('content-type') ?? ''
     const isJson = contentType.includes('application/json')
     let body: unknown
@@ -90,9 +117,13 @@ export async function decolectaFetch<T = Json>(
     if (error instanceof DecolectaError) {
       throw error
     }
-    logger.error('[Decolecta] Error de red o conexión', error)
+    const msg = error instanceof Error ? error.message : 'Error desconocido'
+    const isNetwork = /fetch failed|network|ECONN|ENOTFOUND|ETIMEDOUT|abort/i.test(msg)
+    logger.error('[Decolecta] Error de red o conexión', { message: msg })
     throw new DecolectaError(
-      `Error de conexión con Decolecta: ${error instanceof Error ? error.message : 'Error desconocido'}`,
+      isNetwork
+        ? 'No se pudo establecer conexión con Decolecta. Verifique BASE_URL, conectividad a Internet y firewalls.'
+        : `Error de conexión con Decolecta: ${msg}`,
       500
     )
   }

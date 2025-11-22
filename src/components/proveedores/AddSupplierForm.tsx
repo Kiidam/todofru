@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ValidacionesService } from "@/services/validaciones";
 import { useSession } from "next-auth/react";
 import { Plus, Loader2, Check, AlertCircle, User, Building2 } from "lucide-react";
 
@@ -91,10 +92,12 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
           const computedType: 'DNI' | 'RUC' = strVal.length >= 9 ? 'RUC' : 'DNI';
           if (!strVal || strVal.trim() === '') {
             errors[field] = 'El número de identificación es obligatorio. Ingrese DNI (8 dígitos) o RUC (11 dígitos)';
-          } else if (computedType === 'DNI' && !/^\d{8}$/.test(strVal)) {
-            errors[field] = `DNI inválido: debe contener exactamente 8 dígitos numéricos. Ingresó ${strVal.length} dígitos`;
-          } else if (computedType === 'RUC' && !/^\d{11}$/.test(strVal)) {
-            errors[field] = `RUC inválido: debe contener exactamente 11 dígitos numéricos. Ingresó ${strVal.length} dígitos`;
+          } else if (computedType === 'DNI') {
+            const v = ValidacionesService.validarDNI(strVal);
+            if (!v.valido) errors[field] = v.mensaje || 'DNI inválido';
+          } else {
+            const v = ValidacionesService.validarRUC(strVal);
+            if (!v.valido) errors[field] = v.mensaje || 'RUC inválido';
           }
         }
         break;
@@ -196,7 +199,9 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
     }
 
     // Verificar formato básico (permitir 8 o 11)
-    const isValid = /^\d{8}$|^\d{11}$/.test(value);
+    const isValid = value.length === 8
+      ? ValidacionesService.validarDNI(value).valido
+      : (value.length === 11 ? ValidacionesService.validarRUC(value).valido : false);
     if (!isValid) {
       setLookupStatus('idle');
       setLookupError('');

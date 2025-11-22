@@ -198,6 +198,7 @@ const ClientesPageContent: React.FC = () => {
   // removed tipoFilter as not used (requested)
   const [entidadFilter, setEntidadFilter] = useState('all');
   const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null);
+  const [integrationHealth, setIntegrationHealth] = useState<{ reachable: boolean; hasToken: boolean; note?: string } | null>(null);
 
   useEffect(() => { fetchClientes(); }, [fetchClientes]);
 
@@ -240,12 +241,33 @@ const ClientesPageContent: React.FC = () => {
   const handleCreateSuccess = () => { setIsCreateModalOpen(false); fetchClientes(); };
   const handleEditSuccess = (updated: ClientePayload) => { setEditingCliente(null); fetchClientes(); };
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/integrations/decolecta/health', { cache: 'no-store' });
+        const j = await r.json().catch(() => ({}));
+        setIntegrationHealth({ reachable: Boolean(j?.reachable), hasToken: Boolean(j?.hasToken), note: typeof j?.note === 'string' ? j.note : undefined });
+      } catch {
+        setIntegrationHealth({ reachable: false, hasToken: false });
+      }
+    })();
+  }, []);
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-black">Clientes</h1>
           <p className="text-black mt-1">{filteredClientes.length} cliente{filteredClientes.length !== 1 ? 's' : ''} encontrado{filteredClientes.length !== 1 ? 's' : ''}</p>
+          {integrationHealth && (!integrationHealth.hasToken || !integrationHealth.reachable) && (
+            <div className="mt-2 p-2 rounded border text-sm flex items-center gap-2 bg-yellow-50 border-yellow-200 text-yellow-800">
+              <AlertTriangle className="w-4 h-4" />
+              <span>
+                Integración RENIEC/SUNAT {integrationHealth.reachable ? 'activa' : 'no disponible'}{!integrationHealth.hasToken ? ' — token no configurado' : ''}.
+                {integrationHealth.note ? ` (${integrationHealth.note})` : ''}
+              </span>
+            </div>
+          )}
         </div>
         <button onClick={() => setIsCreateModalOpen(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"><Plus className="w-4 h-4"/><span>Agregar Cliente</span></button>
       </div>
