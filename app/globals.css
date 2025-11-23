@@ -64,3 +64,60 @@ textarea::placeholder {
 .dashboard-header-right { 
     flex-shrink: 1 !important; /* ¡Causa el encogimiento y el corte! */
 }
+
+/* Estilos para impresión - Ocultar UI del sistema */
+@media print {
+  /* Ocultar TODOS los elementos de navegación y UI */
+  .no-print,
+  nav,
+  aside,
+  header,
+  footer,
+  button {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Resetear body para impresión */
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  /* Solo mostrar el contenido principal */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+  }
+
+  /* Preservar estilos del documento */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Mantener bordes negros */
+  .border,
+  .border-black,
+  .border-2 {
+    border-color: black !important;
+    border-style: solid !important;
+  }
+
+  /* Asegurar texto negro pero NO forzar fondos blancos */
+  body, main, div {
+    color: black !important;
+  }
+
+  /* Evitar saltos de página en tablas */
+  table, tr, td {
+    page-break-inside: avoid;
+  }
+
+  /* Asegurar que las imágenes se ajusten */
+  img {
+    max-width: 100% !important;
+  }
+}
