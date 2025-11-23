@@ -3,7 +3,7 @@ export type Json = JsonPrimitive | { [key: string]: Json } | Json[];
 
 import { logger } from '../lib/logger'
 
-const BASE_URL = process.env.DECOLECTA_BASE_URL || 'https://api.decolecta.pe/v1'
+const BASE_URL = process.env.DECOLECTA_BASE_URL || 'https://api.decolecta.com/v1'
 const API_TOKEN = process.env.DECOLECTA_API_TOKEN || ''
 const SUNAT_PARAM = process.env.DECOLECTA_SUNAT_PARAM || 'numero'
 const RENIEC_PARAM = process.env.DECOLECTA_RENIEC_PARAM || 'numero'

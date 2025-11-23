@@ -37,13 +37,15 @@ function normalizeDniResponse(raw: unknown): Record<string, unknown> {
     apellidoMaterno
   });
 
+  const apellidos = `${apellidoPaterno} ${apellidoMaterno}`.trim();
+  
   return {
     numeroIdentificacion: dni,
     tipoDocumento: 'DNI',
     tipoEntidad: 'PERSONA_NATURAL',
     razonSocial: nombreCompleto,
     nombres,
-    apellidos: `${apellidoPaterno} ${apellidoMaterno}`.trim(),
+    apellidos,
     apellidoPaterno,
     apellidoMaterno,
     direccion,
