@@ -8,89 +8,99 @@ datasource db {
 }
 
 model Categoria {
-  id          String     @id
-  nombre      String     @unique(map: "nombre") @db.VarChar(255)
-  descripcion String?    @db.Text
-  activo      Boolean    @default(true)
-  createdAt   DateTime   @default(now()) @db.DateTime(0)
-  updatedAt   DateTime   @default(now()) @db.DateTime(0)
+  id          String   @id
+  nombre      String   @unique(map: "nombre") @db.VarChar(255)
+  descripcion String?  @db.Text
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.DateTime(0)
+  updatedAt   DateTime @default(now()) @db.DateTime(0)
   productos   Producto[]
 
   @@map("categoria")
 }
 
 model Cliente {
-  id                   String              @id
-  nombre               String              @db.VarChar(255)
-  ruc                  String?             @unique(map: "ruc") @db.VarChar(11)
-  telefono             String?             @db.VarChar(50)
-  email                String?
-  direccion            String?             @db.VarChar(255)
-  contacto             String?             @db.VarChar(255)
-  tipoCliente          cliente_tipoCliente @default(MINORISTA)
-  activo               Boolean             @default(true)
-  createdAt            DateTime            @default(now()) @db.DateTime(0)
-  updatedAt            DateTime            @default(now()) @db.DateTime(0)
-  apellidos            String?             @db.VarChar(100)
-  mensajePersonalizado String?             @db.Text
-  nombres              String?             @db.VarChar(100)
-  numeroIdentificacion String?             @unique(map: "numeroIdentificacion") @db.VarChar(11)
-  razonSocial          String?             @db.VarChar(200)
-  tipoEntidad          String?             @db.VarChar(20)
-  pedidos              PedidoVenta[]
+  id                    String              @id
+  nombre                String              @db.VarChar(255)
+  ruc                   String?             @unique(map: "ruc") @db.VarChar(11)
+  telefono              String?             @db.VarChar(50)
+  email                 String?
+  direccion             String?             @db.VarChar(255)
+  contacto              String?             @db.VarChar(255)
+  tipoCliente           cliente_tipoCliente @default(MINORISTA)
+  activo                Boolean             @default(true)
+  createdAt             DateTime            @default(now()) @db.DateTime(0)
+  updatedAt             DateTime            @default(now()) @db.DateTime(0)
+  
+  // Nuevos campos para estructura refactorizada
+  tipoEntidad           String?             @db.VarChar(20) // 'PERSONA_NATURAL' | 'PERSONA_JURIDICA'
+  numeroIdentificacion  String?             @unique(map: "numeroIdentificacion") @db.VarChar(11) // DNI (8) o RUC (11)
+  nombres               String?             @db.VarChar(100) // Para personas naturales
+  apellidos             String?             @db.VarChar(100) // Para personas naturales
+  fechaNacimiento       DateTime?           @db.Date // Para personas naturales
+  razonSocial           String?             @db.VarChar(200) // Para personas jurídicas
+  mensajePersonalizado  String?             @db.Text // Mensaje personalizado para correos
+  
+  pedidos               PedidoVenta[]
 
   @@map("cliente")
+  @@index([tipoCliente], map: "idx_cliente_tipocliente")
+  @@index([activo], map: "idx_cliente_activo")
+  @@index([nombre], map: "idx_cliente_nombre")
 }
 
 model MovimientoInventario {
+  id               Int       @id @default(autoincrement())
   productoId       String
   tipo             movimientoinventario_tipo
   cantidad         Float
   cantidadAnterior Float
   cantidadNueva    Float
   precio           Float?
-  motivo           String?                   @db.VarChar(255)
+  motivo           String?   @db.VarChar(255)
   numeroGuia       String?
   pedidoCompraId   String?
   pedidoVentaId    String?
   usuarioId        String
-  createdAt        DateTime                  @default(now()) @db.DateTime(0)
-  pedidoCompra     PedidoCompra?             @relation(fields: [pedidoCompraId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_pc")
-  producto         Producto                  @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_producto")
-  pedidoVenta      PedidoVenta?              @relation(fields: [pedidoVentaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_pv")
-  usuario          User                      @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_usuario")
+  createdAt        DateTime  @default(now()) @db.DateTime(0)
 
-  @@id([productoId, createdAt])
+  pedidoCompra     PedidoCompra? @relation(fields: [pedidoCompraId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_mi_pc")
+  producto         Producto      @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_producto")
+  pedidoVenta      PedidoVenta?  @relation(fields: [pedidoVentaId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_mi_pv")
+  usuario          User          @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mi_usuario")
+  merma            Merma?
+
   @@index([pedidoCompraId], map: "fk_mi_pc")
   @@index([pedidoVentaId], map: "fk_mi_pv")
   @@index([usuarioId], map: "fk_mi_usuario")
   @@index([createdAt], map: "idx_mi_created")
   @@index([productoId], map: "idx_mi_producto")
   @@index([tipo], map: "idx_mi_tipo")
+  // Eliminada restricción única problemática: @@unique([productoId, createdAt])
   @@map("movimientoinventario")
 }
 
 model PedidoCompra {
-  id             String                 @id
-  numero         String                 @unique(map: "numero")
+  id             String   @id
+  numero         String   @unique(map: "numero")
   proveedorId    String
-  fecha          DateTime               @default(now()) @db.DateTime(0)
-  fechaEntrega   DateTime?              @db.DateTime(0)
-  subtotal       Float                  @default(0)
-  impuestos      Float                  @default(0)
-  total          Float                  @default(0)
-  observaciones  String?                @db.Text
+  fecha          DateTime @default(now()) @db.DateTime(0)
+  fechaEntrega   DateTime? @db.DateTime(0)
+  subtotal       Float    @default(0)
+  impuestos      Float    @default(0)
+  total          Float    @default(0)
+  observaciones  String?  @db.Text
   numeroGuia     String?
   archivoGuia    String?
   usuarioId      String
-  createdAt      DateTime               @default(now()) @db.DateTime(0)
-  updatedAt      DateTime               @default(now()) @db.DateTime(0)
+  version        Int      @default(1)
   lastModifiedBy String?
-  version        Int                    @default(1)
-  movimientos    MovimientoInventario[]
-  proveedor      Proveedor              @relation(fields: [proveedorId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pc_proveedor")
-  usuario        User                   @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pc_usuario")
+  createdAt      DateTime @default(now()) @db.DateTime(0)
+  updatedAt      DateTime @default(now()) @db.DateTime(0)
+  proveedor      Proveedor @relation(fields: [proveedorId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pc_proveedor")
+  usuario        User      @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pc_usuario")
   items          PedidoCompraItem[]
+  movimientos    MovimientoInventario[]
 
   @@index([usuarioId], map: "fk_pc_usuario")
   @@index([fecha], map: "idx_pc_fecha")
@@ -101,7 +111,7 @@ model PedidoCompra {
 }
 
 model PedidoCompraItem {
-  id         String       @id
+  id         String  @id
   pedidoId   String
   productoId String
   cantidad   Float
@@ -110,40 +120,41 @@ model PedidoCompraItem {
   pedido     PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pci_pedido")
   producto   Producto     @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pci_producto")
 
-  @@unique([pedidoId, productoId], map: "uq_pci_pedido_producto")
   @@index([pedidoId], map: "idx_pci_pedido")
   @@index([productoId], map: "idx_pci_producto")
   @@map("pedidocompraitem")
 }
 
 model PedidoVenta {
-  id            String                 @id
-  numero        String                 @unique(map: "numero")
+  id            String             @id
+  numero        String             @unique(map: "numero")
   clienteId     String
-  fecha         DateTime               @default(now()) @db.DateTime(0)
-  subtotal      Float                  @default(0)
-  impuestos     Float                  @default(0)
-  total         Float                  @default(0)
-  estado        pedidoventa_estado     @default(PENDIENTE)
-  observaciones String?                @db.Text
+  fecha         DateTime           @default(now()) @db.DateTime(0)
+  fechaEntrega  DateTime?          @db.DateTime(0)
+  subtotal      Float              @default(0)
+  impuestos     Float              @default(0)
+  total         Float              @default(0)
+  estado        pedidoventa_estado @default(PENDIENTE)
+  observaciones String?            @db.Text
   numeroGuia    String?
   archivoGuia   String?
   usuarioId     String
-  createdAt     DateTime               @default(now()) @db.DateTime(0)
-  updatedAt     DateTime               @default(now()) @db.DateTime(0)
-  movimientos   MovimientoInventario[]
-  cliente       Cliente                @relation(fields: [clienteId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pv_cliente")
-  usuario       User                   @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pv_usuario")
+  createdAt     DateTime           @default(now()) @db.DateTime(0)
+  updatedAt     DateTime           @default(now()) @db.DateTime(0)
+  cliente       Cliente            @relation(fields: [clienteId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pv_cliente")
+  usuario       User               @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pv_usuario")
   items         PedidoVentaItem[]
+  movimientos   MovimientoInventario[]
 
   @@index([usuarioId], map: "fk_pv_usuario")
   @@index([clienteId], map: "idx_pv_cliente")
   @@index([fecha], map: "idx_pv_fecha")
+  @@index([estado], map: "idx_pedidoventa_estado")
   @@map("pedidoventa")
 }
 
 model PedidoVentaItem {
-  id         String      @id
+  id         String  @id
   pedidoId   String
   productoId String
   cantidad   Float
@@ -152,147 +163,182 @@ model PedidoVentaItem {
   pedido     PedidoVenta @relation(fields: [pedidoId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pvi_pedido")
   producto   Producto    @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pvi_producto")
 
-  @@unique([pedidoId, productoId], map: "uq_pvi_pedido_producto")
   @@index([pedidoId], map: "idx_pvi_pedido")
   @@index([productoId], map: "idx_pvi_producto")
   @@map("pedidoventaitem")
 }
 
 model Producto {
-  id              String                 @id
-  nombre          String                 @db.VarChar(255)
-  sku             String?                @unique(map: "sku")
-  descripcion     String?                @db.Text
+  id              String   @id
+  nombre          String   @db.VarChar(255)
+  sku             String?  @unique(map: "sku")
+  descripcion     String?  @db.Text
   categoriaId     String?
   unidadMedidaId  String
-  precio          Float                  @default(0)
-  porcentajeMerma Float                  @default(0)
-  stock           Float                  @default(0)
-  stockMinimo     Float                  @default(0)
-  perecedero      Boolean                @default(true)
-  diasVencimiento Int?
-  tieneIGV        Boolean                @default(true)
-  activo          Boolean                @default(true)
-  createdAt       DateTime               @default(now()) @db.DateTime(0)
-  updatedAt       DateTime               @default(now()) @db.DateTime(0)
+  precio          Float    @default(0)
+  porcentajeMerma Float    @default(0)
+  stock           Float    @default(0)
+  stockMinimo     Float    @default(0)
+  tieneIGV        Boolean  @default(true)
+  activo          Boolean  @default(true)
+  version         Int      @default(1)
   lastModifiedBy  String?
-  version         Int                    @default(1)
-  movimientos     MovimientoInventario[]
+  createdAt       DateTime @default(now()) @db.DateTime(0)
+  updatedAt       DateTime @default(now()) @db.DateTime(0)
+  categoria       Categoria?   @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prod_categoria")
+  unidadMedida    UnidadMedida @relation(fields: [unidadMedidaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prod_unidad")
   comprasItems    PedidoCompraItem[]
   ventasItems     PedidoVentaItem[]
-  categoria       Categoria?             @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prod_categoria")
-  unidadMedida    UnidadMedida           @relation(fields: [unidadMedidaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prod_unidad")
+  movimientos     MovimientoInventario[]
   proveedores     ProductoProveedor[]
+  mermas          Merma[]
 
   @@index([categoriaId], map: "fk_prod_categoria")
   @@index([unidadMedidaId], map: "fk_prod_unidad")
   @@index([activo], map: "idx_prod_activo")
   @@index([nombre], map: "idx_prod_nombre")
   @@index([version], map: "idx_producto_version")
+  @@index([stock], map: "idx_producto_stock")
+  @@index([stockMinimo], map: "idx_producto_stockminimo")
   @@map("producto")
 }
 
-model Proveedor {
-  id                   String              @id
-  tipoEntidad          TipoEntidad         @default(PERSONA_NATURAL)
-  nombre               String              @db.VarChar(255)
-  numeroIdentificacion String?             @unique(map: "numero_identificacion") @db.VarChar(11)
-  telefono             String?             @db.VarChar(50)
-  email                String?
-  direccion            String?             @db.VarChar(255)
-  contacto             String?             @db.VarChar(255)
-  nombres              String?             @db.VarChar(100)
-  apellidos            String?             @db.VarChar(100)
-  razonSocial          String?             @db.VarChar(255)
-  representanteLegal   String?             @db.VarChar(255)
-  ruc                  String?             @db.VarChar(11)
-  dni                  String?             @db.VarChar(8)
-  activo               Boolean             @default(true)
-  createdAt            DateTime            @default(now()) @db.DateTime(0)
-  updatedAt            DateTime            @default(now()) @db.DateTime(0)
-  lastModifiedBy       String?
-  version              Int                 @default(1)
-  pedidosCompra        PedidoCompra[]
-  productos            ProductoProveedor[]
+enum TipoEntidad {
+  PERSONA_NATURAL
+  PERSONA_JURIDICA
+}
 
+model Proveedor {
+  id                 String         @id
+  tipoEntidad        TipoEntidad    @default(PERSONA_NATURAL)
+  nombre             String         @db.VarChar(255)
+  numeroIdentificacion String?      @unique(map: "numero_identificacion") @db.VarChar(11)
+  telefono           String?        @db.VarChar(50)
+  email              String?
+  direccion          String?        @db.VarChar(255)
+  contacto           String?        @db.VarChar(255)
+  
+  // Campos específicos para persona natural
+  nombres            String?        @db.VarChar(100)
+  apellidos          String?        @db.VarChar(100)
+  
+  // Campos específicos para persona jurídica
+  razonSocial        String?        @db.VarChar(255)
+  representanteLegal String?        @db.VarChar(255)
+  
+  // Campos de compatibilidad (deprecated)
+  ruc                String?        @db.VarChar(11)
+  dni                String?        @db.VarChar(8)
+  
+  // Campos de auditoría
+  version            Int            @default(1)
+  lastModifiedBy     String?
+  
+  activo             Boolean        @default(true)
+  createdAt          DateTime       @default(now()) @db.DateTime(0)
+  updatedAt          DateTime       @default(now()) @db.DateTime(0)
+  pedidosCompra      PedidoCompra[]
+  productos          ProductoProveedor[]
+  
   @@index([tipoEntidad], map: "idx_proveedor_tipo")
   @@index([numeroIdentificacion], map: "idx_proveedor_numero_identificacion")
   @@index([version], map: "idx_proveedor_version")
+  @@index([activo], map: "idx_proveedor_activo")
+  @@index([nombre], map: "idx_proveedor_nombre")
+  @@index([razonSocial], map: "idx_proveedor_razonsocial")
+  @@index([nombres], map: "idx_proveedor_nombres")
+  @@index([apellidos], map: "idx_proveedor_apellidos")
+  @@index([ruc], map: "idx_proveedor_ruc")
   @@map("proveedor")
 }
 
+model TipoMerma {
+  id         String   @id
+  nombre     String   @unique(map: "uq_tipomerma_nombre") @db.VarChar(100)
+  activo     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.DateTime(0)
+  updatedAt  DateTime @default(now()) @db.DateTime(0)
+  causas     CausaMerma[]
+  mermas     Merma[]
+
+  @@map("tipomerma")
+}
+
+model CausaMerma {
+  id          String    @id
+  nombre      String    @unique(map: "uq_causamerma_nombre") @db.VarChar(150)
+  tipoMermaId String
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @db.DateTime(0)
+  updatedAt   DateTime  @default(now()) @db.DateTime(0)
+  tipo        TipoMerma @relation(fields: [tipoMermaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_causa_tipomerma")
+  mermas      Merma[]
+
+  @@index([tipoMermaId], map: "idx_causa_tipomerma")
+  @@map("causamerma")
+}
+
+enum merma_clasificacion {
+  NORMAL
+  EXTRAORDINARIA
+}
+
+model Merma {
+  id               String              @id
+  fecha            DateTime            @default(now()) @db.DateTime(0)
+  productoId       String
+  usuarioId        String
+  tipoMermaId      String
+  causaMermaId     String?
+  cantidad         Float
+  clasificacion    merma_clasificacion @default(NORMAL)
+  observaciones    String?             @db.Text
+  movimientoId     Int?    @unique
+  createdAt        DateTime            @default(now()) @db.DateTime(0)
+  updatedAt        DateTime            @default(now()) @db.DateTime(0)
+
+  producto         Producto            @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_merma_producto")
+  usuario          User                @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_merma_usuario")
+  tipo             TipoMerma           @relation(fields: [tipoMermaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_merma_tipomerma")
+  causa            CausaMerma?         @relation(fields: [causaMermaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_merma_causamerma")
+  movimiento       MovimientoInventario? @relation(fields: [movimientoId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_merma_movimiento")
+
+  @@index([fecha], map: "idx_merma_fecha")
+  @@index([productoId], map: "idx_merma_producto")
+  @@index([usuarioId], map: "idx_merma_usuario")
+  @@index([tipoMermaId], map: "idx_merma_tipomerma")
+  @@index([causaMermaId], map: "idx_merma_causamerma")
+  @@index([clasificacion], map: "idx_merma_clasificacion")
+  @@map("merma")
+}
+
 model UnidadMedida {
-  id        String     @id
-  nombre    String     @unique(map: "nombre") @db.VarChar(255)
-  simbolo   String     @unique(map: "simbolo") @db.VarChar(50)
-  activo    Boolean    @default(true)
-  createdAt DateTime   @default(now()) @db.DateTime(0)
-  updatedAt DateTime   @default(now()) @db.DateTime(0)
+  id        String    @id
+  nombre    String    @unique(map: "nombre") @db.VarChar(255)
+  simbolo   String    @unique(map: "simbolo") @db.VarChar(50)
+  activo    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @db.DateTime(0)
+  updatedAt DateTime  @default(now()) @db.DateTime(0)
   productos Producto[]
 
   @@map("unidadmedida")
 }
 
 model User {
-  id         String                 @id
-  name       String                 @db.VarChar(255)
-  email      String                 @unique(map: "email")
-  password   String?
-  role       user_role              @default(ADMIN)
-  createdAt  DateTime               @default(now()) @db.DateTime(0)
-  updatedAt  DateTime               @default(now()) @db.DateTime(0)
+  id        String   @id
+  name      String   @db.VarChar(255)
+  email     String   @unique(map: "email")
+  password  String?
+  role      user_role @default(ADMIN)
+  createdAt DateTime @default(now()) @db.DateTime(0)
+  updatedAt DateTime @default(now()) @db.DateTime(0)
+  compras   PedidoCompra[]
+  ventas    PedidoVenta[]
+  registros MovimientoInventario[]
   auditorias Auditoria[]
-  registros  MovimientoInventario[]
-  compras    PedidoCompra[]
-  ventas     PedidoVenta[]
+  mermas     Merma[]
 
   @@map("user")
-}
-
-model ProductoProveedor {
-  id             String    @id
-  productoId     String
-  proveedorId    String
-  precioCompra   Float     @default(0)
-  tiempoEntrega  Int?
-  cantidadMinima Float     @default(0)
-  activo         Boolean   @default(true)
-  createdAt      DateTime  @default(now()) @db.DateTime(0)
-  updatedAt      DateTime  @default(now()) @db.DateTime(0)
-  producto       Producto  @relation(fields: [productoId], references: [id], onDelete: Cascade, map: "fk_pp_producto")
-  proveedor      Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade, map: "fk_pp_proveedor")
-
-  @@unique([productoId, proveedorId], map: "uq_producto_proveedor")
-  @@index([productoId], map: "idx_pp_producto")
-  @@index([proveedorId], map: "idx_pp_proveedor")
-  @@index([activo], map: "idx_pp_activo")
-  @@map("productoproveedor")
-}
-
-model Auditoria {
-  id              String          @id
-  tabla           String          @db.VarChar(100)
-  registroId      String
-  accion          AuditoriaAccion
-  datosAnteriores Json?
-  datosNuevos     Json?
-  usuarioId       String
-  ip              String?         @db.VarChar(45)
-  userAgent       String?         @db.Text
-  createdAt       DateTime        @default(now()) @db.DateTime(0)
-  usuario         User            @relation(fields: [usuarioId], references: [id], onDelete: NoAction, map: "fk_auditoria_usuario")
-
-  @@index([tabla], map: "idx_auditoria_tabla")
-  @@index([registroId], map: "idx_auditoria_registro")
-  @@index([usuarioId], map: "idx_auditoria_usuario")
-  @@index([createdAt], map: "idx_auditoria_fecha")
-  @@index([accion], map: "idx_auditoria_accion")
-  @@map("auditoria")
-}
-
-enum TipoEntidad {
-  PERSONA_NATURAL
-  PERSONA_JURIDICA
 }
 
 enum movimientoinventario_tipo {
@@ -304,6 +350,51 @@ enum movimientoinventario_tipo {
 enum user_role {
   USER
   ADMIN
+}
+
+// Modelo para relación directa entre productos y proveedores
+model ProductoProveedor {
+  id             String    @id
+  productoId     String
+  proveedorId    String
+  precioCompra   Float     @default(0)
+  tiempoEntrega  Int?      // Días de entrega
+  cantidadMinima Float     @default(0)
+  activo         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @db.DateTime(0)
+  updatedAt      DateTime  @default(now()) @db.DateTime(0)
+  
+  producto       Producto  @relation(fields: [productoId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_pp_producto")
+  proveedor      Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_pp_proveedor")
+
+  @@unique([productoId, proveedorId], map: "uq_producto_proveedor")
+  @@index([productoId], map: "idx_pp_producto")
+  @@index([proveedorId], map: "idx_pp_proveedor")
+  @@index([activo], map: "idx_pp_activo")
+  @@map("productoproveedor")
+}
+
+// Modelo para auditoría y versionado
+model Auditoria {
+  id               String            @id
+  tabla            String            @db.VarChar(100)
+  registroId       String
+  accion           AuditoriaAccion
+  datosAnteriores  Json?
+  datosNuevos      Json?
+  usuarioId        String
+  ip               String?           @db.VarChar(45)
+  userAgent        String?           @db.Text
+  createdAt        DateTime          @default(now()) @db.DateTime(0)
+  
+  usuario          User              @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: Cascade, map: "fk_auditoria_usuario")
+
+  @@index([tabla], map: "idx_auditoria_tabla")
+  @@index([registroId], map: "idx_auditoria_registro")
+  @@index([usuarioId], map: "idx_auditoria_usuario")
+  @@index([createdAt], map: "idx_auditoria_fecha")
+  @@index([accion], map: "idx_auditoria_accion")
+  @@map("auditoria")
 }
 
 enum AuditoriaAccion {

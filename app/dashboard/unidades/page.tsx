@@ -23,7 +23,7 @@ export default function UnidadesMedidaPage() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ nombre: '', simbolo: '' });
 
-
+  // Eliminado: valores de ejemplo
 
   const loadUnidades = async () => {
     setLoading(true);

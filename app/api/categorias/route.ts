@@ -1,10 +1,9 @@
 import { NextRequest } from 'next/server';
 import { withAuth, withErrorHandling, successResponse, errorResponse } from '../../../src/lib/api-utils';
-import { safeTransaction } from '../../../src/lib/prisma';
-import { logger } from '../../../src/lib/logger';
+import { logger as _logger } from '../../../src/lib/logger';
 import { prisma } from '../../../src/lib/prisma';
 import { z } from 'zod';
-import { Session } from 'next-auth';
+import { Session as _Session } from 'next-auth';
 import * as crypto from 'crypto';
 
 // Esquema de validación para categorías
@@ -15,7 +14,7 @@ const categoriaSchema = z.object({
 });
 
 // GET /api/categorias - Listar categorías (activos por defecto; admite status=all|active|inactive)
-export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, _session: _Session) => {
   const { searchParams } = new URL(request.url);
   const status = (searchParams.get('status') || 'active').toLowerCase();
 
@@ -39,7 +38,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
 }));
 
 // POST /api/categorias - Crear nueva categoría
-export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, _session: _Session) => {
   const body = await request.json();
   const validatedData = categoriaSchema.parse(body);
 
@@ -62,7 +61,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
     }
   });
 
-  logger.info('Categoría creada exitosamente', { 
+  _logger.info('Categoría creada exitosamente', { 
     categoriaId: categoria.id, 
     nombre: validatedData.nombre 
   });

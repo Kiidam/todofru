@@ -1,20 +1,18 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../src/lib/prisma';
-import { logger } from '../../../src/lib/logger';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { 
   withAuth, 
   withErrorHandling, 
-  validatePagination, 
   successResponse, 
-  validateUniqueness
+  validateUniqueness,
+  validatePagination as _validatePagination
 } from '../../../src/lib/api-utils';
-import { clientePayloadSchema, validateClientePayload } from '../../../src/schemas/cliente';
+import { validateClientePayload } from '../../../src/schemas/cliente';
 
 type TipoCliente = 'MAYORISTA' | 'MINORISTA';
-type TipoEntidad = 'PERSONA_NATURAL' | 'PERSONA_JURIDICA';
-
 // Esquema de validación para clientes (estructura antigua - retrocompatibilidad)
 const clienteSchemaLegacy = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
@@ -27,16 +25,16 @@ const clienteSchemaLegacy = z.object({
 });
 
 // Función para detectar si es estructura nueva o antigua
-function isNewStructure(data: any): boolean {
+function isNewStructure(data: Record<string, unknown>): boolean {
   return data.tipoEntidad !== undefined || data.numeroIdentificacion !== undefined;
 }
 
 // GET /api/clientes - Listar clientes
-export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: any) => {
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, __session: { user: { id: string } }) => {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const tipoCliente = searchParams.get('tipoCliente');
-    const { page, limit, skip } = validatePagination(searchParams);
+  const { page, limit, skip } = _validatePagination(searchParams);
 
     const where = {
       activo: true,
@@ -79,11 +77,11 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
 }));
 
 // POST /api/clientes - Crear nuevo cliente
-export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: any) => {
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, __session: { user: { id: string } }) => {
     const body = await request.json();
     
-    let validatedData: any;
-    let clienteData: any;
+    let validatedData: Record<string, unknown>;
+    let clienteData: Record<string, unknown>;
     
     if (isNewStructure(body)) {
       // Nueva estructura (formularios refactorizados)
@@ -109,7 +107,8 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
         });
 
         if (existingCliente) {
-          const tipoDoc = validatedData.numeroIdentificacion.length === 8 ? 'DNI' : 'RUC';
+          const numero = String(validatedData.numeroIdentificacion || '');
+          const tipoDoc = numero.length === 8 ? 'DNI' : 'RUC';
           return NextResponse.json(
             { success: false, error: `Ya existe un cliente con ese ${tipoDoc}` },
             { status: 400 }
@@ -135,9 +134,10 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
       }
       
       // Calcular nombre según tipo de entidad
-      const nombreCalculado = validatedData.tipoEntidad === 'PERSONA_NATURAL'
-        ? `${(validatedData.nombres || '').trim()} ${(validatedData.apellidos || '').trim()}`.trim().replace(/\s+/g, ' ')
-        : (validatedData.razonSocial || '').trim();
+      const v = validatedData as any;
+      const nombreCalculado = v.tipoEntidad === 'PERSONA_NATURAL'
+        ? `${(v.nombres || '').trim()} ${(v.apellidos || '').trim()}`.trim().replace(/\s+/g, ' ')
+        : (v.razonSocial || '').trim();
       
       // Preparar datos para la base de datos
       clienteData = {
@@ -165,7 +165,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
       
       // Verificar RUC único si se proporciona
       if (validatedData.ruc) {
-        await validateUniqueness(prisma.cliente, 'ruc', validatedData.ruc, 'cliente');
+  await validateUniqueness(prisma.cliente, 'ruc', (validatedData as any).ruc, 'cliente');
       }
       
       clienteData = {
@@ -176,7 +176,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
     }
 
     const cliente = await prisma.cliente.create({
-      data: clienteData
+      data: clienteData as any
     });
 
     return new NextResponse(

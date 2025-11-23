@@ -123,21 +123,24 @@ export function formDataToPayload(formData: ProveedorFormData): ProveedorPayload
 }
 
 // Función para convertir payload del API a datos del formulario
-export function payloadToFormData(payload: any): ProveedorFormData {
+export function payloadToFormData(payload: Record<string, unknown>): ProveedorFormData {
   const numeroIdentificacion = payload.numeroIdentificacion || payload.dni || payload.ruc || '';
-  const tipoIdentificacion = payload.tipoEntidad === 'PERSONA_NATURAL' ? 'DNI' : 'RUC';
-  
+  // Determinar tipoEntidad de forma segura desde un payload sin tipar
+  const rawTipo = typeof payload['tipoEntidad'] === 'string' ? String(payload['tipoEntidad']) : '';
+  const tipoEntidad: TipoEntidad = rawTipo === 'PERSONA_JURIDICA' ? 'PERSONA_JURIDICA' : 'PERSONA_NATURAL';
+  const tipoIdentificacion = tipoEntidad === 'PERSONA_NATURAL' ? 'DNI' : 'RUC';
+
   return {
-    tipoEntidad: payload.tipoEntidad || 'PERSONA_NATURAL',
+    tipoEntidad,
     tipoIdentificacion,
-    numeroIdentificacion,
-    nombres: payload.nombres || '',
-    apellidos: payload.apellidos || '',
-    razonSocial: payload.razonSocial || '',
-    representanteLegal: payload.representanteLegal || '',
-    telefono: payload.telefono || '',
-    email: payload.email || '',
-    direccion: payload.direccion || '',
+    numeroIdentificacion: String(numeroIdentificacion || ''),
+    nombres: String(payload['nombres'] || ''),
+    apellidos: String(payload['apellidos'] || ''),
+    razonSocial: String(payload['razonSocial'] || ''),
+    representanteLegal: String(payload['representanteLegal'] || ''),
+    telefono: String(payload['telefono'] || ''),
+    email: String(payload['email'] || ''),
+    direccion: String(payload['direccion'] || ''),
   };
 }
 

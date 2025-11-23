@@ -1,14 +1,16 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
+import { getServerSession } from 'next-auth';
+import authOptions from './nextauth';
 import { ZodError } from 'zod';
 import { logger } from './logger';
 
 // Tipos para respuestas estandarizadas
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
-  details?: any;
+  details?: unknown;
   message?: string;
   pagination?: {
     total: number;
@@ -21,74 +23,77 @@ export interface ApiResponse<T = any> {
 // Función para verificar bypass de autenticación en modo test
 export function shouldBypassAuth(request: NextRequest): boolean {
   const header = request.headers.get('x-test-bypass-auth');
-  const testApiEnv = process.env.TEST_API;
-  
-  return header === '1' || header === 'true' || testApiEnv === '1';
+  return (
+    process.env.TEST_API === '1' ||
+    header === '1' ||
+    header === 'true'
+  );
 }
 
 // Wrapper para manejo de autenticación
-export function withAuth<T extends any[]>(
-  handler: (...args: T) => Promise<NextResponse>
-): (...args: T) => Promise<NextResponse> {
-  return async (...args: T): Promise<NextResponse> => {
-    try {
-      const request = args[0] as NextRequest;
-      const bypass = shouldBypassAuth(request);
-      
-      if (!bypass) {
-        const { authOptions } = await import('../../app/api/auth/[...nextauth]/route');
-        const session = await getServerSession(authOptions);
-        
-        if (!session) {
-          return NextResponse.json(
-            { success: false, error: 'No autorizado' } as ApiResponse,
-            { status: 401 }
-          );
-        }
-        
-        // Agregar la sesión al contexto del segundo parámetro
-        const context = args[1] as any;
-        const newContext = { ...context, session };
-        const newArgs = [args[0], newContext, ...args.slice(2)] as any;
-        return await handler(...newArgs);
-      } else {
-        // En modo bypass, crear una sesión mock
-        const mockSession = {
-          user: {
-            id: 'test-user',
-            email: 'test@example.com',
-            name: 'Test User'
-          }
-        };
-        
-        // Agregar la sesión mock al contexto del segundo parámetro
-        const context = args[1] as any;
-        const newContext = { ...context, session: mockSession };
-        const newArgs = [args[0], newContext, ...args.slice(2)] as any;
-        const result = await handler(...newArgs);
-        return result;
+// Define handler types compatible with Next route handlers but allow the
+// wrapped handler to accept additional parameters (e.g., session, params).
+export type NextHandler = (request: NextRequest, context?: unknown) => Promise<NextResponse> | NextResponse;
+export type AnyHandler = (...args: any[]) => Promise<NextResponse> | NextResponse;
+
+export function withAuth(handler: AnyHandler): NextHandler {
+  return async (request: NextRequest, context?: unknown): Promise<NextResponse> => {
+    // Separar la fase de obtención de sesión/autenticación para atrapar solo errores de auth
+    const bypass = shouldBypassAuth(request);
+
+  let session: unknown = undefined;
+
+    if (!bypass) {
+      try {
+        // App Router: pass authOptions to ensure callbacks (role/id) are applied
+        session = await getServerSession(authOptions as any);
+      } catch (err) {
+        logger.error('Error al obtener la sesión de usuario:', { error: err });
+        return NextResponse.json(
+          { success: false, error: 'Error de autenticación' } as ApiResponse,
+          { status: 500 }
+        );
       }
-    } catch (error) {
-      logger.error('Error en autenticación:', { 
-        error,
-        errorMessage: error instanceof Error ? error.message : 'Error desconocido',
-        errorStack: error instanceof Error ? error.stack : undefined
-      });
-      return NextResponse.json(
-        { success: false, error: 'Error de autenticación' } as ApiResponse,
-        { status: 500 }
-      );
+
+      if (!session) {
+        return NextResponse.json(
+          { success: false, error: 'No autorizado' } as ApiResponse,
+          { status: 401 }
+        );
+      }
+    } else {
+      // En modo bypass, crear una sesión mock
+      session = {
+        user: {
+          id: 'test-user',
+          email: 'test@example.com',
+          name: 'Test User',
+          role: 'ADMIN'
+        }
+      };
     }
+
+    // Llamar al handler y dejar que withErrorHandling capture errores del handler
+    if (handler.length >= 3) {
+      // handler expects (request, session, context)
+      return await handler(request, session, context);
+    }
+
+    if (handler.length >= 2) {
+      // handler expects (request, session)
+      return await handler(request, session);
+    }
+
+    // handler expects only (request)
+    return await handler(request);
   };
 }
 
 // Wrapper para manejo de errores estandarizado
-export function withErrorHandling<T extends any[]>(
-  handler: (...args: T) => Promise<NextResponse>
-) {
-  return async (...args: T): Promise<NextResponse> => {
+export function withErrorHandling(handler: NextHandler): NextHandler {
+  return async (request: NextRequest, context?: unknown): Promise<NextResponse> => {
     try {
-      return await handler(...args);
+      return await handler(request, context);
     } catch (error) {
       if (error instanceof ZodError) {
         return NextResponse.json(
@@ -103,7 +108,7 @@ export function withErrorHandling<T extends any[]>(
 
       // Errores de Prisma
       if (error && typeof error === 'object' && 'code' in error) {
-        const prismaError = error as any;
+        const prismaError = error as { code: string; meta?: unknown };
         
         switch (prismaError.code) {
           case 'P2002':
@@ -193,7 +198,7 @@ export function successResponse<T>(
 export function errorResponse(
   error: string,
   status: number = 400,
-  details?: any
+  details?: unknown
 ): NextResponse {
   return NextResponse.json({
     success: false,
@@ -204,7 +209,7 @@ export function errorResponse(
 
 // Función para validar que un registro existe y está activo
 export async function validateActiveRecord<T>(
-  model: any,
+  model: { findUnique: (args: { where: { id: string } }) => Promise<T | null> },
   id: string,
   entityName: string
 ): Promise<T> {
@@ -216,7 +221,7 @@ export async function validateActiveRecord<T>(
     throw new Error(`${entityName} no encontrado`);
   }
 
-  if ('activo' in record && !record.activo) {
+  if (typeof record === 'object' && record !== null && 'activo' in record && !(record as Record<string, unknown>)['activo']) {
     throw new Error(`${entityName} inactivo`);
   }
 
@@ -225,7 +230,7 @@ export async function validateActiveRecord<T>(
 
 // Función para validar unicidad de campo
 export async function validateUniqueness(
-  model: any,
+  model: { findFirst: (args: { where: Record<string, unknown> }) => Promise<unknown | null> },
   field: string,
   value: string,
   entityName: string,

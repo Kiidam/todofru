@@ -366,3 +366,82 @@ export const ProductoInventarioHooks = {
     }
   }
 };
+
+/**
+ * Suscribe a cambios de inventario desde el cliente.
+ *
+ * Implementación segura y de bajo acoplamiento: realiza polling a
+ * `/api/inventario?action=productos` cada intervalo y emite eventos
+ * cuando detecta cambios en el stock de productos.
+ *
+ * Esta función se exporta como fallback para el front-end cuando no
+ * exista un mecanismo de eventos en tiempo real disponible (SSE/WebSocket).
+ */
+export function suscribirseInventarioEventos(
+  cb: (evt: { productoId: string; tipo: 'ENTRADA' | 'SALIDA' | 'AJUSTE'; cantidadNueva: number; delta?: number }) => void,
+  interval = 10000
+): () => void {
+  let cancelled = false;
+  const prevMap = new Map<string, number>();
+
+  const doFetch = async () => {
+    try {
+      const ts = Date.now();
+      const res = await fetch(`/api/inventario?action=productos&ts=${ts}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      const productos = Array.isArray(data?.productos) ? data.productos : [];
+
+      // Primera carga: inicializar el mapa
+      if (prevMap.size === 0) {
+        productos.forEach((p: unknown) => {
+          const prod = p as Record<string, unknown> | null;
+          if (!prod) return;
+          const idVal = prod['id'];
+          if (typeof idVal === 'string') {
+            const stockVal = prod['stock'];
+            prevMap.set(idVal, Number(stockVal ?? 0));
+          }
+        });
+        return;
+      }
+
+      // Comparar y emitir eventos por cambios
+      productos.forEach((p: unknown) => {
+        const prod = p as Record<string, unknown> | null;
+        if (!prod) return;
+        const idVal = prod['id'];
+        if (typeof idVal !== 'string') return;
+        const id = idVal;
+        const newStock = Number(prod['stock'] ?? 0);
+        const oldStock = prevMap.get(id) ?? 0;
+        if (newStock !== oldStock) {
+          const delta = newStock - oldStock;
+          const tipo: 'ENTRADA' | 'SALIDA' | 'AJUSTE' = Math.abs(delta) > 0 ? (delta > 0 ? 'ENTRADA' : 'SALIDA') : 'AJUSTE';
+          try {
+            cb({ productoId: id, tipo, cantidadNueva: newStock, delta });
+          } catch (e) {
+            // No dejar que errores en el callback rompan el polling
+            console.error('Error en suscriptor de inventario callback:', e);
+          }
+          prevMap.set(id, newStock);
+        }
+      });
+    } catch (error) {
+      // Silencioso: evitar saturar consola en producción
+      if (process.env.NODE_ENV !== 'production') console.debug('suscribirseInventarioEventos error:', error);
+    }
+  };
+
+  // Ejecutar inmediatamente y luego en intervalo
+  void doFetch();
+  const id = setInterval(() => {
+    if (cancelled) return;
+    void doFetch();
+  }, interval);
+
+  return () => {
+    cancelled = true;
+    clearInterval(id);
+  };
+}

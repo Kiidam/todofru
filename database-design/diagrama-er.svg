@@ -1,0 +1,289 @@
+<svg width="1400" height="1000" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .table-box { fill: #f8f9fa; stroke: #343a40; stroke-width: 2; }
+      .table-header { fill: #007bff; }
+      .table-title { fill: white; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; text-anchor: middle; }
+      .field-text { fill: #343a40; font-family: Arial, sans-serif; font-size: 11px; }
+      .pk-field { fill: #dc3545; font-weight: bold; }
+      .fk-field { fill: #28a745; }
+      .relationship-line { stroke: #6c757d; stroke-width: 2; fill: none; }
+      .relationship-text { fill: #495057; font-family: Arial, sans-serif; font-size: 10px; text-anchor: middle; }
+    </style>
+  </defs>
+  
+  <!-- PERSONAS (Central) -->
+  <g id="personas">
+    <rect class="table-box" x="500" y="50" width="200" height="180"/>
+    <rect class="table-header" x="500" y="50" width="200" height="25"/>
+    <text class="table-title" x="600" y="67">PERSONAS</text>
+    <text class="field-text pk-field" x="510" y="90">🔑 id (UUID)</text>
+    <text class="field-text" x="510" y="105">numero_identificacion</text>
+    <text class="field-text" x="510" y="120">nombres</text>
+    <text class="field-text" x="510" y="135">apellidos</text>
+    <text class="field-text" x="510" y="150">razon_social</text>
+    <text class="field-text" x="510" y="165">tipo_entidad</text>
+    <text class="field-text" x="510" y="180">email</text>
+    <text class="field-text" x="510" y="195">telefono</text>
+    <text class="field-text" x="510" y="210">activo</text>
+  </g>
+
+  <!-- PERSONAS_NATURALES -->
+  <g id="personas_naturales">
+    <rect class="table-box" x="250" y="280" width="180" height="120"/>
+    <rect class="table-header" x="250" y="280" width="180" height="25"/>
+    <text class="table-title" x="340" y="297">PERSONAS_NATURALES</text>
+    <text class="field-text pk-field fk-field" x="260" y="320">🔑🔗 persona_id</text>
+    <text class="field-text" x="260" y="335">fecha_nacimiento</text>
+    <text class="field-text" x="260" y="350">genero</text>
+    <text class="field-text" x="260" y="365">estado_civil</text>
+  </g>
+
+  <!-- PERSONAS_JURIDICAS -->
+  <g id="personas_juridicas">
+    <rect class="table-box" x="470" y="280" width="180" height="120"/>
+    <rect class="table-header" x="470" y="280" width="180" height="25"/>
+    <text class="table-title" x="560" y="297">PERSONAS_JURIDICAS</text>
+    <text class="field-text pk-field fk-field" x="480" y="320">🔑🔗 persona_id</text>
+    <text class="field-text" x="480" y="335">nit</text>
+    <text class="field-text" x="480" y="350">tipo_sociedad</text>
+    <text class="field-text" x="480" y="365">fecha_constitucion</text>
+  </g>
+
+  <!-- CLIENTES -->
+  <g id="clientes">
+    <rect class="table-box" x="50" y="450" width="180" height="140"/>
+    <rect class="table-header" x="50" y="450" width="180" height="25"/>
+    <text class="table-title" x="140" y="467">CLIENTES</text>
+    <text class="field-text pk-field" x="60" y="490">🔑 id (UUID)</text>
+    <text class="field-text fk-field" x="60" y="505">🔗 persona_id</text>
+    <text class="field-text" x="60" y="520">tipo_cliente</text>
+    <text class="field-text" x="60" y="535">limite_credito</text>
+    <text class="field-text" x="60" y="550">descuento_habitual</text>
+    <text class="field-text" x="60" y="565">fecha_registro</text>
+    <text class="field-text" x="60" y="580">activo</text>
+  </g>
+
+  <!-- PROVEEDORES -->
+  <g id="proveedores">
+    <rect class="table-box" x="270" y="450" width="180" height="140"/>
+    <rect class="table-header" x="270" y="450" width="180" height="25"/>
+    <text class="table-title" x="360" y="467">PROVEEDORES</text>
+    <text class="field-text pk-field" x="280" y="490">🔑 id (UUID)</text>
+    <text class="field-text fk-field" x="280" y="505">🔗 persona_id</text>
+    <text class="field-text" x="280" y="520">calificacion</text>
+    <text class="field-text" x="280" y="535">tiempo_entrega_dias</text>
+    <text class="field-text" x="280" y="550">condiciones_pago</text>
+    <text class="field-text" x="280" y="565">activo</text>
+  </g>
+
+  <!-- CATEGORIAS -->
+  <g id="categorias">
+    <rect class="table-box" x="750" y="50" width="180" height="140"/>
+    <rect class="table-header" x="750" y="50" width="180" height="25"/>
+    <text class="table-title" x="840" y="67">CATEGORIAS</text>
+    <text class="field-text pk-field" x="760" y="90">🔑 id (UUID)</text>
+    <text class="field-text" x="760" y="105">codigo</text>
+    <text class="field-text" x="760" y="120">nombre</text>
+    <text class="field-text" x="760" y="135">descripcion</text>
+    <text class="field-text fk-field" x="760" y="150">🔗 categoria_padre_id</text>
+    <text class="field-text" x="760" y="165">activo</text>
+  </g>
+
+  <!-- UNIDADES_MEDIDA -->
+  <g id="unidades_medida">
+    <rect class="table-box" x="970" y="50" width="180" height="140"/>
+    <rect class="table-header" x="970" y="50" width="180" height="25"/>
+    <text class="table-title" x="1060" y="67">UNIDADES_MEDIDA</text>
+    <text class="field-text pk-field" x="980" y="90">🔑 id (UUID)</text>
+    <text class="field-text" x="980" y="105">codigo</text>
+    <text class="field-text" x="980" y="120">nombre</text>
+    <text class="field-text" x="980" y="135">simbolo</text>
+    <text class="field-text" x="980" y="150">tipo</text>
+    <text class="field-text" x="980" y="165">factor_conversion</text>
+    <text class="field-text" x="980" y="180">activo</text>
+  </g>
+
+  <!-- PRODUCTOS -->
+  <g id="productos">
+    <rect class="table-box" x="750" y="250" width="200" height="180"/>
+    <rect class="table-header" x="750" y="250" width="200" height="25"/>
+    <text class="table-title" x="850" y="267">PRODUCTOS</text>
+    <text class="field-text pk-field" x="760" y="290">🔑 id (UUID)</text>
+    <text class="field-text" x="760" y="305">codigo</text>
+    <text class="field-text" x="760" y="320">nombre</text>
+    <text class="field-text" x="760" y="335">descripcion</text>
+    <text class="field-text fk-field" x="760" y="350">🔗 categoria_id</text>
+    <text class="field-text fk-field" x="760" y="365">🔗 unidad_medida_id</text>
+    <text class="field-text" x="760" y="380">precio_venta</text>
+    <text class="field-text" x="760" y="395">stock_actual</text>
+    <text class="field-text" x="760" y="410">stock_minimo</text>
+    <text class="field-text" x="760" y="425">activo</text>
+  </g>
+
+  <!-- PRODUCTOS_PROVEEDORES -->
+  <g id="productos_proveedores">
+    <rect class="table-box" x="500" y="450" width="200" height="140"/>
+    <rect class="table-header" x="500" y="450" width="200" height="25"/>
+    <text class="table-title" x="600" y="467">PRODUCTOS_PROVEEDORES</text>
+    <text class="field-text pk-field" x="510" y="490">🔑 id (UUID)</text>
+    <text class="field-text fk-field" x="510" y="505">🔗 producto_id</text>
+    <text class="field-text fk-field" x="510" y="520">🔗 proveedor_id</text>
+    <text class="field-text" x="510" y="535">precio_compra</text>
+    <text class="field-text" x="510" y="550">tiempo_entrega_dias</text>
+    <text class="field-text" x="510" y="565">es_proveedor_preferido</text>
+    <text class="field-text" x="510" y="580">activo</text>
+  </g>
+
+  <!-- TIPOS_MOVIMIENTO -->
+  <g id="tipos_movimiento">
+    <rect class="table-box" x="1000" y="450" width="180" height="140"/>
+    <rect class="table-header" x="1000" y="450" width="180" height="25"/>
+    <text class="table-title" x="1090" y="467">TIPOS_MOVIMIENTO</text>
+    <text class="field-text pk-field" x="1010" y="490">🔑 id (UUID)</text>
+    <text class="field-text" x="1010" y="505">codigo</text>
+    <text class="field-text" x="1010" y="520">nombre</text>
+    <text class="field-text" x="1010" y="535">categoria</text>
+    <text class="field-text" x="1010" y="550">afecta_stock</text>
+    <text class="field-text" x="1010" y="565">requiere_documento</text>
+    <text class="field-text" x="1010" y="580">activo</text>
+  </g>
+
+  <!-- MOVIMIENTOS_INVENTARIO -->
+  <g id="movimientos_inventario">
+    <rect class="table-box" x="750" y="650" width="200" height="160"/>
+    <rect class="table-header" x="750" y="650" width="200" height="25"/>
+    <text class="table-title" x="850" y="667">MOVIMIENTOS_INVENTARIO</text>
+    <text class="field-text pk-field" x="760" y="690">🔑 id (UUID)</text>
+    <text class="field-text fk-field" x="760" y="705">🔗 producto_id</text>
+    <text class="field-text fk-field" x="760" y="720">🔗 tipo_movimiento_id</text>
+    <text class="field-text" x="760" y="735">cantidad</text>
+    <text class="field-text" x="760" y="750">precio_unitario</text>
+    <text class="field-text" x="760" y="765">fecha_movimiento</text>
+    <text class="field-text" x="760" y="780">documento_referencia</text>
+    <text class="field-text fk-field" x="760" y="795">🔗 usuario_id</text>
+  </g>
+
+  <!-- USUARIOS -->
+  <g id="usuarios">
+    <rect class="table-box" x="50" y="650" width="180" height="160"/>
+    <rect class="table-header" x="50" y="650" width="180" height="25"/>
+    <text class="table-title" x="140" y="667">USUARIOS</text>
+    <text class="field-text pk-field" x="60" y="690">🔑 id (UUID)</text>
+    <text class="field-text" x="60" y="705">username</text>
+    <text class="field-text" x="60" y="720">email</text>
+    <text class="field-text" x="60" y="735">password_hash</text>
+    <text class="field-text" x="60" y="750">nombres</text>
+    <text class="field-text" x="60" y="765">apellidos</text>
+    <text class="field-text" x="60" y="780">rol</text>
+    <text class="field-text" x="60" y="795">activo</text>
+  </g>
+
+  <!-- PEDIDOS_COMPRA -->
+  <g id="pedidos_compra">
+    <rect class="table-box" x="270" y="650" width="200" height="160"/>
+    <rect class="table-header" x="270" y="650" width="200" height="25"/>
+    <text class="table-title" x="370" y="667">PEDIDOS_COMPRA</text>
+    <text class="field-text pk-field" x="280" y="690">🔑 id (UUID)</text>
+    <text class="field-text" x="280" y="705">numero_pedido</text>
+    <text class="field-text fk-field" x="280" y="720">🔗 proveedor_id</text>
+    <text class="field-text fk-field" x="280" y="735">🔗 estado_id</text>
+    <text class="field-text" x="280" y="750">fecha_pedido</text>
+    <text class="field-text" x="280" y="765">fecha_entrega_esperada</text>
+    <text class="field-text" x="280" y="780">total</text>
+    <text class="field-text fk-field" x="280" y="795">🔗 usuario_id</text>
+  </g>
+
+  <!-- AUDITORIA -->
+  <g id="auditoria">
+    <rect class="table-box" x="1200" y="650" width="180" height="160"/>
+    <rect class="table-header" x="1200" y="650" width="180" height="25"/>
+    <text class="table-title" x="1290" y="667">AUDITORIA</text>
+    <text class="field-text pk-field" x="1210" y="690">🔑 id (UUID)</text>
+    <text class="field-text" x="1210" y="705">entidad</text>
+    <text class="field-text" x="1210" y="720">entidad_id</text>
+    <text class="field-text" x="1210" y="735">accion</text>
+    <text class="field-text" x="1210" y="750">valores_antes</text>
+    <text class="field-text" x="1210" y="765">valores_despues</text>
+    <text class="field-text fk-field" x="1210" y="780">🔗 usuario_id</text>
+    <text class="field-text" x="1210" y="795">fecha_accion</text>
+  </g>
+
+  <!-- RELACIONES -->
+  
+  <!-- PERSONAS -> PERSONAS_NATURALES -->
+  <line class="relationship-line" x1="550" y1="230" x2="340" y2="280"/>
+  <text class="relationship-text" x="445" y="250">1:1</text>
+  
+  <!-- PERSONAS -> PERSONAS_JURIDICAS -->
+  <line class="relationship-line" x1="600" y1="230" x2="560" y2="280"/>
+  <text class="relationship-text" x="580" y="250">1:1</text>
+  
+  <!-- PERSONAS -> CLIENTES -->
+  <line class="relationship-line" x1="500" y1="200" x2="230" y2="450"/>
+  <text class="relationship-text" x="365" y="325">1:N</text>
+  
+  <!-- PERSONAS -> PROVEEDORES -->
+  <line class="relationship-line" x1="550" y1="230" x2="360" y2="450"/>
+  <text class="relationship-text" x="455" y="340">1:N</text>
+  
+  <!-- CATEGORIAS -> PRODUCTOS -->
+  <line class="relationship-line" x1="840" y1="190" x2="850" y2="250"/>
+  <text class="relationship-text" x="845" y="220">1:N</text>
+  
+  <!-- UNIDADES_MEDIDA -> PRODUCTOS -->
+  <line class="relationship-line" x1="970" y1="150" x2="950" y2="250"/>
+  <text class="relationship-text" x="960" y="200">1:N</text>
+  
+  <!-- PRODUCTOS -> PRODUCTOS_PROVEEDORES -->
+  <line class="relationship-line" x1="750" y1="400" x2="700" y2="450"/>
+  <text class="relationship-text" x="725" y="425">1:N</text>
+  
+  <!-- PROVEEDORES -> PRODUCTOS_PROVEEDORES -->
+  <line class="relationship-line" x1="450" y1="520" x2="500" y2="520"/>
+  <text class="relationship-text" x="475" y="515">1:N</text>
+  
+  <!-- PRODUCTOS -> MOVIMIENTOS_INVENTARIO -->
+  <line class="relationship-line" x1="850" y1="430" x2="850" y2="650"/>
+  <text class="relationship-text" x="855" y="540">1:N</text>
+  
+  <!-- TIPOS_MOVIMIENTO -> MOVIMIENTOS_INVENTARIO -->
+  <line class="relationship-line" x1="1000" y1="550" x2="950" y2="700"/>
+  <text class="relationship-text" x="975" y="625">1:N</text>
+  
+  <!-- USUARIOS -> MOVIMIENTOS_INVENTARIO -->
+  <line class="relationship-line" x1="230" y1="730" x2="750" y2="730"/>
+  <text class="relationship-text" x="490" y="725">1:N</text>
+  
+  <!-- PROVEEDORES -> PEDIDOS_COMPRA -->
+  <line class="relationship-line" x1="360" y1="590" x2="370" y2="650"/>
+  <text class="relationship-text" x="365" y="620">1:N</text>
+  
+  <!-- USUARIOS -> PEDIDOS_COMPRA -->
+  <line class="relationship-line" x1="140" y1="650" x2="280" y2="650"/>
+  <text class="relationship-text" x="210" y="645">1:N</text>
+  
+  <!-- USUARIOS -> AUDITORIA -->
+  <line class="relationship-line" x1="230" y1="730" x2="1200" y2="730"/>
+  <text class="relationship-text" x="715" y="725">1:N</text>
+
+  <!-- CATEGORIAS auto-referencia -->
+  <path class="relationship-line" d="M 930 120 Q 980 120 980 80 Q 980 40 930 40 Q 880 40 880 80 Q 880 120 840 120"/>
+  <text class="relationship-text" x="910" y="35">1:N (jerarquía)</text>
+
+  <!-- Título del diagrama -->
+  <text x="700" y="30" style="fill: #343a40; font-family: Arial, sans-serif; font-size: 20px; font-weight: bold; text-anchor: middle;">
+    Diagrama Entidad-Relación - Sistema de Gestión de Inventario
+  </text>
+
+  <!-- Leyenda -->
+  <g id="leyenda">
+    <rect x="50" y="850" width="300" height="120" fill="#f8f9fa" stroke="#343a40" stroke-width="1"/>
+    <text x="60" y="870" style="fill: #343a40; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold;">Leyenda:</text>
+    <text x="60" y="890" style="fill: #dc3545; font-family: Arial, sans-serif; font-size: 12px;">🔑 Clave Primaria (PK)</text>
+    <text x="60" y="910" style="fill: #28a745; font-family: Arial, sans-serif; font-size: 12px;">🔗 Clave Foránea (FK)</text>
+    <text x="60" y="930" style="fill: #6c757d; font-family: Arial, sans-serif; font-size: 12px;">— Relación (1:1, 1:N, N:M)</text>
+    <text x="60" y="950" style="fill: #343a40; font-family: Arial, sans-serif; font-size: 12px;">📊 Normalizado hasta 3FN</text>
+  </g>
+
+</svg>

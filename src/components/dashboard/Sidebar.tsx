@@ -1,8 +1,8 @@
-'use client';
+ 'use client';
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 import {
   LayoutDashboard,
   Package,
@@ -58,6 +58,8 @@ function SidebarComponent() {
     
     // Módulo de Inventario
     { href: '/dashboard/inventario', label: 'Inventario', icon: <Warehouse size={20} /> },
+  // Reportes
+  { href: '/dashboard/reportes', label: 'Reportes', icon: <FileText size={20} /> },
     // Módulo de Cuentas (oculto temporalmente por refactor)
     
     // Módulos existentes

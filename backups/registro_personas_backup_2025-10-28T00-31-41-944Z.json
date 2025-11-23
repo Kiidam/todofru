@@ -1,0 +1,20 @@
+{
+  "database": "registro_personas",
+  "exportedAt": "2025-10-28T00:31:41.824Z",
+  "tables": {
+    "personas": [
+      {
+        "id": 1,
+        "nombre": "assda",
+        "email": "kiidam@hotmail.com",
+        "password": "123"
+      },
+      {
+        "id": 3,
+        "nombre": "martin",
+        "email": "kiidam2@hotmail.com",
+        "password": "123"
+      }
+    ]
+  }
+}

@@ -1,14 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { withAuth, withErrorHandling, validatePagination, successResponse, errorResponse } from '../../../src/lib/api-utils';
-import { prisma } from '../../../src/lib/prisma';
 import { logger } from '../../../src/lib/logger';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { getServerSession } from 'next-auth/next';
+import authOptions from '../../../src/lib/nextauth';
+import { prisma } from '../../../src/lib/prisma';
 import { z } from 'zod';
 import { validateProductoParaMovimiento } from '../../../src/lib/producto-inventario-sync';
 import type { Prisma } from '@prisma/client';
 import type { TipoMovimiento } from '../../../src/types/todafru';
-import { Session } from 'next-auth';
 
 // Esquema de validación para movimientos
 const movimientoSchema = z.object({
@@ -21,63 +20,83 @@ const movimientoSchema = z.object({
 });
 
 // GET /api/movimientos-inventario - Listar movimientos con filtros
-export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
-  const { searchParams } = new URL(request.url);
-  const productoId = searchParams.get('productoId');
-  const tipo = searchParams.get('tipo');
-  const fechaDesde = searchParams.get('fechaDesde');
-  const fechaHasta = searchParams.get('fechaHasta');
-  
-  const { page, limit, skip } = validatePagination(searchParams);
-
-  // Construir filtros
-  const where = {
-    ...(productoId && { productoId }),
-    ...(tipo && { tipo: tipo as TipoMovimiento }),
-    ...(fechaDesde || fechaHasta) && {
-      createdAt: {
-        ...(fechaDesde && { gte: new Date(fechaDesde) }),
-        ...(fechaHasta && { lte: new Date(fechaHasta) })
-      }
+export async function GET(request: NextRequest) {
+  try {
+  const session = await getServerSession(authOptions as any);
+  if (!(session as any)) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-  } as const;
 
-  const [movimientos, total] = await Promise.all([
-    prisma.movimientoInventario.findMany({
-      where,
-      include: {
-        producto: {
-          select: {
-            id: true,
-            nombre: true,
-            sku: true,
-            unidadMedida: { select: { simbolo: true } }
-          }
+    const { searchParams } = new URL(request.url);
+    const productoId = searchParams.get('productoId');
+    const tipo = searchParams.get('tipo');
+    const fechaDesde = searchParams.get('fechaDesde');
+    const fechaHasta = searchParams.get('fechaHasta');
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const skip = (page - 1) * limit;
+
+    // Construir filtros
+    const where = {
+      ...(productoId && { productoId }),
+      ...(tipo && { tipo: tipo as TipoMovimiento }),
+      ...(fechaDesde || fechaHasta) && {
+        createdAt: {
+          ...(fechaDesde && { gte: new Date(fechaDesde) }),
+          ...(fechaHasta && { lte: new Date(fechaHasta) })
+        }
+      }
+    } as const;
+
+    const [movimientos, total] = await Promise.all([
+      prisma.movimientoInventario.findMany({
+        where,
+        include: {
+          producto: {
+            select: {
+              id: true,
+              nombre: true,
+              sku: true,
+              unidadMedida: { select: { simbolo: true } }
+            }
+          },
+          usuario: { select: { name: true } }
         },
-        usuario: { select: { name: true } }
-      },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit
-    }),
-    prisma.movimientoInventario.count({ where })
-  ]);
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.movimientoInventario.count({ where })
+    ]);
 
-  const pagination = {
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit)
-  };
-
-  return successResponse(movimientos, undefined, pagination);
-}));
+    return NextResponse.json({ 
+      success: true, 
+      data: movimientos,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=20, stale-while-revalidate=120'
+      }
+    });
+  } catch (error) {
+    logger.error('Error al obtener movimientos:', { error });
+    return NextResponse.json(
+      { success: false, error: 'Error interno del servidor' },
+      { status: 500 }
+    );
+  }
+}
 
 // POST /api/movimientos-inventario - Crear nuevo movimiento
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+  const session = await getServerSession(authOptions as any);
+  if (!(session as any)?.user?.id) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
@@ -125,7 +144,7 @@ export async function POST(request: NextRequest) {
           ...validatedData,
           cantidadAnterior: producto.stock,
           cantidadNueva: nuevoStock,
-          usuarioId: session.user.id
+          usuarioId: (session as any).user.id
         },
         include: {
           producto: {

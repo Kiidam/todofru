@@ -23,28 +23,33 @@ export default function ClientSelect({ value, onChange }: ClientSelectProps) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/clientes?limit=50');
-        const json = await res.json();
-        if (res.ok && json && typeof json === 'object' && 'data' in json) {
-          const data = (json as { data: unknown }).data;
-          if (Array.isArray(data)) {
-            const list: Cliente[] = data
-              .map((item) => {
-                const rec = item as Record<string, unknown>;
-                const id = typeof rec.id === 'string' ? rec.id : '';
-                const nombre = typeof rec.nombre === 'string' ? rec.nombre : '';
-                const tipo = rec.tipoCliente;
-                const tipoCliente = tipo === 'MAYORISTA' || tipo === 'MINORISTA' ? (tipo as 'MAYORISTA' | 'MINORISTA') : undefined;
-                return { id, nombre, tipoCliente };
-              })
-              .filter((c) => c.id && c.nombre);
-            setClientes(list);
-          } else {
-            setError('Formato de respuesta inválido');
-          }
-        } else {
-          setError((json as Record<string, unknown>)?.error as string || 'No se pudieron cargar los clientes');
+        const res = await fetch('/api/clientes?limit=50', { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          setError((json && (json as Record<string, unknown>).error) ? String((json as Record<string, unknown>).error) : 'No se pudieron cargar los clientes');
+          return;
         }
+        const arr = json?.data?.data ?? json?.data ?? json?.clientes ?? json ?? [];
+        if (!Array.isArray(arr)) {
+          setError('Formato de respuesta inválido');
+          return;
+        }
+        const list: Cliente[] = (arr as unknown[])
+          .map((item) => {
+            const rec = item as Record<string, unknown>;
+            const id = typeof rec.id === 'string' ? rec.id : '';
+            const razonSocial = typeof rec.razonSocial === 'string' ? rec.razonSocial : '';
+            const nombres = typeof rec.nombres === 'string' ? rec.nombres : '';
+            const apellidos = typeof rec.apellidos === 'string' ? rec.apellidos : '';
+            const numeroIdentificacion = typeof rec.numeroIdentificacion === 'string' ? rec.numeroIdentificacion : '';
+            const nombreFromParts = (nombres || apellidos) ? `${nombres} ${apellidos}`.trim() : '';
+            const nombre = typeof rec.nombre === 'string' && rec.nombre ? rec.nombre : (razonSocial || nombreFromParts || numeroIdentificacion || '');
+            const tipo = rec.tipoCliente;
+            const tipoCliente = tipo === 'MAYORISTA' || tipo === 'MINORISTA' ? (tipo as 'MAYORISTA' | 'MINORISTA') : undefined;
+            return { id, nombre, tipoCliente };
+          })
+          .filter((c) => c.id && c.nombre);
+        setClientes(list);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error desconocido');
       } finally {
@@ -52,6 +57,17 @@ export default function ClientSelect({ value, onChange }: ClientSelectProps) {
       }
     };
     fetchClientes();
+
+    const handler = (e: Event) => {
+      try {
+        const ev = e as CustomEvent;
+        if (ev?.detail?.type === 'cliente') {
+          fetchClientes();
+        }
+      } catch {}
+    };
+    if (typeof window !== 'undefined') window.addEventListener('entity:created', handler as EventListener);
+    return () => { if (typeof window !== 'undefined') window.removeEventListener('entity:created', handler as EventListener); };
   }, []);
 
   if (loading) return <div className="p-2">Cargando clientes...</div>;

@@ -1,0 +1,250 @@
+{
+  "timestamp": "2025-10-27T06:40:20.080Z",
+  "verificaciones": {
+    "prismaSync": {
+      "estado": "OK",
+      "conexion": true,
+      "ultimasMigraciones": 2,
+      "ultimaMigracion": "20251027061717_estructura_optimizada_completa"
+    },
+    "foreignKeys": {
+      "estado": "OK",
+      "totalForeignKeys": 21,
+      "errores": 0,
+      "detalles": [
+        {
+          "tabla": "auditoria",
+          "columna": "usuario_id",
+          "referencia": "usuarios.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "categorias",
+          "columna": "categoria_padre_id",
+          "referencia": "categorias.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "clientes",
+          "columna": "persona_id",
+          "referencia": "personas.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "movimientos_inventario",
+          "columna": "pedido_compra_id",
+          "referencia": "pedidos_compra.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "movimientos_inventario",
+          "columna": "producto_id",
+          "referencia": "productos.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "movimientos_inventario",
+          "columna": "tipo_movimiento_id",
+          "referencia": "tipos_movimiento.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "movimientos_inventario",
+          "columna": "usuario_id",
+          "referencia": "usuarios.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "pedidos_compra",
+          "columna": "estado_id",
+          "referencia": "estados_pedido.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "pedidos_compra",
+          "columna": "proveedor_id",
+          "referencia": "proveedores.persona_id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "pedidos_compra",
+          "columna": "usuario_creacion_id",
+          "referencia": "usuarios.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "pedidos_compra",
+          "columna": "usuario_modificacion_id",
+          "referencia": "usuarios.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "pedidos_compra_items",
+          "columna": "pedido_id",
+          "referencia": "pedidos_compra.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "pedidos_compra_items",
+          "columna": "producto_id",
+          "referencia": "productos.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "personas_juridicas",
+          "columna": "persona_id",
+          "referencia": "personas.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "personas_naturales",
+          "columna": "persona_id",
+          "referencia": "personas.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "productos",
+          "columna": "categoria_id",
+          "referencia": "categorias.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "productos",
+          "columna": "unidad_medida_id",
+          "referencia": "unidades_medida.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "productos_proveedores",
+          "columna": "producto_id",
+          "referencia": "productos.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "productos_proveedores",
+          "columna": "proveedor_id",
+          "referencia": "proveedores.persona_id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "proveedores",
+          "columna": "persona_id",
+          "referencia": "personas.id",
+          "huerfanos": 0
+        },
+        {
+          "tabla": "unidades_medida",
+          "columna": "unidad_base_id",
+          "referencia": "unidades_medida.id",
+          "huerfanos": 0
+        }
+      ]
+    },
+    "indices": {
+      "estado": "OK",
+      "totalIndices": 107,
+      "indicesPorTabla": [
+        {
+          "tabla": "_prisma_migrations",
+          "indices": 1
+        },
+        {
+          "tabla": "auditoria",
+          "indices": 8
+        },
+        {
+          "tabla": "categorias",
+          "indices": 7
+        },
+        {
+          "tabla": "clientes",
+          "indices": 3
+        },
+        {
+          "tabla": "estados_pedido",
+          "indices": 4
+        },
+        {
+          "tabla": "movimientos_inventario",
+          "indices": 13
+        },
+        {
+          "tabla": "pedidos_compra",
+          "indices": 11
+        },
+        {
+          "tabla": "pedidos_compra_items",
+          "indices": 5
+        },
+        {
+          "tabla": "personas",
+          "indices": 6
+        },
+        {
+          "tabla": "personas_juridicas",
+          "indices": 3
+        },
+        {
+          "tabla": "personas_naturales",
+          "indices": 3
+        },
+        {
+          "tabla": "productos",
+          "indices": 14
+        },
+        {
+          "tabla": "productos_proveedores",
+          "indices": 7
+        },
+        {
+          "tabla": "proveedores",
+          "indices": 3
+        },
+        {
+          "tabla": "tipos_movimiento",
+          "indices": 4
+        },
+        {
+          "tabla": "unidades_medida",
+          "indices": 8
+        },
+        {
+          "tabla": "usuarios",
+          "indices": 7
+        }
+      ]
+    },
+    "constraints": {
+      "estado": "OK",
+      "totalConstraints": 52,
+      "tipos": {
+        "PRIMARY KEY": 17,
+        "FOREIGN KEY": 21,
+        "UNIQUE": 14
+      }
+    },
+    "migraciones": {
+      "estado": "OK",
+      "migracionesPendientes": 0,
+      "ultimasMigraciones": [
+        {
+          "nombre": "20251027061717_estructura_optimizada_completa",
+          "fecha": "2025-10-27T06:17:52.997Z"
+        },
+        {
+          "nombre": "20251024091504_add_numero_identificacion_field",
+          "fecha": "2025-10-27T06:16:38.808Z"
+        }
+      ]
+    }
+  },
+  "problemas": [],
+  "recomendaciones": [
+    {
+      "tipo": "SISTEMA_SALUDABLE",
+      "descripcion": "El sistema principal está en buen estado",
+      "accion": "MANTENER_MONITOREO",
+      "prioridad": "BAJA"
+    }
+  ]
+}

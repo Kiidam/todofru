@@ -5,11 +5,35 @@ import { logger } from '../../../../src/lib/logger';
 import { Prisma } from '@prisma/client';
 import { Session } from 'next-auth';
 import { validateProveedorPayload } from '../../../../src/schemas/proveedor';
-import { validateDocument, sanitizeNumericInput } from '../../../../src/utils/documentValidation';
+
+interface BaseProveedorData {
+  tipoEntidad: string | null;
+  email?: string | null;
+  telefono?: string | null;
+  direccion?: string | null;
+  updatedAt: Date;
+  nombres?: string | null;
+  apellidos?: string | null;
+  numeroIdentificacion?: string | null;
+  nombre?: string | null;
+  razonSocial?: string | null;
+  ruc?: string | null;
+  representanteLegal?: string | null;
+}
+
+interface LogData {
+  proveedorId: string;
+  tipoEntidad: string;
+  nombres?: string;
+  apellidos?: string;
+  numeroIdentificacion?: string;
+  razonSocial?: string;
+  ruc?: string;
+}
 
 // PUT /api/proveedores/[id] - Actualizar proveedor existente
 export const PUT = withErrorHandling(withAuth(async (request: NextRequest, session: Session, { params }: { params: { id: string } }) => {
-  const { id } = params;
+  const { id } = await params;
   
   if (!id) {
     return errorResponse('ID de proveedor requerido', 400);
@@ -25,36 +49,6 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, sessi
   
   const validatedData = validation.data;
 
-  // Sanitizar número de identificación
-  if (validatedData.numeroIdentificacion) {
-    validatedData.numeroIdentificacion = sanitizeNumericInput(validatedData.numeroIdentificacion);
-  }
-
-  // Validaciones adicionales de seguridad
-  if (validatedData.numeroIdentificacion) {
-    // Validar documento usando algoritmo checksum
-    const documentValidation = validateDocument(validatedData.numeroIdentificacion);
-    if (!documentValidation.isValid) {
-      logger.warn('Intento de actualización con documento inválido', {
-        proveedorId: id,
-        numeroIdentificacion: validatedData.numeroIdentificacion,
-        tipoEntidad: validatedData.tipoEntidad,
-        error: documentValidation.error,
-        sessionUserId: session.user?.id
-      });
-      return errorResponse(documentValidation.error || 'El número de documento no es válido', 400);
-    }
-
-    // Verificar que el tipo de documento coincida con el tipo de entidad
-    const documentLength = validatedData.numeroIdentificacion.length;
-    if (validatedData.tipoEntidad === 'PERSONA_NATURAL' && documentLength !== 8) {
-      return errorResponse('Para persona natural se requiere un DNI de 8 dígitos', 400);
-    }
-    if (validatedData.tipoEntidad === 'PERSONA_JURIDICA' && documentLength !== 11) {
-      return errorResponse('Para persona jurídica se requiere un RUC de 11 dígitos', 400);
-    }
-  }
-
   // Verificar que el proveedor existe
   const existingProveedor = await prisma.proveedor.findFirst({
     where: { id, activo: true }
@@ -64,34 +58,33 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, sessi
     return errorResponse('Proveedor no encontrado', 404);
   }
 
-  // Verificar unicidad del documento (optimizado en una sola consulta)
+  // Verificar duplicados de identificación
   if (validatedData.numeroIdentificacion) {
-    const duplicateProveedor = await prisma.proveedor.findFirst({
-      where: { 
-        OR: [
-          { ruc: validatedData.numeroIdentificacion },
-          { numeroIdentificacion: validatedData.numeroIdentificacion }
-        ],
-        activo: true,
-        NOT: { id } // Excluir el proveedor actual
-      }
-    });
+    const whereCondition = validatedData.tipoEntidad === 'PERSONA_JURIDICA' 
+      ? { 
+          OR: [
+            { ruc: validatedData.numeroIdentificacion },
+            { numeroIdentificacion: validatedData.numeroIdentificacion }
+          ],
+          activo: true,
+          NOT: { id }
+        }
+      : { 
+          numeroIdentificacion: validatedData.numeroIdentificacion, 
+          activo: true,
+          NOT: { id }
+        };
+
+    const duplicateProveedor = await prisma.proveedor.findFirst({ where: whereCondition });
 
     if (duplicateProveedor) {
-      const documentType = validatedData.tipoEntidad === 'PERSONA_JURIDICA' ? 'RUC' : 'DNI';
-      logger.warn('Intento de actualización con documento duplicado', {
-        proveedorId: id,
-        numeroIdentificacion: validatedData.numeroIdentificacion,
-        tipoEntidad: validatedData.tipoEntidad,
-        duplicateProveedorId: duplicateProveedor.id,
-        sessionUserId: session.user?.id
-      });
-      return errorResponse(`Ya existe otro proveedor con ese ${documentType}`, 400);
+      const tipoDoc = validatedData.tipoEntidad === 'PERSONA_JURIDICA' ? 'RUC' : 'DNI';
+      return errorResponse(`Ya existe otro proveedor con ese ${tipoDoc}`, 400);
     }
   }
 
   // Preparar datos según el tipo de entidad
-  const baseData: any = {
+  const baseData: BaseProveedorData = {
     tipoEntidad: validatedData.tipoEntidad,
     email: validatedData.email,
     telefono: validatedData.telefono,
@@ -126,9 +119,20 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, sessi
   let updatedProveedor: unknown;
 
   try {
+    // Construir payload evitando pasar nulls a campos enum/estrictos
+    const updatePayload: Record<string, unknown> = {};
+    Object.entries(baseData).forEach(([k, v]) => {
+      if (v !== undefined) {
+        updatePayload[k] = v;
+      }
+    });
+
+    // Evitar pasar null para enums (tipoEntidad)
+    if (updatePayload.tipoEntidad === null) delete updatePayload.tipoEntidad;
+
     updatedProveedor = await prisma.proveedor.update({
       where: { id },
-      data: baseData
+      data: updatePayload as Prisma.ProveedorUpdateInput
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? String(err.message).toLowerCase() : '';
@@ -167,35 +171,19 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, sessi
         ...values
       );
 
-      const rows = await prisma.$queryRawUnsafe<Array<{
-        id: string;
-        tipoEntidad: string | null;
-        nombre: string | null;
-        nombres: string | null;
-        apellidos: string | null;
-        numeroIdentificacion: string | null;
-        fechaNacimiento: Date | null;
-        razonSocial: string | null;
-        ruc: string | null;
-        representanteLegal: string | null;
-        telefono: string | null;
-        email: string | null;
-        direccion: string | null;
-        activo: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>>(
+      const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
         'SELECT id, tipoEntidad, nombre, nombres, apellidos, numeroIdentificacion, fechaNacimiento, razonSocial, ruc, representanteLegal, telefono, email, direccion, activo, createdAt, updatedAt FROM proveedor WHERE id = ?',
         id
       );
-      updatedProveedor = rows[0] ? { ...rows[0], activo: !!rows[0].activo } : rows[0];
+      const first = rows[0] as Record<string, unknown> | undefined;
+      updatedProveedor = first ? { ...first, activo: !!first.activo } : first;
     } else {
       throw err;
     }
   }
 
   // Log información relevante según el tipo de entidad
-  const logData: any = { 
+  const logData: LogData = { 
     proveedorId: id, 
     tipoEntidad: validatedData.tipoEntidad
   };
@@ -216,7 +204,7 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, sessi
 
 // DELETE /api/proveedores/[id] - Eliminar proveedor (soft delete)
 export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, session: Session, { params }: { params: { id: string } }) => {
-  const { id } = params;
+  const { id } = await params;
   
   if (!id) {
     return errorResponse('ID de proveedor requerido', 400);
@@ -263,29 +251,12 @@ export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, se
         id
       );
 
-      const rows = await prisma.$queryRawUnsafe<Array<{
-        id: string;
-        tipoEntidad: string | null;
-        nombre: string | null;
-        nombres: string | null;
-        apellidos: string | null;
-        numeroIdentificacion: string | null;
-        fechaNacimiento: Date | null;
-        razonSocial: string | null;
-        ruc: string | null;
-        representanteLegal: string | null;
-        telefono: string | null;
-        email: string | null;
-        direccion: string | null;
-        activo: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>>(
+      const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
         'SELECT id, tipoEntidad, nombre, nombres, apellidos, numeroIdentificacion, fechaNacimiento, razonSocial, ruc, representanteLegal, telefono, email, direccion, activo, createdAt, updatedAt FROM proveedor WHERE id = ?',
         id
       );
-      
-      const deletedProveedor = rows[0] ? { ...rows[0], activo: !!rows[0].activo } : rows[0];
+      const firstRow = rows[0] as Record<string, unknown> | undefined;
+      const deletedProveedor = firstRow ? { ...firstRow, activo: !!firstRow.activo } : firstRow;
       
       logger.info('Proveedor eliminado exitosamente (fallback)', { proveedorId: id });
       
@@ -298,7 +269,7 @@ export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, se
 
 // GET /api/proveedores/[id] - Obtener proveedor por ID
 export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session, { params }: { params: { id: string } }) => {
-  const { id } = params;
+  const { id } = await params;
   
   if (!id) {
     return errorResponse('ID de proveedor requerido', 400);
@@ -327,29 +298,12 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
       msg.includes('unknown column') ||
       code === 'P2022'
     ) {
-      const rows = await prisma.$queryRawUnsafe<Array<{
-        id: string;
-        tipoEntidad: string | null;
-        nombre: string | null;
-        nombres: string | null;
-        apellidos: string | null;
-        numeroIdentificacion: string | null;
-        fechaNacimiento: Date | null;
-        razonSocial: string | null;
-        ruc: string | null;
-        representanteLegal: string | null;
-        telefono: string | null;
-        email: string | null;
-        direccion: string | null;
-        activo: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>>(
+      const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
         'SELECT id, tipoEntidad, nombre, nombres, apellidos, numeroIdentificacion, fechaNacimiento, razonSocial, ruc, representanteLegal, telefono, email, direccion, activo, createdAt, updatedAt FROM proveedor WHERE id = ? AND activo = 1',
         id
       );
-      
-      const proveedor = rows[0] ? { ...rows[0], activo: !!rows[0].activo } : null;
+      const first = rows[0] as Record<string, unknown> | undefined;
+      const proveedor = first ? { ...first, activo: !!first.activo } : null;
       
       if (!proveedor) {
         return errorResponse('Proveedor no encontrado', 404);
@@ -359,5 +313,61 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
     } else {
       throw err;
     }
+  }
+}));
+
+// PATCH /api/proveedores/[id] - Alternar estado activo/inactivo
+export const PATCH = withErrorHandling(withAuth(async (request: NextRequest, session: Session, { params }: { params: { id: string } }) => {
+  const { id } = await params;
+
+  if (!id) {
+    return errorResponse('ID de proveedor requerido', 400);
+  }
+
+  let body: { activo?: boolean } = {};
+  try {
+    body = await request.json() as { activo?: boolean };
+  } catch {
+    return errorResponse('Cuerpo de solicitud inválido', 400);
+  }
+
+  const activoProvided = typeof body?.activo === 'boolean' ? body.activo : null;
+  if (activoProvided === null) {
+    return errorResponse('Parámetro "activo" requerido', 400);
+  }
+
+  // Verificar que el proveedor existe
+  const existingProveedor = await prisma.proveedor.findUnique({ where: { id } });
+  if (!existingProveedor) {
+    return errorResponse('Proveedor no encontrado', 404);
+  }
+
+  try {
+    const updated = await prisma.proveedor.update({
+      where: { id },
+      data: { activo: activoProvided, updatedAt: new Date() }
+    });
+
+    return successResponse(updated, `Proveedor ${activoProvided ? 'activado' : 'desactivado'} exitosamente`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? String(err.message).toLowerCase() : '';
+    let code: string | undefined;
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      code = err.code;
+    }
+
+    // Fallback a SQL crudo para errores de esquema/columna
+    if (msg.includes('unknown arg') || msg.includes('unknown column') || code === 'P2022') {
+      await prisma.$executeRawUnsafe('UPDATE proveedor SET activo = ?, updatedAt = ? WHERE id = ?', activoProvided ? 1 : 0, new Date(), id);
+
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>('SELECT * FROM proveedor WHERE id = ?', id);
+  const firstRow = rows[0] as Record<string, unknown> | undefined;
+  const updatedProveedor = firstRow ? { ...firstRow, activo: !!firstRow.activo } : firstRow;
+
+      logger.info('Proveedor actualizado exitosamente (fallback PATCH)', { proveedorId: id });
+      return successResponse(updatedProveedor, `Proveedor ${activoProvided ? 'activado' : 'desactivado'} exitosamente`);
+    }
+
+    throw err;
   }
 }));

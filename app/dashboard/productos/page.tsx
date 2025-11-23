@@ -4,12 +4,21 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { Search, Plus, Package, Edit2, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
-import { suscribirseInventarioEventos } from '@/lib/inventory-channel';
-import { ProductoInventarioHooks } from '../../../src/lib/producto-inventario-sync';
-import ToggleStatus from "../../../src/components/ui/ToggleStatus";
+import { Search, Plus, Package, Edit2, Trash2, ChevronUp, ChevronDown, CheckCircle } from 'lucide-react';
+import { ProductoInventarioHooks, suscribirseInventarioEventos } from '../../../src/lib/producto-inventario-sync';
 
 const Modal = dynamic(() => import('../../../src/components/ui/Modal'), { ssr: false });
+
+interface ApiCategoria {
+  id: string;
+  nombre: string;
+}
+
+interface ApiUnidadMedida {
+  id: string;
+  nombre: string;
+  simbolo: string;
+}
 
 interface Producto {
   id: string;
@@ -20,8 +29,7 @@ interface Producto {
   stock: number;
   stockMinimo: number;
   porcentajeMerma: number;
-  perecedero: boolean;
-  diasVencimiento?: number;
+  // diasVencimiento removed from schema
   tieneIGV: boolean;
   activo: boolean;
   categoria?: { id: string; nombre: string };
@@ -44,8 +52,7 @@ interface FormData {
   precio: number;
   stockMinimo: number;
   porcentajeMerma: number;
-  perecedero: boolean;
-  diasVencimiento: number;
+  // diasVencimiento removed from schema
   tieneIGV: boolean;
   categoriaId: string;
   tipoArticuloId: string;
@@ -73,92 +80,34 @@ export default function ProductosPage() {
   const [selectedFamiliaId, setSelectedFamiliaId] = useState<string>('');
   const [selectedSubfamiliaId, setSelectedSubfamiliaId] = useState<string>('');
   const [productosMenuOpen, setProductosMenuOpen] = useState(false);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [successProduct, setSuccessProduct] = useState<{ nombre: string; sku?: string } | null>(null);
 
-  // Mock data para los selectores
-  // Nota: Mantengo mocks como fallback, pero los selects usarÃ¡n datos de API
-  const mockCategorias = useMemo(() => [
-    { id: '1', nombre: 'Frutas Citricas' },
-    { id: '2', nombre: 'Frutas Tropicales' },
-    { id: '3', nombre: 'Verduras de Hoja' },
-    { id: '4', nombre: 'Verduras de Fruto' },
-    { id: '5', nombre: 'Tuberculos' },
-  ], []);
-
-  const mockTiposArticulo = useMemo(() => [
-    { id: '1', nombre: 'Producto Natural' },
-    { id: '2', nombre: 'Producto Procesado' },
-    { id: '3', nombre: 'Producto Organico' },
-  ], []);
-
-  const mockFamilias = useMemo(() => [
-    { id: '1', nombre: 'Frutas' },
-    { id: '2', nombre: 'Verduras' },
-    { id: '3', nombre: 'Hierbas' },
-  ], []);
-
-  const mockSubfamilias = useMemo(() => [
-    { id: '1', nombre: 'Citricos' },
-    { id: '2', nombre: 'Tropicales' },
-    { id: '3', nombre: 'De Hueso' },
-    { id: '4', nombre: 'De Hoja Verde' },
-    { id: '5', nombre: 'De Raiz' },
-    { id: '6', nombre: 'De Fruto' },
-  ], []);
-
-  const mockUnidades = useMemo(() => [
-    { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-    { id: 'g', nombre: 'Gramos', simbolo: 'g' },
-    { id: 'l', nombre: 'Litros', simbolo: 'l' },
-    { id: 'ml', nombre: 'Mililitros', simbolo: 'ml' },
-    { id: 'un', nombre: 'Unidades', simbolo: 'un' },
-    { id: 'cj', nombre: 'Cajas', simbolo: 'cj' },
-    { id: 'pqt', nombre: 'Paquetes', simbolo: 'pqt' },
-  ], []);
-
-  const mockMarcas = useMemo(() => [
-    { id: '1', nombre: 'TODAFRU Premium' },
-    { id: '2', nombre: 'TODAFRU Organico' },
-    { id: '3', nombre: 'TODAFRU Tradicional' },
-    { id: '4', nombre: 'Sin Marca' },
-  ], []);
-
-  const mockAgrupadores = useMemo(() => [
-    { id: '1', nombre: 'Alta Rotacion' },
-    { id: '2', nombre: 'Estacional' },
-    { id: '3', nombre: 'Premium' },
-    { id: '4', nombre: 'Exportacion' },
-  ], []);
+  // Eliminados: datos mock para selects. Se obtendrán desde APIs reales.
 
   // Datos de API para categorÃ­as y unidades de medida
   const [apiCategorias, setApiCategorias] = useState<Array<{ id: string; nombre: string }>>([]);
   const [apiUnidades, setApiUnidades] = useState<Array<{ id: string; nombre: string; simbolo: string }>>([]);
 
-  const mockRazonesSociales = useMemo(() => [
-    { id: '1', nombre: 'Supermercados Wong S.A.' },
-    { id: '2', nombre: 'Metro S.A.' },
-    { id: '3', nombre: 'Tottus S.A.' },
-    { id: '4', nombre: 'Plaza Vea S.A.' },
-    { id: '5', nombre: 'Restaurantes Centrales S.A.C.' },
-  ], []);
+  // Eliminado: razones sociales de ejemplo.
 
   // Funcion para generar SKU automatico (prioriza datos de API)
   const generateSKU = useCallback((nombre: string, categoriaId: string, familiaId: string) => {
     if (!nombre || !categoriaId) return '';
 
-    const sourceCategorias = apiCategorias.length ? apiCategorias : mockCategorias;
-    const categoria = sourceCategorias.find(c => c.id === categoriaId);
-    const familia = mockFamilias.find(f => f.id === familiaId);
+    const categoria = apiCategorias.find(c => c.id === categoriaId);
+    // Sin catálogo de familias cargado aún, derivar código a partir del identificador
 
     const nombreParts = nombre.split(' ').slice(0, 2);
     const nombreCode = nombreParts.map(part => part.substring(0, 3).toUpperCase()).join('-');
 
     const categoriaCode = categoria ? categoria.nombre.substring(0, 3).toUpperCase() : 'GEN';
-    const familiaCode = familia ? familia.nombre.substring(0, 3).toUpperCase() : '';
+    const familiaCode = familiaId ? familiaId.substring(0, 3).toUpperCase() : '';
 
     const timestamp = Date.now().toString().slice(-3);
 
     return `${categoriaCode}-${familiaCode ? familiaCode + '-' : ''}${nombreCode}-${timestamp}`;
-  }, [apiCategorias, mockCategorias, mockFamilias]);
+  }, [apiCategorias]);
 
   const [formData, setFormData] = useState<FormData>({
     nombre: '',
@@ -167,8 +116,7 @@ export default function ProductosPage() {
     precio: 0,
     stockMinimo: 0,
     porcentajeMerma: 0,
-    perecedero: true,
-    diasVencimiento: 7,
+    // diasVencimiento removed
     tieneIGV: true,
     categoriaId: '',
     tipoArticuloId: '',
@@ -205,9 +153,9 @@ export default function ProductosPage() {
   const searchParams = useSearchParams();
   useEffect(() => {
     const add = searchParams.get('add');
+    const sub = searchParams.get('subfamiliaId') || '';
     const cat = searchParams.get('categoriaId') || '';
     const fam = searchParams.get('familiaId') || '';
-    const sub = searchParams.get('subfamiliaId') || '';
     if (add) {
       resetForm();
       setShowModal(true);
@@ -234,7 +182,6 @@ export default function ProductosPage() {
 
   // SincronizaciÃ³n dinÃ¡mica de stock con Inventario
   useEffect(() => {
-    let intervalId: any;
     const syncStockFromInventario = async () => {
       try {
         const ts = Date.now();
@@ -244,19 +191,25 @@ export default function ProductosPage() {
         const invProductos = Array.isArray(data?.productos) ? data.productos : [];
         if (invProductos.length > 0) {
           setProductos(prev => prev.map(p => {
-            const inv = invProductos.find((ip: any) => ip.id === p.id);
-            return inv ? { ...p, stock: inv.stock ?? p.stock, stockMinimo: inv.stockMinimo ?? p.stockMinimo } : p;
+            const inv = invProductos.find((ip: { id: string; stock?: number; stockMinimo?: number }) => ip.id === p.id);
+            if (!inv) return p;
+            return {
+              ...p,
+              stock: typeof inv.stock === 'number' ? inv.stock : p.stock,
+              stockMinimo: typeof inv.stockMinimo === 'number' ? inv.stockMinimo : p.stockMinimo,
+            };
           }));
         }
-      } catch {
+      } catch (error) {
         // silencioso: si falla, no interrumpir UI
+        console.error('Error sincronizando inventario:', error);
       }
     };
 
-    // primera sincronizaciÃ³n inmediata y luego cada 10s
-    syncStockFromInventario();
-    intervalId = setInterval(syncStockFromInventario, 10000);
-    return () => clearInterval(intervalId);
+  // primera sincronizaciÃ³n inmediata y luego cada 10s
+  syncStockFromInventario();
+  const id = setInterval(syncStockFromInventario, 10000);
+  return () => clearInterval(id);
   }, []);
 
   // Cargar categorÃ­as y unidades desde API
@@ -276,14 +229,14 @@ export default function ProductosPage() {
         ]);
 
         if (dataCat?.success && Array.isArray(dataCat.data)) {
-          setApiCategorias(dataCat.data.map((c: any) => ({ id: c.id, nombre: c.nombre })));
+          setApiCategorias(dataCat.data.map((c: ApiCategoria) => ({ id: c.id, nombre: c.nombre })));
         }
         if (dataUni?.success && Array.isArray(dataUni.data)) {
-          const unidades = dataUni.data.map((u: any) => ({ id: u.id, nombre: u.nombre, simbolo: u.simbolo }));
+          const unidades = dataUni.data.map((u: ApiUnidadMedida) => ({ id: u.id, nombre: u.nombre, simbolo: u.simbolo }));
           setApiUnidades(unidades);
           // Aplicar unidad por defecto desde localStorage si existe y no hay valor actual
           const defaultUnidadId = typeof window !== 'undefined' ? localStorage.getItem('defaultUnidadMedidaId') : null;
-          if (defaultUnidadId && !formData.unidadMedidaId && unidades.some((u: any) => u.id === defaultUnidadId)) {
+          if (defaultUnidadId && !formData.unidadMedidaId && unidades.some((u: ApiUnidadMedida) => u.id === defaultUnidadId)) {
             setFormData(prev => ({ ...prev, unidadMedidaId: defaultUnidadId as string }));
           }
         }
@@ -313,79 +266,8 @@ export default function ProductosPage() {
         if (response.status !== 401) {
           const text = await response.text().catch(() => '');
           console.error('Error HTTP en productos:', response.status, text);
-          setApiError('No se pudo cargar productos. Mostrando datos de ejemplo.');
-          // Fallback inmediato con datos de ejemplo si la API falla
-          const mockProductos: Producto[] = [
-            {
-              id: 'prod-1',
-              nombre: 'Manzana Fuji Premium',
-              sku: 'FRU-MAN-001',
-              descripcion: 'Manzana Fuji de primera calidad',
-              precio: 8.5,
-              stock: 150,
-              stockMinimo: 20,
-              porcentajeMerma: 5,
-              perecedero: true,
-              diasVencimiento: 15,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: '1', nombre: 'Frutas Citricas' },
-              familia: { id: '1', nombre: 'Frutas' },
-              subfamilia: { id: '1', nombre: 'Citricos' },
-              unidadMedida: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              unidadCosteo: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              marca: { id: '1', nombre: 'TODAFRU Premium' },
-              agrupador: { id: '1', nombre: 'Alta Rotacion' },
-              razonSocialProductos: [
-                { razonSocial: { id: '1', nombre: 'Supermercados Wong S.A.' } },
-              ]
-            },
-            {
-              id: 'prod-2',
-              nombre: 'Lechuga Romana',
-              sku: 'VER-LEC-001',
-              descripcion: 'Lechuga fresca lista para consumo',
-              precio: 3.2,
-              stock: 80,
-              stockMinimo: 15,
-              porcentajeMerma: 4,
-              perecedero: true,
-              diasVencimiento: 7,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: '3', nombre: 'Verduras de Hoja' },
-              familia: { id: '2', nombre: 'Verduras' },
-              subfamilia: { id: '4', nombre: 'De Hoja Verde' },
-              unidadMedida: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
-              unidadCosteo: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
-              marca: { id: '4', nombre: 'Sin Marca' },
-              agrupador: { id: '2', nombre: 'Estacional' },
-              razonSocialProductos: []
-            },
-            {
-              id: 'prod-3',
-              nombre: 'Leche Entera 1L',
-              sku: 'LAC-LEC-001',
-              descripcion: 'Leche entera pasteurizada',
-              precio: 4.8,
-              stock: 200,
-              stockMinimo: 30,
-              porcentajeMerma: 2,
-              perecedero: true,
-              diasVencimiento: 20,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: 'cat-lacteos', nombre: 'LÃ¡cteos' },
-              familia: { id: '3', nombre: 'Hierbas' },
-              subfamilia: { id: '6', nombre: 'De Fruto' },
-              unidadMedida: { id: 'l', nombre: 'Litros', simbolo: 'l' },
-              unidadCosteo: { id: 'l', nombre: 'Litros', simbolo: 'l' },
-              marca: { id: '3', nombre: 'TODAFRU Tradicional' },
-              agrupador: { id: '3', nombre: 'Premium' },
-              razonSocialProductos: []
-            }
-          ];
-          setProductos(mockProductos);
+          setApiError('No se pudo cargar productos.');
+          setProductos([]);
         }
         return;
       }
@@ -393,147 +275,15 @@ export default function ProductosPage() {
       
       if (data.success) {
         const apiList: Producto[] = data.data || [];
-        if (apiList.length === 0) {
-          // Sin datos: mostrar ejemplos para ilustrar la vista
-          const mockProductos: Producto[] = [
-            {
-              id: 'prod-1',
-              nombre: 'Manzana Fuji Premium',
-              sku: 'FRU-MAN-001',
-              descripcion: 'Manzana Fuji de primera calidad',
-              precio: 8.5,
-              stock: 150,
-              stockMinimo: 20,
-              porcentajeMerma: 5,
-              perecedero: true,
-              diasVencimiento: 15,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: '1', nombre: 'Frutas Citricas' },
-              familia: { id: '1', nombre: 'Frutas' },
-              subfamilia: { id: '1', nombre: 'Citricos' },
-              unidadMedida: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              unidadCosteo: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              marca: { id: '1', nombre: 'TODAFRU Premium' },
-              agrupador: { id: '1', nombre: 'Alta Rotacion' },
-              razonSocialProductos: []
-            },
-            {
-              id: 'prod-2',
-              nombre: 'Lechuga Romana',
-              sku: 'VER-LEC-001',
-              descripcion: 'Lechuga fresca lista para consumo',
-              precio: 3.2,
-              stock: 80,
-              stockMinimo: 15,
-              porcentajeMerma: 4,
-              perecedero: true,
-              diasVencimiento: 7,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: '3', nombre: 'Verduras de Hoja' },
-              familia: { id: '2', nombre: 'Verduras' },
-              subfamilia: { id: '4', nombre: 'De Hoja Verde' },
-              unidadMedida: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
-              unidadCosteo: { id: 'un', nombre: 'Unidades', simbolo: 'un' },
-              marca: { id: '4', nombre: 'Sin Marca' },
-              agrupador: { id: '2', nombre: 'Estacional' },
-              razonSocialProductos: []
-            },
-            {
-              id: 'prod-3',
-              nombre: 'Leche Entera 1L',
-              sku: 'LAC-LEC-001',
-              descripcion: 'Leche entera pasteurizada',
-              precio: 4.8,
-              stock: 200,
-              stockMinimo: 30,
-              porcentajeMerma: 2,
-              perecedero: true,
-              diasVencimiento: 20,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: 'cat-lacteos', nombre: 'LÃ¡cteos' },
-              familia: { id: '3', nombre: 'Hierbas' },
-              subfamilia: { id: '6', nombre: 'De Fruto' },
-              unidadMedida: { id: 'l', nombre: 'Litros', simbolo: 'l' },
-              unidadCosteo: { id: 'l', nombre: 'Litros', simbolo: 'l' },
-              marca: { id: '3', nombre: 'TODAFRU Tradicional' },
-              agrupador: { id: '3', nombre: 'Premium' },
-              razonSocialProductos: []
-            }
-          ];
-          setProductos(mockProductos);
-        } else {
-          setProductos(apiList);
-        }
+        setProductos(apiList);
       } else {
         console.error('Error en la respuesta de la API:', data.error);
         setApiError(data.error || 'Error al cargar productos');
-        // Fallback a datos mock solo en desarrollo si la API falla
-        if (process.env.NODE_ENV !== 'production') {
-          const mockProductos: Producto[] = [
-            {
-              id: 'prod-1',
-              nombre: 'Manzana Fuji Premium',
-              sku: 'FRU-MAN-001',
-              descripcion: 'Manzana Fuji de primera calidad',
-              precio: 8.5,
-              stock: 150,
-              stockMinimo: 20,
-              porcentajeMerma: 5,
-              perecedero: true,
-              diasVencimiento: 15,
-              tieneIGV: true,
-              activo: true,
-              categoria: { id: '1', nombre: 'Frutas Citricas' },
-              familia: { id: '1', nombre: 'Frutas' },
-              subfamilia: { id: '1', nombre: 'Citricos' },
-              unidadMedida: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              unidadCosteo: { id: 'kg', nombre: 'Kilogramos', simbolo: 'kg' },
-              marca: { id: '1', nombre: 'TODAFRU Premium' },
-              agrupador: { id: '1', nombre: 'Alta Rotacion' },
-              razonSocialProductos: [
-                { razonSocial: { id: '1', nombre: 'Supermercados Wong S.A.' } }
-              ]
-            }
-          ];
-          setProductos(mockProductos);
-        }
+        setProductos([]);
       }
     } catch (error) {
       console.error('Error al cargar productos:', error);
-      // En caso de error de red, usar datos mock
-      const mockProductos: Producto[] = [
-        {
-          id: '1',
-          nombre: 'Manzana Fuji Premium',
-          sku: 'FRU-CIT-MAN-001',
-          descripcion: 'Manzana Fuji de primera calidad, importada',
-          precio: 8.50,
-          stock: 150,
-          stockMinimo: 20,
-          porcentajeMerma: 5,
-          perecedero: true,
-          diasVencimiento: 15,
-          tieneIGV: true,
-          activo: true,
-          categoria: { id: '1', nombre: 'Frutas Citricas' },
-          tipoArticulo: { id: '1', nombre: 'Producto Natural' },
-          familia: { id: '1', nombre: 'Frutas' },
-          subfamilia: { id: '1', nombre: 'Citricos' },
-          unidadMedida: { id: '1', nombre: 'Kilogramo', simbolo: 'kg' },
-          unidadCosteo: { id: '1', nombre: 'Kilogramo', simbolo: 'kg' },
-          marca: { id: '1', nombre: 'TODAFRU Premium' },
-          agrupador: { id: '1', nombre: 'Alta Rotacion' },
-          razonSocialProductos: [
-            { razonSocial: { id: '1', nombre: 'Supermercados Wong S.A.' } },
-            { razonSocial: { id: '2', nombre: 'Metro S.A.' } }
-          ]
-        }
-      ];
-      
-      setProductos(mockProductos);
+      setProductos([]);
     } finally {
       setLoading(false);
     }
@@ -547,8 +297,6 @@ export default function ProductosPage() {
       precio: 0,
       stockMinimo: 0,
       porcentajeMerma: 0,
-      perecedero: true,
-      diasVencimiento: 7,
       tieneIGV: true,
       categoriaId: '',
       tipoArticuloId: '',
@@ -595,8 +343,24 @@ export default function ProductosPage() {
       const finalSKU = formData.sku || generateSKU(formData.nombre, formData.categoriaId, formData.familiaId);
 
       if (editingProduct) {
-        // En futuras iteraciones implementar PUT /api/productos/[id]
-        alert('EdiciÃ³n por API aÃºn no implementada.');
+        const resp = await apiFetch(`/api/productos/${editingProduct.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre: formData.nombre,
+            sku: finalSKU,
+            descripcion: formData.descripcion,
+            categoriaId: formData.categoriaId,
+            unidadMedidaId: formData.unidadMedidaId,
+          })
+        });
+        const result = await resp.json();
+        if (!resp.ok || result?.success === false) {
+          const message = result?.error || 'Error al actualizar producto';
+          alert(message);
+          return;
+        }
+        await fetchProductos();
       } else {
         const resp = await apiFetch('/api/productos', {
           method: 'POST',
@@ -607,7 +371,6 @@ export default function ProductosPage() {
             descripcion: formData.descripcion,
             categoriaId: formData.categoriaId,
             unidadMedidaId: formData.unidadMedidaId,
-            perecedero: formData.perecedero,
           })
         });
 
@@ -619,7 +382,7 @@ export default function ProductosPage() {
           return;
         }
 
-        const productoCreado: Producto = {
+  const productoCreado: Producto = {
           id: result.data.id,
           nombre: result.data.nombre,
           sku: result.data.sku,
@@ -628,8 +391,6 @@ export default function ProductosPage() {
           stock: result.data.stock ?? 0,
           stockMinimo: result.data.stockMinimo,
           porcentajeMerma: 0,
-          perecedero: result.data.perecedero,
-          diasVencimiento: result.data.diasVencimiento,
           tieneIGV: false,
           activo: true,
           categoria: result.data.categoria,
@@ -644,8 +405,9 @@ export default function ProductosPage() {
         };
 
         // Revalidar lista desde el servidor para reflejar cambios de inmediato
-        await fetchProductos();
-        alert(result.message || 'Producto creado exitosamente');
+  await fetchProductos();
+  setSuccessProduct({ nombre: result.data.nombre, sku: result.data.sku });
+  setSuccessModalOpen(true);
       }
 
       setShowModal(false);
@@ -667,8 +429,6 @@ export default function ProductosPage() {
       precio: 0,
       stockMinimo: 0,
       porcentajeMerma: 0,
-      perecedero: producto.perecedero,
-      diasVencimiento: 0,
       tieneIGV: false,
       categoriaId: producto.categoria?.id || '',
       tipoArticuloId: producto.tipoArticulo?.id || '',
@@ -694,42 +454,46 @@ export default function ProductosPage() {
       }
 
       if (confirm('¿Estás seguro de que deseas eliminar este producto?\n\nEsta acción eliminará el producto del catálogo y ya no estará disponible para nuevos movimientos de inventario.')) {
-        setProductos(prev => prev.filter(p => p.id !== id));
-        alert('Producto eliminado exitosamente');
+        const resp = await apiFetch(`/api/productos/${id}`, { method: 'DELETE' });
+        const result = await resp.json();
+        if (!resp.ok || result?.success === false) {
+          alert(result?.error || 'No se pudo eliminar el producto');
+          return;
+        }
         await fetchProductos();
+        alert('Producto eliminado exitosamente');
       }
     } catch (error) {
       console.error('Error al validar eliminación:', error);
-      // Fallback al comportamiento anterior si hay error en la validaciÃ³n
+      // Fallback
       if (confirm('¿Estás seguro de que deseas eliminar este producto?')) {
-        setProductos(prev => prev.filter(p => p.id !== id));
-        alert('Producto eliminado exitosamente');
+        const resp = await apiFetch(`/api/productos/${id}`, { method: 'DELETE' });
+        const result = await resp.json();
+        if (!resp.ok || result?.success === false) {
+          alert(result?.error || 'No se pudo eliminar el producto');
+          return;
+        }
         await fetchProductos();
+        alert('Producto eliminado exitosamente');
       }
     }
   };
 
-  const toggleEstado = async (id: string, newStatus: boolean) => {
-    try {
-      const response = await fetch(`/api/productos/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ activo: newStatus })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Error al actualizar el estado del producto');
-      }
-
-      // Actualizar el estado local
-      setProductos(prev => prev.map(p => 
-        p.id === id ? { ...p, activo: newStatus } : p
-      ));
-    } catch (error) {
-      console.error('Error al cambiar estado del producto:', error);
-      throw error; // Re-lanzar para que ToggleStatus pueda manejarlo
+  const toggleEstado = async (id: string) => {
+    const prod = productos.find(p => p.id === id);
+    if (!prod) return;
+    const next = !prod.activo;
+    const resp = await apiFetch(`/api/productos/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activo: next })
+    });
+    const result = await resp.json();
+    if (!resp.ok || result?.success === false) {
+      alert(result?.error || 'No se pudo cambiar el estado');
+      return;
     }
+    await fetchProductos();
   };
 
   const filteredAndSortedProductos = productos
@@ -975,13 +739,17 @@ return (
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          <ToggleStatus
-                            id={producto.id}
-                            isActive={producto.activo}
-                            onToggle={toggleEstado}
-                            entityName="producto"
-                            size="sm"
-                          />
+                          <button
+                            onClick={() => toggleEstado(producto.id)}
+                            className={`px-2 py-1 text-xs rounded ${
+                              producto.activo 
+                                ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                                : 'bg-red-100 text-red-800 hover:bg-red-200'
+                            }`}
+                            title={producto.activo ? 'Desactivar producto' : 'Activar producto'}
+                          >
+                            {producto.activo ? 'Activo' : 'Inactivo'}
+                          </button>
                           <button
                             onClick={() => handleEdit(producto)}
                             className="text-blue-600 hover:text-blue-800"
@@ -1078,7 +846,7 @@ return (
         </div>
       </div>
 
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} ariaLabel={editingProduct ? "Editar Producto" : "Crear Nuevo Producto"}>
+  <Modal isOpen={showModal} onClose={() => setShowModal(false)} ariaLabel={editingProduct ? "Editar Producto" : "Crear Nuevo Producto"}>
         <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg max-h-screen flex flex-col">
           <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <h3 className="text-lg font-bold text-gray-900">
@@ -1136,7 +904,7 @@ return (
                   required
                 >
                   <option value="">Seleccionar categoria</option>
-                  {(apiCategorias.length ? apiCategorias : mockCategorias).map(cat => (
+                  {apiCategorias.map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.nombre}</option>
                   ))}
                 </select>
@@ -1162,25 +930,13 @@ return (
                   required
                 >
                   <option value="">Seleccionar unidad</option>
-                  {(apiUnidades.length ? apiUnidades : mockUnidades).map(unidad => (
+                  {apiUnidades.map(unidad => (
                     <option key={unidad.id} value={unidad.id}>{unidad.nombre} ({unidad.simbolo})</option>
                   ))}
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-2">
-                <input
-                  id="perecedero"
-                  type="checkbox"
-                  checked={formData.perecedero}
-                  onChange={(e) => setFormData(prev => ({ ...prev, perecedero: e.target.checked }))}
-                  className="h-4 w-4 text-green-600 border-gray-300 rounded"
-                />
-                <label htmlFor="perecedero" className="text-sm font-medium text-gray-900">Perecedero</label>
-              </div>
-              {/* Campo DÃ­as de vencimiento removido */}
-            </div>
+            {/* Campo DÃ­as de vencimiento removido */}
             <div className="flex justify-end space-x-3 pt-6 border-t">
               <button
                 type="button"
@@ -1199,6 +955,36 @@ return (
             </div>
             </form>
           </div>
+        </div>
+      </Modal>
+
+      {/* Modal de éxito para creación de producto */}
+      <Modal isOpen={successModalOpen} onClose={() => setSuccessModalOpen(false)} ariaLabel="Producto creado">
+        <div className="text-center py-6">
+          <div className="flex justify-center mb-4">
+            <div className="rounded-full bg-green-100 p-3">
+              <CheckCircle className="h-12 w-12 text-green-600" />
+            </div>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">¡Producto creado exitosamente!</h3>
+          {successProduct && (
+            <div className="mt-4 bg-gray-50 rounded-lg p-4 text-left">
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium text-gray-600">Nombre:</span>
+                <span className="text-sm font-semibold text-gray-900">{successProduct.nombre}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-gray-600">SKU:</span>
+                <span className="text-sm font-semibold text-green-600">{successProduct.sku || '—'}</span>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => setSuccessModalOpen(false)}
+            className="mt-6 px-6 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 font-medium"
+          >
+            Aceptar
+          </button>
         </div>
       </Modal>
 

@@ -2,25 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  X, 
-  Package, 
-  Search, 
-  Filter, 
-  SortAsc, 
-  SortDesc, 
-  AlertCircle, 
-  Loader2,
-  Eye,
-  EyeOff,
-  Tag,
-  DollarSign,
-  Package2,
-  TrendingUp,
-  Calendar,
-  CheckCircle,
-  XCircle
-} from 'lucide-react';
+import { X, Loader2, AlertCircle, Package, Package2, CheckCircle, TrendingUp, Calendar, DollarSign, Search, Filter, SortAsc, SortDesc, Tag, XCircle } from 'lucide-react';
 
 // Interfaces para los tipos de datos
 interface Categoria {

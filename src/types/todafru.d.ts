@@ -1,5 +1,7 @@
 // Tipos para el sistema TODAFRU
 
+import type { Proveedor } from './proveedor';
+
 // Enums
 export type TipoCliente = 'MAYORISTA' | 'MINORISTA';
 export type TipoMovimiento = 'ENTRADA' | 'SALIDA' | 'AJUSTE';
@@ -52,8 +54,6 @@ export interface Producto {
   precio: number;
   stock: number;
   stockMinimo: number;
-  perecedero: boolean;
-  diasVencimiento?: number;
   activo: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -212,8 +212,7 @@ export interface ProductoForm {
   unidadMedidaId: string;
   precio: number;
   stockMinimo: number;
-  perecedero: boolean;
-  diasVencimiento?: number;
+  // Note: 'perecedero' and 'diasVencimiento' removed in schema migration
 }
 
 // ProveedorForm types moved to src/types/proveedor.ts

@@ -1,0 +1,72 @@
+{
+  "timestamp": "2025-10-27T06:42:00.714Z",
+  "respaldos": [
+    {
+      "baseDatos": "grade_db",
+      "archivo": "grade_db_backup_2025-10-27T06-42-00-731Z.sql",
+      "ruta": "C:\\Users\\Martin\\todafru\\todofru\\respaldos-bases-datos\\grade_db_backup_2025-10-27T06-42-00-731Z.sql",
+      "timestamp": "2025-10-27T06-42-00-731Z",
+      "estado": "completado",
+      "tamaño": 340,
+      "estructura": {
+        "totalTablas": 1,
+        "tablas": [
+          {
+            "nombre": "calificaciones",
+            "filas": 0,
+            "tamaño": 16384,
+            "comentario": ""
+          }
+        ],
+        "tamañoTotal": 16384
+      },
+      "datos": null
+    },
+    {
+      "baseDatos": "sistema_parqueo",
+      "archivo": "sistema_parqueo_backup_2025-10-27T06-42-00-743Z.sql",
+      "ruta": "C:\\Users\\Martin\\todafru\\todofru\\respaldos-bases-datos\\sistema_parqueo_backup_2025-10-27T06-42-00-743Z.sql",
+      "timestamp": "2025-10-27T06-42-00-743Z",
+      "estado": "completado",
+      "tamaño": 582,
+      "estructura": {
+        "totalTablas": 4,
+        "tablas": [
+          {
+            "nombre": "cliente",
+            "filas": 0,
+            "tamaño": 16384,
+            "comentario": ""
+          },
+          {
+            "nombre": "rol",
+            "filas": 0,
+            "tamaño": 16384,
+            "comentario": ""
+          },
+          {
+            "nombre": "usuario",
+            "filas": 0,
+            "tamaño": 16384,
+            "comentario": ""
+          },
+          {
+            "nombre": "usuario_rol",
+            "filas": 0,
+            "tamaño": 32768,
+            "comentario": ""
+          }
+        ],
+        "tamañoTotal": 81920
+      },
+      "datos": null
+    }
+  ],
+  "errores": [],
+  "resumen": {
+    "totalRespaldos": 2,
+    "respaldosExitosos": 2,
+    "respaldosFallidos": 0,
+    "tamañoTotal": 922
+  }
+}

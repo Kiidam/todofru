@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProductosParaInventario, validateProductoInventarioSync } from '../../../src/lib/producto-inventario-sync';
-import { prisma, safeTransaction } from '../../../src/lib/prisma';
-import { logger } from '../../../src/lib/logger';
+import { prisma, safeTransaction as _safeTransaction } from '../../../src/lib/prisma';
+import { logger as _logger } from '../../../src/lib/logger';
 import type { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
-import { Session } from 'next-auth';
+import { Session as _Session } from 'next-auth';
 import { 
   withAuth, 
   withErrorHandling, 
   successResponse, 
   errorResponse,
-  validateActiveRecord
+  validateActiveRecord as _validateActiveRecord
 } from '../../../src/lib/api-utils';
+import { z } from 'zod';
 
 // GET /api/inventarios - Obtener productos y movimientos de inventario
 
-export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, _session: _Session) => {
 
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'productos';
@@ -35,7 +36,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
           response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
           return response;
         } catch (productosError) {
-          logger.error('Error al obtener productos', { error: productosError });
+          _logger.error('Error al obtener productos', { error: productosError });
           return successResponse({ productos: [] }, 'No se pudieron cargar los productos');
         }
 
@@ -66,7 +67,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
           response.headers.set('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=120');
           return response;
         } catch (movimientosError) {
-          logger.error('Error al obtener movimientos', { error: movimientosError });
+          _logger.error('Error al obtener movimientos', { error: movimientosError });
           return successResponse({ movimientos: [] }, 'No se pudieron cargar los movimientos');
         }
 
@@ -78,7 +79,7 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
           response.headers.set('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=120');
           return response;
         } catch (error) {
-          logger.error('Error en validación de sincronización', { error });
+          _logger.error('Error en validación de sincronización', { error });
           // Devolver un objeto de validación con error
           const errorSyncValidation = {
             isValid: false,
@@ -120,75 +121,65 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
 }));
 
 // POST /api/inventarios - Crear movimiento de inventario
-export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
-    const body = await request.json();
-    const { productoId, tipo, cantidad, motivo, numeroGuia } = body;
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, _session: _Session) => {
+  const schema = z.object({
+    productoId: z.string().min(1),
+    tipo: z.enum(['ENTRADA','SALIDA','AJUSTE']).or(z.enum(['entrada','salida','ajuste'])),
+    cantidad: z.number().positive(),
+    motivo: z.string().optional(),
+    numeroGuia: z.string().nullable().optional(),
+  })
 
-    // Validar datos requeridos
-    if (!productoId || !tipo || !cantidad) {
-      return errorResponse('Faltan datos requeridos: productoId, tipo, cantidad', 400);
-    }
+  const parsed = schema.safeParse(await request.json().catch(()=>({})))
+  if (!parsed.success) return errorResponse('Datos inválidos', 400, parsed.error.flatten())
 
-    // Validar que el producto existe
-    const producto = await validateActiveRecord(prisma.producto, productoId, 'Producto') as { id: string; stock: number; [key: string]: any };
+  const body = parsed.data
+  const productoId = body.productoId
+  const tipoUpper = (typeof body.tipo === 'string' ? body.tipo.toUpperCase() : body.tipo) as 'ENTRADA'|'SALIDA'|'AJUSTE'
+  const cantidad = Math.round(body.cantidad * 100) / 100
+  const motivo = body.motivo || ''
+  const numeroGuia = body.numeroGuia ?? null
 
-    // Obtener usuario
-    const usuario = session.user?.email 
-      ? await prisma.user.findUnique({ where: { email: session.user.email } })
-      : await prisma.user.findFirst(); // Fallback para modo test
+  const producto = await _validateActiveRecord(prisma.producto, productoId, 'Producto') as { id: string; stock: number; stockMinimo?: number }
 
-    if (!usuario) {
-      return errorResponse('Usuario no encontrado', 404);
-    }
+  const usuario = _session.user?.email 
+    ? await prisma.user.findUnique({ where: { email: _session.user.email } })
+    : await prisma.user.findFirst()
+  if (!usuario) return errorResponse('Usuario no encontrado', 404)
 
-    // Validar stock para salidas
-    if (tipo === 'salida' && producto.stock < cantidad) {
-      return errorResponse('Stock insuficiente', 400);
-    }
+  if (tipoUpper === 'SALIDA' && producto.stock < cantidad) return errorResponse('Stock insuficiente', 400)
 
-    // Crear movimiento de inventario en transacción
-    const result = await safeTransaction(async (tx) => {
-      // Calcular nuevo stock
-      const nuevoStock = tipo === 'entrada' 
-        ? producto.stock + cantidad 
-        : producto.stock - cantidad;
+  const result = await _safeTransaction(async (tx: Prisma.TransactionClient) => {
+    const prod = await tx.producto.findUnique({ where: { id: productoId }, select: { stock: true, stockMinimo: true } })
+    if (!prod) throw new Error('Producto no encontrado')
+    const nuevoStockRaw = tipoUpper === 'ENTRADA' ? (prod.stock || 0) + cantidad : (prod.stock || 0) - cantidad
+    const nuevoStock = Math.max(0, Math.round(nuevoStockRaw * 100) / 100)
 
-      // Crear el movimiento
-      const movimiento = await tx.movimientoInventario.create({
-        data: {
-          productoId,
-          tipo,
-          cantidad,
-          cantidadAnterior: producto.stock,
-          cantidadNueva: nuevoStock,
-          motivo: motivo || '',
-          numeroGuia: numeroGuia || null,
-          usuarioId: usuario.id
-        }
-      });
+    const movimiento = await tx.movimientoInventario.create({
+      data: {
+        productoId,
+        tipo: tipoUpper,
+        cantidad,
+        cantidadAnterior: prod.stock || 0,
+        cantidadNueva: nuevoStock,
+        motivo,
+        numeroGuia,
+        usuarioId: usuario.id
+      }
+    })
 
-      // Actualizar stock del producto
-      await tx.producto.update({
-        where: { id: productoId },
-        data: { stock: nuevoStock }
-      });
+    await tx.producto.update({ where: { id: productoId }, data: { stock: nuevoStock } })
 
-      return movimiento;
-    });
+    const warning = prod.stockMinimo !== undefined && nuevoStock < (prod.stockMinimo || 0)
+      ? 'El nuevo stock queda por debajo del mínimo'
+      : undefined
 
-    if (!result.success || !result.data) {
-      return errorResponse(result.error || 'Error al crear movimiento de inventario', 500);
-    }
+    return { movimiento, warning }
+  })
 
-    logger.info('Movimiento de inventario creado', { 
-      movimientoId: result.data.productoId,
-      productoId,
-      tipo,
-      cantidad,
-      usuarioId: usuario.id
-    });
+  if (!result.success || !result.data) return errorResponse(result.error || 'Error al crear movimiento de inventario', 500)
 
-    return successResponse({ 
-      movimiento: result.data 
-    }, 'Movimiento de inventario creado exitosamente');
-}));
+  _logger.info('Movimiento de inventario creado', { movimientoId: result.data.movimiento.id, productoId, tipo: tipoUpper, cantidad, usuarioId: usuario.id })
+
+  return successResponse({ movimiento: result.data.movimiento, warning: result.data.warning }, 'Movimiento de inventario creado exitosamente')
+}))

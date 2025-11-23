@@ -19,8 +19,7 @@ export type ProductoDTO = {
   precio: number;
   stock: number;
   stockMinimo: number;
-  perecedero: boolean;
-  diasVencimiento?: number | null;
+  // 'perecedero' and 'diasVencimiento' removed from schema
   tieneIGV: boolean;
 };
 

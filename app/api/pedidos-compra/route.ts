@@ -1,10 +1,8 @@
 import { NextRequest } from 'next/server';
 import { logger } from '../../../src/lib/logger';
 import { prisma, safeTransaction } from '../../../src/lib/prisma';
-import { Prisma } from '@prisma/client';
-import { Session } from 'next-auth';
 import { z } from 'zod';
-import * as crypto from 'crypto';
+import crypto from 'crypto';
 import { 
   withAuth, 
   withErrorHandling, 
@@ -14,25 +12,27 @@ import {
   validateActiveRecord
 } from '../../../src/lib/api-utils';
 
-const itemSchema = z
-  .object({
-    productoId: z.string().min(1),
-    cantidad: z.number().positive(),
-    // Aceptar precioUnitario o precio para compatibilidad con frontend
-    precioUnitario: z.number().min(0).optional(),
-    precio: z.number().min(0).optional(),
-    unidad: z.string().optional(),
-  })
-  .refine((i) => i.precioUnitario !== undefined || i.precio !== undefined, {
-    message: 'Debe proporcionar precioUnitario o precio',
-    path: ['precioUnitario'],
-  });
+// Tipos para el contexto de autenticación
+interface AuthContext {
+  session: {
+    user: {
+      id?: string;
+      email?: string;
+    };
+  };
+}
+
+const itemSchema = z.object({
+  productoId: z.string().min(1),
+  cantidad: z.number().positive(),
+  precioUnitario: z.number().min(0),
+});
 
 const compraSchema = z.object({
   proveedorId: z.string().min(1),
-  fecha: z.string().optional(), // YYYY-MM-DD
+  fecha: z.string().optional(),
   observaciones: z.string().optional(),
-  items: z.array(itemSchema).min(1, 'Debe incluir al menos un producto'),
+  items: z.array(itemSchema).min(1),
 });
 
 function generarNumeroPedido(prefix = 'PC') {
@@ -42,19 +42,15 @@ function generarNumeroPedido(prefix = 'PC') {
   return `${prefix}-${y}-${ts}`;
 }
 
-export const POST = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const POST = withErrorHandling(withAuth(async (request: NextRequest, context: AuthContext) => {
+    const { session } = context;
     const body = await request.json();
     const parsed = compraSchema.safeParse(body);
     if (!parsed.success) {
       return errorResponse('Datos inválidos', 400, { details: parsed.error.flatten() });
     }
 
-    const { proveedorId, fecha, observaciones } = parsed.data;
-    // Normalizar items: usar precioUnitario si existe, de lo contrario precio
-    const items = parsed.data.items.map((it) => ({
-      ...it,
-      precioUnitario: it.precioUnitario ?? it.precio ?? 0,
-    }));
+    const { proveedorId, fecha, observaciones, items } = parsed.data;
 
     // Validar que no haya productos duplicados en los items
     const ids = items.map(i => i.productoId);
@@ -65,35 +61,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
     }
 
     // Validar proveedor activo
-    let proveedor: { id: string; nombre: string; ruc: string | null; activo: boolean } | null = null;
-    try {
-      proveedor = await validateActiveRecord(prisma.proveedor, proveedorId, 'Proveedor');
-    } catch (err: unknown) {
-      // Fallback para esquemas con columnas faltantes
-      const msg = err instanceof Error ? String(err.message).toLowerCase() : '';
-      let code: string | undefined;
-      let missingColumn = '';
-      if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        code = err.code;
-        const meta = err.meta as { column?: string } | undefined;
-        missingColumn = typeof meta?.column === 'string' ? meta.column.toLowerCase() : '';
-      }
-      const unknownColumn = msg.includes('unknown column');
-      const contactoMissing = (unknownColumn && msg.includes('contacto')) || (code === 'P2022' && (missingColumn.includes('contacto') || msg.includes('contacto')));
-      const direccionMissing = (unknownColumn && msg.includes('direccion')) || (code === 'P2022' && (missingColumn.includes('direccion') || msg.includes('direccion')));
-      if (contactoMissing || direccionMissing) {
-        const safeId = String(proveedorId).replace(/'/g, "''");
-        const rows = await prisma.$queryRawUnsafe<Array<{ id: string; nombre: string; ruc: string | null; activo: number }>>(
-          `SELECT id, nombre, ruc, 1 as activo FROM proveedor WHERE id = '${safeId}' LIMIT 1;`
-        );
-        proveedor = rows?.[0] ? { ...rows[0], activo: !!rows[0].activo } : null;
-      } else {
-        throw err;
-      }
-    }
-    if (!proveedor || !proveedor.activo) {
-      return errorResponse('Proveedor no válido', 400);
-    }
+    const proveedor = await validateActiveRecord(prisma.proveedor, proveedorId, 'Proveedor');
 
     const productoIds = Array.from(new Set(items.map(i => i.productoId)));
     const productos = await prisma.producto.findMany({ where: { id: { in: productoIds }, activo: true } });
@@ -117,7 +85,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
 
     // Buscar usuario en BD (por id o email) para relaciones
     const orConditions: Array<{ id?: string; email?: string }> = [];
-    if ((session?.user as any)?.id) orConditions.push({ id: (session.user as any).id });
+    if (session?.user?.id) orConditions.push({ id: session.user.id });
     if (session?.user?.email) orConditions.push({ email: session.user.email });
     const usuarioDb = await prisma.user.findFirst({
       where: {
@@ -155,7 +123,8 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
       });
 
       // Actualizar stock y registrar movimientos
-      for (const it of items) {
+      for (let idx = 0; idx < items.length; idx++) {
+        const it = items[idx];
         const prod = await tx.producto.findUnique({ where: { id: it.productoId } });
         if (!prod) throw new Error('Producto no encontrado durante la transacción');
         const antes = prod.stock;
@@ -165,7 +134,7 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
           where: { id: it.productoId },
           data: { stock: despues },
         });
-
+        
         await tx.movimientoInventario.create({
           data: {
             productoId: it.productoId,
@@ -195,7 +164,8 @@ export const POST = withErrorHandling(withAuth(async (request: NextRequest, sess
     return successResponse({ id: result.data?.id, numero: result.data?.numero, total: result.data?.total }, 'Pedido de compra creado exitosamente');
 }));
 
-export const GET = withErrorHandling(withAuth(async (request: NextRequest, session: Session) => {
+export const GET = withErrorHandling(withAuth(async (request: NextRequest, context: AuthContext) => {
+  const { session } = context;
   const { searchParams } = new URL(request.url);
   const { page, limit, skip } = validatePagination(searchParams);
 
@@ -207,16 +177,9 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
           include: {
             producto: {
               include: {
-                unidadMedida: true,
-                categoria: true
+                unidadMedida: true
               }
             }
-          }
-        },
-        usuario: {
-          select: {
-            id: true,
-            name: true
           }
         }
       },
@@ -228,9 +191,8 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, sessi
   ]);
 
   const response = successResponse(
-    { data: pedidos, pagination: { total, page, limit, pages: Math.ceil(total / limit) } },
-    `${pedidos.length} pedidos de compra encontrados`
+    { data: pedidos, pagination: { total, page, limit } }
   );
-  response.headers.set('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=120');
+  response.headers.set('Cache-Control', 'no-store');
   return response;
 }));

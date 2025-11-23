@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../src/lib/prisma';
-import { logger } from '../../../../src/lib/logger';
 import { z } from 'zod';
 import { 
   withAuth, 
@@ -8,10 +7,7 @@ import {
   successResponse, 
   errorResponse
 } from '../../../../src/lib/api-utils';
-import { clientePayloadSchema, validateClientePayload } from '../../../../src/schemas/cliente';
-
-type TipoCliente = 'MAYORISTA' | 'MINORISTA';
-type TipoEntidad = 'PERSONA_NATURAL' | 'PERSONA_JURIDICA';
+import { validateClientePayload } from '../../../../src/schemas/cliente';
 
 // Esquema de validación para clientes (estructura antigua - retrocompatibilidad)
 const clienteSchemaLegacy = z.object({
@@ -24,8 +20,26 @@ const clienteSchemaLegacy = z.object({
   tipoCliente: z.enum(['MAYORISTA', 'MINORISTA']),
 });
 
+// Tipos para la estructura de datos
+interface ClienteData {
+  tipoEntidad?: 'PERSONA_NATURAL' | 'PERSONA_JURIDICA';
+  numeroIdentificacion?: string;
+  nombres?: string;
+  apellidos?: string;
+  razonSocial?: string;
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  contacto?: string;
+  tipoCliente?: 'MAYORISTA' | 'MINORISTA';
+  mensajePersonalizado?: string;
+  nombre?: string;
+  ruc?: string;
+  updatedAt?: Date;
+}
+
 // Función para detectar si es estructura nueva o antigua
-function isNewStructure(data: any): boolean {
+function isNewStructure(data: ClienteData): boolean {
   return data.tipoEntidad !== undefined || data.numeroIdentificacion !== undefined;
 }
 
@@ -56,9 +70,9 @@ export const GET = withErrorHandling(withAuth(async (request: NextRequest, { par
 }));
 
 // PUT /api/clientes/[id] - Actualizar cliente
-export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { params, session }: { params: { id: string }, session: any }) => {
+export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
   const { id } = params;
-  const body = await request.json();
+  const body = await request.json() as ClienteData;
 
   if (!id) {
     return errorResponse('ID de cliente requerido', 400);
@@ -73,8 +87,8 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { par
     return errorResponse('Cliente no encontrado', 404);
   }
 
-  let validatedData: any;
-  let clienteData: any;
+  let validatedData: z.infer<typeof clienteSchemaLegacy> | ReturnType<typeof validateClientePayload>['data'];
+  let clienteData: Record<string, unknown>;
   
   if (isNewStructure(body)) {
     // Nueva estructura (formularios refactorizados)
@@ -96,34 +110,13 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { par
             { numeroIdentificacion: validatedData.numeroIdentificacion }
           ],
           activo: true,
-          NOT: { id } // Excluir el cliente actual
+          NOT: { id }
         }
       });
 
       if (duplicateCliente) {
         const tipoDoc = validatedData.numeroIdentificacion.length === 8 ? 'DNI' : 'RUC';
-        return NextResponse.json(
-          { success: false, error: `Ya existe otro cliente con ese ${tipoDoc}` },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Verificar email único si se proporciona (excluyendo el cliente actual)
-    if (validatedData.email && validatedData.email.trim() !== '') {
-      const duplicateClienteEmail = await prisma.cliente.findFirst({
-        where: { 
-          email: validatedData.email.trim().toLowerCase(),
-          activo: true,
-          NOT: { id } // Excluir el cliente actual
-        }
-      });
-
-      if (duplicateClienteEmail) {
-        return NextResponse.json(
-          { success: false, error: `Ya existe otro cliente con ese email` },
-          { status: 400 }
-        );
+        return errorResponse(`Ya existe otro cliente con ese ${tipoDoc}`, 400);
       }
     }
     
@@ -143,7 +136,6 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { par
       direccion: validatedData.direccion,
       contacto: validatedData.contacto,
       tipoCliente: validatedData.tipoCliente,
-      mensajePersonalizado: validatedData.mensajePersonalizado,
       updatedAt: new Date(),
       // Campos adicionales para nueva estructura
       tipoEntidad: validatedData.tipoEntidad,
@@ -151,6 +143,12 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { par
       apellidos: validatedData.apellidos,
       razonSocial: validatedData.razonSocial,
     };
+
+    // Añadir opcionalmente campos no garantizados por el tipo (manejar como registro genérico)
+    const validatedRecord = validatedData as Record<string, unknown>;
+    if (validatedRecord.mensajePersonalizado) {
+      (clienteData as Record<string, unknown>).mensajePersonalizado = String(validatedRecord.mensajePersonalizado);
+    }
   } else {
     // Estructura antigua (retrocompatibilidad)
     validatedData = clienteSchemaLegacy.parse(body);
@@ -161,7 +159,7 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { par
         where: { 
           ruc: validatedData.ruc, 
           activo: true,
-          NOT: { id } // Excluir el cliente actual
+          NOT: { id }
         }
       });
 
@@ -185,7 +183,7 @@ export const PUT = withErrorHandling(withAuth(async (request: NextRequest, { par
 }));
 
 // DELETE /api/clientes/[id] - Eliminar cliente (soft delete)
-export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, { params, session }: { params: { id: string }, session: any }) => {
+export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
   const { id } = params;
 
   if (!id) {
@@ -223,94 +221,53 @@ export const DELETE = withErrorHandling(withAuth(async (request: NextRequest, { 
 }));
 
 // PATCH /api/clientes/[id] - Alternar estado activo/inactivo
-export const PATCH = withErrorHandling(withAuth(async (request: NextRequest, { params, session }: { params: { id: string }, session: any }) => {
+export const PATCH = withErrorHandling(withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
   const { id } = params;
 
-  // Log inicial de la petición
-  logger.info('PATCH /api/clientes/[id] - Inicio', {
-    clientId: id,
-    timestamp: new Date().toISOString(),
-    url: request.url,
-    method: request.method
-  });
-
   if (!id) {
-    logger.error('PATCH /api/clientes/[id] - ID faltante', { id });
     return errorResponse('ID de cliente requerido', 400);
   }
 
-  let body: any = {};
+  let body: { activo?: boolean } = {};
   try {
-    body = await request.json();
-    logger.info('PATCH /api/clientes/[id] - Body parseado', {
-      clientId: id,
-      body: body,
-      bodyType: typeof body,
-      activoValue: body?.activo,
-      activoType: typeof body?.activo
-    });
-  } catch (parseError) {
-    logger.error('PATCH /api/clientes/[id] - Error parsing body', {
-      clientId: id,
-      error: parseError instanceof Error ? parseError.message : 'Error desconocido'
-    });
+    body = await request.json() as { activo?: boolean };
+  } catch {
     return errorResponse('Cuerpo de solicitud inválido', 400);
   }
 
   const activoProvided = typeof body?.activo === 'boolean' ? body.activo : null;
   if (activoProvided === null) {
-    logger.error('PATCH /api/clientes/[id] - Parámetro activo inválido', {
-      clientId: id,
-      activoProvided,
-      bodyActivo: body?.activo,
-      bodyActivoType: typeof body?.activo
-    });
     return errorResponse('Parámetro "activo" requerido', 400);
   }
 
   // Verificar que el cliente existe
-  logger.info('PATCH /api/clientes/[id] - Buscando cliente', { clientId: id });
   const existingCliente = await prisma.cliente.findUnique({
     where: { id }
   });
 
   if (!existingCliente) {
-    logger.error('PATCH /api/clientes/[id] - Cliente no encontrado', { clientId: id });
     return errorResponse('Cliente no encontrado', 404);
   }
 
-  logger.info('PATCH /api/clientes/[id] - Cliente encontrado', {
-    clientId: id,
-    clienteNombre: existingCliente.nombre,
-    estadoActual: existingCliente.activo,
-    nuevoEstado: activoProvided
-  });
+  try {
+    const updated = await prisma.cliente.update({
+      where: { id },
+      data: { activo: activoProvided, updatedAt: new Date() }
+    });
 
-  // Realizar la actualización
-  logger.info('PATCH /api/clientes/[id] - Actualizando cliente', {
-    clientId: id,
-    activoProvided
-  });
+    return successResponse(updated, `Cliente ${activoProvided ? 'activado' : 'desactivado'} exitosamente`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? String(err.message).toLowerCase() : '';
+    // Si el error es por columna desconocida o P2022, intentar fallback SQL crudo
+    const errObj = err as { code?: string };
+    if (msg.includes('unknown arg') || msg.includes('unknown column') || errObj.code === 'P2022') {
+      await prisma.$executeRawUnsafe('UPDATE cliente SET activo = ?, updatedAt = ? WHERE id = ?', activoProvided ? 1 : 0, new Date(), id);
+      const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>('SELECT * FROM cliente WHERE id = ?', id);
+      const firstRow = rows[0];
+      const updated = firstRow ? { ...firstRow, activo: !!(firstRow as Record<string, unknown>).activo } : firstRow;
+      return successResponse(updated, `Cliente ${activoProvided ? 'activado' : 'desactivado'} exitosamente`);
+    }
 
-  const updated = await prisma.cliente.update({
-    where: { id },
-    data: { activo: activoProvided, updatedAt: new Date() }
-  });
-
-  logger.info('PATCH /api/clientes/[id] - Cliente actualizado exitosamente', {
-    clientId: id,
-    estadoAnterior: existingCliente.activo,
-    estadoNuevo: updated.activo,
-    updatedAt: updated.updatedAt
-  });
-
-  const response = successResponse(updated, `Cliente ${activoProvided ? 'activado' : 'desactivado'} exitosamente`);
-  
-  logger.info('PATCH /api/clientes/[id] - Respuesta enviada', {
-    clientId: id,
-    success: true,
-    message: `Cliente ${activoProvided ? 'activado' : 'desactivado'} exitosamente`
-  });
-
-  return response;
+    throw err;
+  }
 }));

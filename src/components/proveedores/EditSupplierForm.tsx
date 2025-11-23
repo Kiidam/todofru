@@ -18,13 +18,18 @@ interface SupplierFormData {
 
 interface ProxyResponse {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
 }
 
+type SupplierProp = Partial<SupplierFormData> & {
+  id?: string;
+  numeroIdentificacion?: string;
+};
+
 interface EditSupplierFormProps {
-  supplier: any; // Datos del proveedor a editar
-  onSuccess?: (updatedSupplier: any) => void;
+  supplier: SupplierProp | null; // Datos del proveedor a editar
+  onSuccess?: (updatedSupplier: Record<string, unknown>) => void;
   onCancel?: () => void;
 }
 
@@ -51,35 +56,20 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
   // Estados de envío
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState('');
 
   // Estados de validación
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Referencias
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  const cacheRef = useRef<Map<string, any>>(new Map());
-
-  // Verificar si el proveedor está verificado (tiene DNI/RUC válido)
-  const isProviderVerified = useCallback(() => {
-    if (!supplier?.numeroIdentificacion) return false;
-    const numId = supplier.numeroIdentificacion;
-    // Verificado si tiene DNI de 8 dígitos o RUC de 11 dígitos válidos
-    return (numId.length === 8 && /^\d{8}$/.test(numId)) || 
-           (numId.length === 11 && /^\d{11}$/.test(numId));
-  }, [supplier]);
-
-  // Estado para controlar si los campos de nombre están bloqueados
-  const [isNameFieldsLocked, setIsNameFieldsLocked] = useState(false);
+  const cacheRef = useRef<Map<string, unknown>>(new Map());
 
   // Inicializar formulario con datos del proveedor
   useEffect(() => {
     if (supplier) {
-      const tipoIdentificacion = supplier.numeroIdentificacion?.length === 8 ? 'DNI' : 'RUC';
-      const verified = isProviderVerified();
-      
+      const tipoIdentificacion = supplier.numeroIdentificacion && supplier.numeroIdentificacion.length === 8 ? 'DNI' : 'RUC';
       setFormData({
-        tipoIdentificacion,
+        tipoIdentificacion: (tipoIdentificacion as 'DNI' | 'RUC') ?? 'DNI',
         numeroIdentificacion: supplier.numeroIdentificacion || '',
         nombres: supplier.nombres || '',
         apellidos: supplier.apellidos || '',
@@ -89,20 +79,17 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
         email: supplier.email || '',
         direccion: supplier.direccion || ''
       });
-      
-      // Bloquear campos de nombre si está verificado
-      setIsNameFieldsLocked(verified);
     }
-  }, [supplier, isProviderVerified]);
+  }, [supplier]);
 
   // Validar campo individual
-  const validateField = useCallback((field: string, value: any): boolean => {
+  const validateField = useCallback((field: string, value: unknown): boolean => {
     const errors: Record<string, string> = {};
 
     switch (field) {
       case 'numeroIdentificacion':
         const expectedLength = formData.tipoIdentificacion === 'DNI' ? 8 : 11;
-        if (!value || String(value).trim() === '') {
+  if (value === undefined || value === null || String(value).trim() === '') {
           errors[field] = `El ${formData.tipoIdentificacion} es obligatorio`;
         } else if (!/^\d+$/.test(String(value))) {
           errors[field] = `El ${formData.tipoIdentificacion} debe contener solo números`;
@@ -136,7 +123,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
         break;
 
       case 'email':
-        if (value && String(value).trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
+  if (value !== undefined && value !== null && String(value).trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
           errors[field] = 'El formato del email no es válido';
         }
         break;
@@ -148,7 +135,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
         break;
     }
 
-    setFieldErrors(prev => {
+  setFieldErrors(prev => {
       const newErrors = { ...prev, ...errors };
       if (Object.keys(errors).length === 0) {
         delete newErrors[field];
@@ -210,7 +197,9 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
       // Verificar cache primero
       const cached = cacheRef.current.get(identification);
       if (cached) {
-        applyLookupResult(cached, identification);
+        // Normalize cached entry to ProxyResponse if possible
+        const normalized: ProxyResponse = (cached && typeof cached === 'object' && 'success' in (cached as Record<string, unknown>)) ? (cached as ProxyResponse) : { success: true, data: cached };
+        applyLookupResult(normalized, identification);
         return;
       }
 
@@ -222,23 +211,24 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
         cache: 'no-store'
       });
 
-      const result: any = await response.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
+      const raw: unknown = await response.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
+      const result = raw as Record<string, unknown>;
 
       if (!response.ok || result?.success === false) {
         const tipoDoc = identification.length === 8 ? 'DNI' : 'RUC';
         const fuente = identification.length === 8 ? 'RENIEC' : 'SUNAT';
-        const msg = result?.error || `Error ${response.status} al consultar ${fuente}`;
+        const msg = String(result?.error ?? `Error ${response.status} al consultar ${fuente}`);
         setLookupStatus('error');
         setLookupError(`${tipoDoc} no disponible: ${msg}`);
         return;
       }
 
       // Guardar en cache y aplicar resultado
-      const data = result?.data || result;
+      const data = (result?.data ?? result) as unknown;
       cacheRef.current.set(identification, data);
       applyLookupResult({ success: true, data }, identification);
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error en búsqueda de RUC/DNI:', error);
       setLookupStatus('error');
       const tipoDoc = identification.length === 8 ? 'DNI' : 'RUC';
@@ -254,7 +244,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
       return;
     }
 
-    const { data } = result;
+    const data = result.data as Record<string, unknown>;
     const isDNI = identification.length === 8;
     const fieldsUpdated = new Set<string>();
 
@@ -262,9 +252,8 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
       const updated = { ...prev };
 
       if (isDNI) {
-        // Para DNI (Persona Natural)
-        const nombres = (data.nombres || '').trim();
-        const apellidos = (data.apellidos || '').trim();
+        const nombres = String(data.nombres ?? '').trim();
+        const apellidos = String(data.apellidos ?? '').trim();
         if (nombres) {
           updated.nombres = nombres;
           fieldsUpdated.add('nombres');
@@ -273,24 +262,21 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
           updated.apellidos = apellidos;
           fieldsUpdated.add('apellidos');
         }
-        // Limpiar campos de persona jurídica
         updated.razonSocial = '';
         updated.representanteLegal = '';
       } else {
-        // Para RUC (Persona Jurídica)
-        const razon = (data.razonSocial || '').trim();
+        const razon = String(data.razonSocial ?? '').trim();
         if (razon) {
           updated.razonSocial = razon;
           fieldsUpdated.add('razonSocial');
         }
-        // Limpiar campos de persona natural
         updated.nombres = '';
         updated.apellidos = '';
       }
 
-      // Dirección (común para ambos)
-      if (data.direccion && data.direccion.trim()) {
-        updated.direccion = data.direccion.trim();
+      const direccion = String(data.direccion ?? '').trim();
+      if (direccion) {
+        updated.direccion = direccion;
         fieldsUpdated.add('direccion');
       }
 
@@ -360,13 +346,19 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
       return;
     }
 
-    setIsSubmitting(true);
-    setSubmitError('');
-    setSubmitSuccess('');
+  setIsSubmitting(true);
+  setSubmitError('');
 
     try {
+      // Construir payload conforme al esquema del API (tipoEntidad + nombre requerido)
+      const tipoEntidad = formData.tipoIdentificacion === 'DNI' ? 'PERSONA_NATURAL' : 'PERSONA_JURIDICA';
+      const nombre = formData.tipoIdentificacion === 'DNI'
+        ? `${formData.nombres} ${formData.apellidos}`.trim()
+        : formData.razonSocial;
+
       const payload = {
-        tipoIdentificacion: formData.tipoIdentificacion,
+        tipoEntidad,
+        nombre,
         numeroIdentificacion: formData.numeroIdentificacion,
         direccion: formData.direccion,
         telefono: formData.telefono || undefined,
@@ -380,24 +372,28 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
         })
       };
 
+      if (!supplier || !supplier.id) {
+        throw new Error('Proveedor inválido');
+      }
       const response = await fetch(`/api/proveedores/${supplier.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      const result = await response.json();
+      const rawResult: unknown = await response.json().catch(() => ({ success: false }));
+      const result = rawResult as Record<string, unknown>;
 
       if (!response.ok) {
-        throw new Error(result.error || `Error ${response.status}: ${response.statusText}`);
+        throw new Error(String(result.error ?? `Error ${response.status}: ${response.statusText}`));
       }
 
-      setSubmitSuccess('Proveedor actualizado exitosamente');
-      
+  // success handled via onSuccess
+
       // Llamar callback de éxito después de un breve delay
       setTimeout(() => {
         if (onSuccess) {
-          onSuccess(result);
+          onSuccess(result ?? {});
         }
       }, 1500);
 
@@ -407,30 +403,13 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, validateForm, onSuccess, supplier.id]);
+  }, [formData, validateForm, onSuccess, supplier]);
 
   return (
     <div className="p-6">
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Editar Proveedor</h3>
         <p className="text-sm text-gray-600">Modifica los datos del proveedor</p>
-        
-        {/* Mensaje informativo para proveedores verificados */}
-        {isNameFieldsLocked && (
-          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-amber-800">
-                  Restricción de edición
-                </p>
-                <p className="text-sm text-amber-700">
-                  Los datos de nombre no pueden modificarse después de la verificación con DNI/RUC
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -443,10 +422,10 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
             <button
               type="button"
               onClick={() => handleTipoIdentificacionChange('DNI')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md border transition-all font-medium ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
                 formData.tipoIdentificacion === 'DNI'
-                  ? 'border-blue-200 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
               }`}
             >
               <User className="h-4 w-4" />
@@ -455,10 +434,10 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
             <button
               type="button"
               onClick={() => handleTipoIdentificacionChange('RUC')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md border transition-all font-medium ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
                 formData.tipoIdentificacion === 'RUC'
-                  ? 'border-blue-200 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
               }`}
             >
               <Building2 className="h-4 w-4" />
@@ -519,25 +498,15 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
             <div>
               <label htmlFor="nombres" className="block text-sm font-medium text-gray-700 mb-2">
                 Nombres *
-                {isNameFieldsLocked && (
-                  <span className="ml-2 text-xs text-amber-600 font-normal">
-                    (Campo bloqueado - Proveedor verificado)
-                  </span>
-                )}
               </label>
               <input
                 type="text"
                 id="nombres"
                 value={formData.nombres || ''}
-                onChange={(e) => !isNameFieldsLocked && handleFieldChange('nombres', e.target.value)}
-                disabled={isNameFieldsLocked}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  isNameFieldsLocked 
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300' 
-                    : `focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        fieldErrors.nombres ? 'border-red-500' : 
-                        autocompletedFields.has('nombres') ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                      }`
+                onChange={(e) => handleFieldChange('nombres', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  fieldErrors.nombres ? 'border-red-500' : 
+                  autocompletedFields.has('nombres') ? 'border-green-500 bg-green-50' : 'border-gray-300'
                 }`}
                 placeholder="Nombres del proveedor"
               />
@@ -549,25 +518,15 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
             <div>
               <label htmlFor="apellidos" className="block text-sm font-medium text-gray-700 mb-2">
                 Apellidos *
-                {isNameFieldsLocked && (
-                  <span className="ml-2 text-xs text-amber-600 font-normal">
-                    (Campo bloqueado - Proveedor verificado)
-                  </span>
-                )}
               </label>
               <input
                 type="text"
                 id="apellidos"
                 value={formData.apellidos || ''}
-                onChange={(e) => !isNameFieldsLocked && handleFieldChange('apellidos', e.target.value)}
-                disabled={isNameFieldsLocked}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  isNameFieldsLocked 
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300' 
-                    : `focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        fieldErrors.apellidos ? 'border-red-500' : 
-                        autocompletedFields.has('apellidos') ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                      }`
+                onChange={(e) => handleFieldChange('apellidos', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  fieldErrors.apellidos ? 'border-red-500' : 
+                  autocompletedFields.has('apellidos') ? 'border-green-500 bg-green-50' : 'border-gray-300'
                 }`}
                 placeholder="Apellidos del proveedor"
               />
@@ -584,25 +543,15 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
             <div>
               <label htmlFor="razonSocial" className="block text-sm font-medium text-gray-700 mb-2">
                 Razón Social *
-                {isNameFieldsLocked && (
-                  <span className="ml-2 text-xs text-amber-600 font-normal">
-                    (Campo bloqueado - Proveedor verificado)
-                  </span>
-                )}
               </label>
               <input
                 type="text"
                 id="razonSocial"
                 value={formData.razonSocial || ''}
-                onChange={(e) => !isNameFieldsLocked && handleFieldChange('razonSocial', e.target.value)}
-                disabled={isNameFieldsLocked}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  isNameFieldsLocked 
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300' 
-                    : `focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        fieldErrors.razonSocial ? 'border-red-500' : 
-                        autocompletedFields.has('razonSocial') ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                      }`
+                onChange={(e) => handleFieldChange('razonSocial', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  fieldErrors.razonSocial ? 'border-red-500' : 
+                  autocompletedFields.has('razonSocial') ? 'border-green-500 bg-green-50' : 'border-gray-300'
                 }`}
                 placeholder="Razón social de la empresa"
               />
@@ -698,18 +647,14 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
           </div>
         )}
 
-        {submitSuccess && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm text-green-600">{submitSuccess}</p>
-          </div>
-        )}
+  {/* success handled via onSuccess */}
 
         {/* Botones */}
         <div className="flex gap-3 pt-4">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex-1 bg-green-50 text-green-700 py-2 px-4 rounded-md hover:bg-green-100 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 border border-green-200 font-medium"
+            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <>
@@ -728,7 +673,7 @@ export default function EditSupplierForm({ supplier, onSuccess, onCancel }: Edit
               type="button"
               onClick={onCancel}
               disabled={isSubmitting}
-              className="px-4 py-2 border border-gray-200 text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 font-medium"
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               <X className="h-4 w-4" />
               Cancelar

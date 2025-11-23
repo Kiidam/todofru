@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ValidacionesService } from "@/services/validaciones";
 import { useSession } from "next-auth/react";
-import { Plus, Loader2, Check, AlertCircle, User, Building2, Lock } from "lucide-react";
-import { validateDocument, sanitizeNumericInput, isDocumentComplete } from "@/utils/documentValidation";
+import { Plus, Loader2, Check, AlertCircle, User, Building2 } from "lucide-react";
 
 // Tipos para el formulario
 interface SupplierFormData {
@@ -62,14 +62,9 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
   // Estados de envío
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState('');
 
   // Estados de validación
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  // Estado para controlar bloqueo de campos
-  const [isDocumentValid, setIsDocumentValid] = useState(false);
-  const [fieldsLocked, setFieldsLocked] = useState(false);
 
   // Referencia para debounce
   const debounceRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -87,57 +82,81 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
   }, []);
 
   // Validar campos en tiempo real
-  const validateField = useCallback((field: string, value: any) => {
+  const validateField = useCallback((field: string, value: unknown) => {
     const errors: Record<string, string> = {};
 
     switch (field) {
       case 'numeroIdentificacion':
         {
-          const strVal = sanitizeNumericInput(String(value || ''));
+          const strVal = String(value || '').replace(/[^0-9]/g, '');
+          const computedType: 'DNI' | 'RUC' = strVal.length >= 9 ? 'RUC' : 'DNI';
           if (!strVal || strVal.trim() === '') {
-            errors[field] = 'El número de identificación es obligatorio';
+            errors[field] = 'El número de identificación es obligatorio. Ingrese DNI (8 dígitos) o RUC (11 dígitos)';
+          } else if (computedType === 'DNI') {
+            const v = ValidacionesService.validarDNI(strVal);
+            if (!v.valido) errors[field] = v.mensaje || 'DNI inválido';
           } else {
-            const validation = validateDocument(strVal);
-            if (!validation.isValid) {
-              errors[field] = validation.error || 'Documento inválido';
-            }
+            const v = ValidacionesService.validarRUC(strVal);
+            if (!v.valido) errors[field] = v.mensaje || 'RUC inválido';
           }
         }
         break;
 
       case 'nombres':
-        if (formData.tipoIdentificacion === 'DNI' && (!value || String(value).trim().length < 2)) {
-          errors[field] = 'Los nombres son obligatorios para personas naturales';
+        if (formData.tipoIdentificacion === 'DNI') {
+          if (!value || String(value).trim() === '') {
+            errors[field] = 'Los nombres son obligatorios para personas naturales (DNI)';
+          } else if (String(value).trim().length < 2) {
+            errors[field] = 'Los nombres deben tener al menos 2 caracteres';
+          }
         }
         break;
 
       case 'apellidos':
-        if (formData.tipoIdentificacion === 'DNI' && (!value || String(value).trim().length < 2)) {
-          errors[field] = 'Los apellidos son obligatorios para personas naturales';
+        if (formData.tipoIdentificacion === 'DNI') {
+          if (!value || String(value).trim() === '') {
+            errors[field] = 'Los apellidos son obligatorios para personas naturales (DNI)';
+          } else if (String(value).trim().length < 2) {
+            errors[field] = 'Los apellidos deben tener al menos 2 caracteres';
+          }
         }
         break;
 
       case 'razonSocial':
-        if (formData.tipoIdentificacion === 'RUC' && (!value || String(value).trim().length < 3)) {
-          errors[field] = 'La razón social es obligatoria para personas jurídicas';
+        if (formData.tipoIdentificacion === 'RUC') {
+          if (!value || String(value).trim() === '') {
+            errors[field] = 'La razón social es obligatoria para personas jurídicas (RUC)';
+          } else if (String(value).trim().length < 3) {
+            errors[field] = 'La razón social debe tener al menos 3 caracteres';
+          }
         }
         break;
 
       case 'direccion':
-        if (!value || String(value).trim().length < 10) {
-          errors[field] = 'La dirección es obligatoria y debe tener al menos 10 caracteres';
+        if (!value || String(value).trim() === '') {
+          errors[field] = 'La dirección es obligatoria';
+        } else if (String(value).trim().length < 10) {
+          errors[field] = `La dirección debe tener al menos 10 caracteres. Ingresó ${String(value).trim().length} caracteres`;
         }
         break;
 
       case 'email':
-        if (value && String(value).trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
-          errors[field] = 'El formato del email no es válido';
+        if (value && String(value).trim() !== '') {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(String(value))) {
+            errors[field] = 'Formato de email inválido. Ejemplo: usuario@dominio.com';
+          }
         }
         break;
 
       case 'telefono':
-        if (value && String(value).trim() !== '' && /^[\+]?[\d\s\-\(\)]{7,15}$/.test(String(value)) === false) {
-          errors[field] = 'El formato del teléfono no es válido';
+        if (value && String(value).trim() !== '') {
+          const phoneStr = String(value).replace(/[\s\-\(\)]/g, ''); // Remover espacios, guiones y paréntesis
+          // Validar formato peruano: +51 o 51 seguido de 9 dígitos
+          const peruPhoneRegex = /^(\+?51)?[9]\d{8}$/;
+          if (!peruPhoneRegex.test(phoneStr)) {
+            errors[field] = 'Ingrese un número telefónico peruano válido (ej: +51987654321 o 987654321)';
+          }
         }
         break;
     }
@@ -160,39 +179,38 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
       clearTimeout(debounceRef.current);
     }
 
-    // Sanitizar entrada: solo dígitos, hasta 11
-    const value = sanitizeNumericInput(rawValue).slice(0, 11);
+    // Normalizar: solo dígitos, hasta 11
+    const value = rawValue.replace(/[^0-9]/g, '').slice(0, 11);
 
     // Auto-cambiar tipo según longitud
     const nextType: 'DNI' | 'RUC' = value.length >= 9 ? 'RUC' : 'DNI';
     setFormData(prev => ({ ...prev, numeroIdentificacion: value, tipoIdentificacion: nextType }));
     
-    // Validar documento usando las nuevas utilidades
-    const validation = validateDocument(value);
-    const isValidDocument = validation.isValid;
-    
-    // Actualizar estados de validación y bloqueo
-    setIsDocumentValid(isValidDocument);
-    setFieldsLocked(isValidDocument);
-    
-    // Validar campo
+    // Validar campo según tipo
     validateField('numeroIdentificacion', value);
 
     // Si el valor está vacío o es inválido, limpiar estados
-    if (!value || value.trim() === '' || !isValidDocument) {
+    if (!value || value.trim() === '') {
       setLookupStatus('idle');
       setLookupError('');
       setAutocompletedFields(new Set());
       setLookupSource('');
-      
-      // Si no es válido, desbloquear campos
-      if (!isValidDocument) {
-        setFieldsLocked(false);
-      }
       return;
     }
 
-    // Configurar debounce para búsqueda solo si el documento es válido
+    // Verificar formato básico (permitir 8 o 11)
+    const isValid = value.length === 8
+      ? ValidacionesService.validarDNI(value).valido
+      : (value.length === 11 ? ValidacionesService.validarRUC(value).valido : false);
+    if (!isValid) {
+      setLookupStatus('idle');
+      setLookupError('');
+      setAutocompletedFields(new Set());
+      setLookupSource('');
+      return;
+    }
+
+    // Configurar debounce para búsqueda
     debounceRef.current = setTimeout(() => {
       performLookup(value);
     }, 500);
@@ -219,21 +237,32 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
         cache: 'no-store'
       });
 
-      const result: any = await response.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
+      const raw: unknown = await response.json().catch(() => ({ success: false, error: 'Respuesta inválida del servidor' }));
+      const result = raw as Record<string, unknown>;
 
       if (!response.ok || result?.success === false) {
         const tipoDoc = identification.length === 8 ? 'DNI' : 'RUC';
         const fuente = identification.length === 8 ? 'RENIEC' : 'SUNAT';
-        const msg = result?.error || `Error ${response.status} al consultar ${fuente}`;
+        const msg = String(result?.error ?? `Error ${response.status} al consultar ${fuente}`);
         setLookupStatus('error');
         setLookupError(`${tipoDoc} no disponible: ${msg}`);
         return;
       }
 
-      // Guardar en cache y aplicar resultado
-      const data = result?.data || result;
-      cacheRef.current.set(identification, data);
-      applyLookupResult({ success: true, data }, identification);
+      // Guardar en cache y aplicar resultado (normalizar campos esperados)
+      const data = (result?.data ?? result) as unknown;
+      const parsed = (data && typeof data === 'object') ? data as Record<string, unknown> : {};
+      const proxyData: ProxyResponse['data'] = {
+        razonSocial: parsed.razonSocial ? String(parsed.razonSocial) : undefined,
+        nombres: parsed.nombres ? String(parsed.nombres) : undefined,
+        apellidos: parsed.apellidos ? String(parsed.apellidos) : undefined,
+        direccion: parsed.direccion ? String(parsed.direccion) : undefined,
+        tipoContribuyente: parsed.tipoContribuyente ? String(parsed.tipoContribuyente) : undefined,
+        esPersonaNatural: parsed.esPersonaNatural !== undefined ? Boolean(parsed.esPersonaNatural) : undefined,
+      };
+
+      cacheRef.current.set(identification, { success: true, data: proxyData });
+      applyLookupResult({ success: true, data: proxyData }, identification);
 
     } catch (error) {
       console.error('Error en búsqueda de RUC/DNI:', error);
@@ -325,7 +354,7 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
   }, [validateField]);
 
   // Validar formulario completo
-  const validateForm = useCallback((): boolean => {
+  const validateForm = useCallback((): { isValid: boolean; errorMessage: string } => {
     const fields = ['numeroIdentificacion', 'direccion'];
     
     if (formData.tipoIdentificacion === 'DNI') {
@@ -337,42 +366,62 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
     if (formData.email) fields.push('email');
     if (formData.telefono) fields.push('telefono');
 
-    let isValid = true;
+    const invalidFields: string[] = [];
     fields.forEach(field => {
       const fieldValue = formData[field as keyof SupplierFormData];
       if (!validateField(field, fieldValue)) {
-        isValid = false;
+        const fieldNames: Record<string, string> = {
+          numeroIdentificacion: 'Número de identificación',
+          direccion: 'Dirección',
+          nombres: 'Nombres',
+          apellidos: 'Apellidos',
+          razonSocial: 'Razón social',
+          email: 'Email',
+          telefono: 'Teléfono'
+        };
+        invalidFields.push(fieldNames[field] || field);
       }
     });
 
-    return isValid;
+    const isValid = invalidFields.length === 0;
+    let errorMessage = '';
+    
+    if (!isValid) {
+      if (invalidFields.length === 1) {
+        errorMessage = `Por favor, corrige el error en: ${invalidFields[0]}`;
+      } else if (invalidFields.length === 2) {
+        errorMessage = `Por favor, corrige los errores en: ${invalidFields.join(' y ')}`;
+      } else {
+        const lastField = invalidFields.pop();
+        errorMessage = `Por favor, corrige los errores en: ${invalidFields.join(', ')} y ${lastField}`;
+      }
+    }
+
+    return { isValid, errorMessage };
   }, [formData, validateField]);
 
   // Manejar envío del formulario
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      setSubmitError('Por favor, corrige los errores en el formulario');
+    const validation = validateForm();
+    if (!validation.isValid) {
+      setSubmitError(validation.errorMessage);
       return;
     }
 
     setIsSubmitting(true);
-    setSubmitError('');
-    setSubmitSuccess('');
+  setSubmitError('');
 
     try {
-      // Mapear tipoIdentificacion a tipoEntidad según el esquema del backend
-      const tipoEntidad = formData.tipoIdentificacion === 'DNI' ? 'PERSONA_NATURAL' : 'PERSONA_JURIDICA';
-      
-      // Construir el nombre según el tipo de entidad
+      // Construir el nombre según el tipo de identificación
       const nombre = formData.tipoIdentificacion === 'DNI' 
         ? `${formData.nombres} ${formData.apellidos}`.trim()
-        : formData.razonSocial || '';
+        : formData.razonSocial;
 
       const payload = {
-        tipoEntidad,
-        nombre,
+        tipoEntidad: formData.tipoIdentificacion === 'DNI' ? 'PERSONA_NATURAL' : 'PERSONA_JURIDICA',
+        nombre: nombre,
         numeroIdentificacion: formData.numeroIdentificacion,
         direccion: formData.direccion,
         telefono: formData.telefono || undefined,
@@ -395,27 +444,13 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
       const result = await response.json();
 
       if (!response.ok) {
-        // Manejar errores específicos del backend
-        if (result.issues && Array.isArray(result.issues)) {
-          // Errores de validación de Zod
-          const validationErrors = result.issues.map((issue: any) => {
-            const field = issue.path?.join('.') || 'campo';
-            return `${field}: ${issue.message}`;
-          }).join(', ');
-          throw new Error(`Errores de validación: ${validationErrors}`);
-        } else if (result.error) {
-          // Error específico del backend
-          throw new Error(result.error);
-        } else {
-          // Error genérico
-          throw new Error(`Error ${response.status}: ${response.statusText}`);
-        }
+        throw new Error(result.error || `Error ${response.status}: ${response.statusText}`);
       }
 
-      setSubmitSuccess('Proveedor creado exitosamente');
-      
-      // Limpiar formulario después de éxito
-      setTimeout(() => {
+  // success message handled via onSuccess callback
+
+  // Limpiar formulario después de éxito
+  setTimeout(() => {
         setFormData({
           tipoIdentificacion: 'DNI',
           numeroIdentificacion: '',
@@ -432,8 +467,25 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
         setLookupError('');
         setLookupSource('');
         setFieldErrors({});
-        setSubmitSuccess('');
         
+        // Emitir evento global para notificar que se cre F3 un proveedor
+        try {
+          let createdId: string | undefined;
+          if (result && typeof result === 'object') {
+            const r = result as Record<string, unknown>;
+            if (r.data && typeof r.data === 'object') {
+              const d = r.data as Record<string, unknown>;
+              if (typeof d.id === 'string') createdId = d.id;
+            }
+            if (!createdId && typeof r.id === 'string') createdId = r.id;
+          }
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('entity:created', { detail: { type: 'proveedor', id: String(createdId ?? '') } }));
+          }
+        } catch (err) {
+          // noop
+        }
+
         if (onSuccess) {
           onSuccess();
         }
@@ -459,10 +511,10 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
             <button
               type="button"
               onClick={() => handleTipoIdentificacionChange('DNI')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md border transition-all font-medium ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
                 formData.tipoIdentificacion === 'DNI'
-                  ? 'border-blue-200 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
               }`}
             >
               <User className="h-4 w-4" />
@@ -471,10 +523,10 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
             <button
               type="button"
               onClick={() => handleTipoIdentificacionChange('RUC')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md border transition-all font-medium ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
                 formData.tipoIdentificacion === 'RUC'
-                  ? 'border-blue-200 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
               }`}
             >
               <Building2 className="h-4 w-4" />
@@ -535,76 +587,42 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
             <div>
               <label htmlFor="nombres" className="block text-sm font-medium text-gray-700 mb-2">
                 Nombres *
-                {fieldsLocked && (
-                  <span className="ml-2 inline-flex items-center text-xs text-amber-600">
-                    <Lock className="w-3 h-3 mr-1" />
-                    Bloqueado por documento válido
-                  </span>
-                )}
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  id="nombres"
-                  value={formData.nombres || ''}
-                  onChange={(e) => handleFieldChange('nombres', e.target.value)}
-                  disabled={fieldsLocked}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    fieldsLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' :
-                    fieldErrors.nombres ? 'border-red-500' : 
-                    autocompletedFields.has('nombres') ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                  }`}
-                  placeholder="Nombres del proveedor"
-                />
-                {fieldsLocked && (
-                  <Lock className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
-                )}
-              </div>
+              <input
+                type="text"
+                id="nombres"
+                value={formData.nombres || ''}
+                onChange={(e) => handleFieldChange('nombres', e.target.value)}
+                readOnly={autocompletedFields.has('nombres')}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  fieldErrors.nombres ? 'border-red-500' : 
+                  autocompletedFields.has('nombres') ? 'border-green-500 bg-green-50 cursor-not-allowed' : 'border-gray-300'
+                }`}
+                placeholder={autocompletedFields.has('nombres') ? "Autocompletado desde RENIEC" : "Nombres del proveedor"}
+              />
               {fieldErrors.nombres && (
                 <p className="mt-1 text-sm text-red-600">{fieldErrors.nombres}</p>
-              )}
-              {fieldsLocked && !fieldErrors.nombres && (
-                <p className="mt-1 text-sm text-amber-600">
-                  El nombre no puede modificarse una vez registrado el documento válido
-                </p>
               )}
             </div>
 
             <div>
               <label htmlFor="apellidos" className="block text-sm font-medium text-gray-700 mb-2">
                 Apellidos *
-                {fieldsLocked && (
-                  <span className="ml-2 inline-flex items-center text-xs text-amber-600">
-                    <Lock className="w-3 h-3 mr-1" />
-                    Bloqueado por documento válido
-                  </span>
-                )}
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  id="apellidos"
-                  value={formData.apellidos || ''}
-                  onChange={(e) => handleFieldChange('apellidos', e.target.value)}
-                  disabled={fieldsLocked}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    fieldsLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' :
-                    fieldErrors.apellidos ? 'border-red-500' : 
-                    autocompletedFields.has('apellidos') ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                  }`}
-                  placeholder="Apellidos del proveedor"
-                />
-                {fieldsLocked && (
-                  <Lock className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
-                )}
-              </div>
+              <input
+                type="text"
+                id="apellidos"
+                value={formData.apellidos || ''}
+                onChange={(e) => handleFieldChange('apellidos', e.target.value)}
+                readOnly={autocompletedFields.has('apellidos')}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  fieldErrors.apellidos ? 'border-red-500' : 
+                  autocompletedFields.has('apellidos') ? 'border-green-500 bg-green-50 cursor-not-allowed' : 'border-gray-300'
+                }`}
+                placeholder={autocompletedFields.has('apellidos') ? "Autocompletado desde RENIEC" : "Apellidos del proveedor"}
+              />
               {fieldErrors.apellidos && (
                 <p className="mt-1 text-sm text-red-600">{fieldErrors.apellidos}</p>
-              )}
-              {fieldsLocked && !fieldErrors.apellidos && (
-                <p className="mt-1 text-sm text-amber-600">
-                  El nombre no puede modificarse una vez registrado el documento válido
-                </p>
               )}
             </div>
           </>
@@ -616,38 +634,21 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
             <div>
               <label htmlFor="razonSocial" className="block text-sm font-medium text-gray-700 mb-2">
                 Razón Social *
-                {fieldsLocked && (
-                  <span className="ml-2 inline-flex items-center text-xs text-amber-600">
-                    <Lock className="w-3 h-3 mr-1" />
-                    Bloqueado por documento válido
-                  </span>
-                )}
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  id="razonSocial"
-                  value={formData.razonSocial || ''}
-                  onChange={(e) => handleFieldChange('razonSocial', e.target.value)}
-                  disabled={fieldsLocked}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    fieldsLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' :
-                    fieldErrors.razonSocial ? 'border-red-500' : 
-                    autocompletedFields.has('razonSocial') ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                  }`}
-                  placeholder="Razón social de la empresa"
-                />
-                {fieldsLocked && (
-                  <Lock className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
-                )}
-              </div>
+              <input
+                type="text"
+                id="razonSocial"
+                value={formData.razonSocial || ''}
+                onChange={(e) => handleFieldChange('razonSocial', e.target.value)}
+                readOnly={autocompletedFields.has('razonSocial')}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  fieldErrors.razonSocial ? 'border-red-500' : 
+                  autocompletedFields.has('razonSocial') ? 'border-green-500 bg-green-50 cursor-not-allowed' : 'border-gray-300'
+                }`}
+                placeholder={autocompletedFields.has('razonSocial') ? "Autocompletado desde SUNAT" : "Razón social de la empresa"}
+              />
               {fieldErrors.razonSocial && (
                 <p className="mt-1 text-sm text-red-600">{fieldErrors.razonSocial}</p>
-              )}
-              {fieldsLocked && !fieldErrors.razonSocial && (
-                <p className="mt-1 text-sm text-amber-600">
-                  La razón social no puede modificarse una vez registrado el documento válido
-                </p>
               )}
             </div>
 
@@ -676,12 +677,13 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
             id="direccion"
             value={formData.direccion}
             onChange={(e) => handleFieldChange('direccion', e.target.value)}
+            readOnly={autocompletedFields.has('direccion')}
             rows={3}
             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               fieldErrors.direccion ? 'border-red-500' : 
-              autocompletedFields.has('direccion') ? 'border-green-500 bg-green-50' : 'border-gray-300'
+              autocompletedFields.has('direccion') ? 'border-green-500 bg-green-50 cursor-not-allowed' : 'border-gray-300'
             }`}
-            placeholder="Dirección completa del proveedor"
+            placeholder={autocompletedFields.has('direccion') ? "Autocompletado desde base de datos oficial" : "Dirección completa del proveedor"}
           />
           {fieldErrors.direccion && (
             <p className="mt-1 text-sm text-red-600">{fieldErrors.direccion}</p>
@@ -735,18 +737,14 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
           </div>
         )}
 
-        {submitSuccess && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm text-green-600">{submitSuccess}</p>
-          </div>
-        )}
+  {/* success UI handled externally */}
 
         {/* Botones */}
         <div className="flex gap-3 pt-4">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex-1 bg-green-50 text-green-700 py-2 px-4 rounded-md hover:bg-green-100 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 border border-green-200 font-medium"
+            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <>
@@ -765,7 +763,7 @@ export default function AddSupplierForm({ onSuccess, onCancel }: AddSupplierForm
               type="button"
               onClick={onCancel}
               disabled={isSubmitting}
-              className="px-4 py-2 border border-gray-200 text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Cancelar
             </button>
