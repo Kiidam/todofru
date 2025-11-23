@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import dynamic from 'next/dynamic';
 // Filtros personalizados locales para ventas
-import { Eye, Printer, Edit2 } from 'lucide-react';
+import { Eye, Printer, Edit2, FileText, Receipt } from 'lucide-react';
+import Link from 'next/link';
 import { MovimientoRow } from '../../../../src/components/dashboard/movimientos/Table';
 import { useAuth } from '../../../../src/hooks/useAuth';
 
@@ -862,7 +863,7 @@ export default function MovimientosVentasPage() {
                         {new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(total)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             title="Ver"
@@ -871,6 +872,22 @@ export default function MovimientosVentasPage() {
                           >
                             <Eye className="h-5 w-5" />
                           </button>
+                          <Link
+                            href={`/dashboard/ventas/documento/${s.numeroPedido}?tipo=BOLETA`}
+                            target="_blank"
+                            title="Generar Boleta"
+                            className="text-purple-600 hover:text-purple-800"
+                          >
+                            <Receipt className="h-5 w-5" />
+                          </Link>
+                          <Link
+                            href={`/dashboard/ventas/documento/${s.numeroPedido}?tipo=FACTURA`}
+                            target="_blank"
+                            title="Generar Factura"
+                            className="text-indigo-600 hover:text-indigo-800"
+                          >
+                            <FileText className="h-5 w-5" />
+                          </Link>
                           <button
                             type="button"
                             title="Imprimir"

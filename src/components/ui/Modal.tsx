@@ -1,52 +1,84 @@
-"use client";
-import React, { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import React, { useEffect } from "react";
+import ReactDOM from "react-dom";
 
-type Action = { label: string; onClick: () => void; disabled?: boolean };
-
-type Props = {
-  open: boolean;
-  title?: string;
+interface ModalProps {
+  isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
-  primaryAction?: Action;
-  secondaryAction?: Action;
-  widthClass?: string;
-};
+  ariaLabel?: string;
+}
 
-function BaseModal({ open, title, onClose, children, primaryAction, secondaryAction, widthClass = "max-w-2xl" }: Props) {
-  const panelRef = useRef<HTMLDivElement | null>(null);
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, ariaLabel }) => {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    if (open) { document.addEventListener("keydown", handler); }
-    return () => document.removeEventListener("keydown", handler);
-  }, [open, onClose]);
-  if (!open) return null;
-  return createPortal(
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex items-center justify-center" aria-modal="true" role="dialog">
-      <div ref={panelRef} className={`w-11/12 ${widthClass} mx-auto p-6 border shadow-2xl rounded-xl bg-white`}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          <button onClick={onClose} className="text-gray-700 hover:text-gray-900">✕</button>
-        </div>
-        <div>{children}</div>
-        <div className="mt-6 flex gap-2 justify-end">
-          {secondaryAction && (
-            <button onClick={secondaryAction.onClick} disabled={secondaryAction.disabled} className="px-4 py-2 border rounded-md bg-white text-gray-900 hover:bg-gray-50 disabled:opacity-50">
-              {secondaryAction.label}
-            </button>
-          )}
-          {primaryAction && (
-            <button onClick={primaryAction.onClick} disabled={primaryAction.disabled} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md disabled:opacity-50 focus:ring-2 focus:ring-green-500">
-              {primaryAction.label}
-            </button>
-          )}
-        </div>
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-label={ariaLabel}
+        onClick={e => e.stopPropagation()}
+      >
+        <button className="modal-close" onClick={onClose} aria-label="Cerrar modal">✕</button>
+        {children}
       </div>
+      <style jsx global>{`
+        .modal-overlay {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.55);
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .modal-content {
+          background: #fff;
+          color: #222;
+          border-radius: 16px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+          min-width: 600px;
+          max-width: 95vw;
+          width: 50vw;
+          max-height: 95vh;
+          overflow-y: auto;
+          padding: 1.5rem;
+          position: relative;
+        }
+        .modal-close {
+          position: absolute;
+          top: 0.75rem;
+          right: 0.75rem;
+          background: none;
+          border: none;
+          font-size: 1.75rem;
+          cursor: pointer;
+          color: #555;
+          line-height: 1;
+          padding: 0.25rem 0.5rem;
+          transition: color 0.2s;
+        }
+        .modal-close:hover {
+          color: #000;
+        }
+      `}</style>
     </div>,
     document.body
   );
-}
+};
 
-const Modal = React.memo(BaseModal);
 export default Modal;
