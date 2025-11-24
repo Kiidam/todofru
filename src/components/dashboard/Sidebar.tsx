@@ -12,6 +12,7 @@ import {
   Settings,
   LogOut,
   Warehouse,
+  Shield,
 } from 'lucide-react';
 
 // Icons used in movimientos submenu
@@ -65,6 +66,7 @@ function SidebarComponent() {
     // Módulos existentes
     { href: '/dashboard/proveedores', label: 'Proveedores', icon: <Truck size={20} /> },
     { href: '/dashboard/clientes', label: 'Clientes', icon: <Users size={20} /> },
+    { href: '/dashboard/usuarios', label: 'Usuarios', icon: <Shield size={20} /> },
     // Navegación limpia tras refactor: módulos eliminados ocultos
   ]), []);
 
@@ -175,6 +177,12 @@ function SidebarComponent() {
                 label="Ventas"
                 icon={<TrendingUp size={18} />}
                 active={pathname === '/dashboard/movimientos/ventas'}
+              />
+              <NavItem 
+                href="/dashboard/mermas"
+                label="Mermas"
+                icon={<FileText size={18} />}
+                active={pathname === '/dashboard/mermas'}
               />
             </div>
           )}

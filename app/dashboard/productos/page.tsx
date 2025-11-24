@@ -843,8 +843,8 @@ return (
               </div>
             </div>
           )}
-        </div>
       </div>
+    </div>
 
   <Modal isOpen={showModal} onClose={() => setShowModal(false)} ariaLabel={editingProduct ? "Editar Producto" : "Crear Nuevo Producto"}>
         <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg max-h-screen flex flex-col">
