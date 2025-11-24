@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { Eye, Printer, Edit2, CheckCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Eye, Printer, Edit2, CheckCircle, Receipt, FileText } from 'lucide-react';
 import { MovimientosFiltersState } from '../../../../src/components/dashboard/movimientos/Filters';
 import { useAuth } from '../../../../src/hooks/useAuth';
 
@@ -32,6 +33,7 @@ type PurchaseItem = {
 type Purchase = {
   id: string;
   numero: string;
+  numeroOrden: string;
   fecha: string; // ISO
   proveedorId: string;
   proveedorNombre: string;
@@ -230,6 +232,7 @@ export default function MovimientosComprasPage() {
         const purchase = {
           id: String(o.id ?? ''),
           numero: String(o.numero ?? `PC-${String(o.id ?? '')}`),
+          numeroOrden: String(o.numero ?? `PC-${String(o.id ?? '')}`),
           fecha: String(o.fecha ?? new Date().toISOString()),
           proveedorId: String(o.proveedorId ?? ''),
           proveedorNombre: String(proveedorObj?.nombre ?? proveedorObj?.razonSocial ?? 'Proveedor'),
@@ -889,10 +892,16 @@ export default function MovimientosComprasPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(c.fecha).toLocaleDateString('es-PE')}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right tabular-nums">{new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(c.total)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <button type="button" title="Ver detalles" onClick={() => viewPurchase(c)} className="text-green-600 hover:text-green-800 transition-colors">
                         <Eye className="h-5 w-5" />
                       </button>
+                      <Link href={`/dashboard/compras/documento/${c.numeroOrden}?tipo=BOLETA`} target="_blank" title="Generar Boleta" className="text-purple-600 hover:text-purple-800 transition-colors">
+                        <Receipt className="h-5 w-5" />
+                      </Link>
+                      <Link href={`/dashboard/compras/documento/${c.numeroOrden}?tipo=FACTURA`} target="_blank" title="Generar Factura" className="text-indigo-600 hover:text-indigo-800 transition-colors">
+                        <FileText className="h-5 w-5" />
+                      </Link>
                       <button type="button" title="Imprimir" onClick={() => printPurchase(c)} className="text-gray-700 hover:text-gray-900 transition-colors">
                         <Printer className="h-5 w-5" />
                       </button>

@@ -99,6 +99,7 @@ export default function ClienteFormUnified({
 
   // Cleanup
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       if (debounceTimeoutRef.current) {
@@ -145,7 +146,7 @@ export default function ClienteFormUnified({
   }, [formData.tipoEntidad, updateFormField]);
 
   // Función para buscar datos en RENIEC/SUNAT
-  const buscarDatosExternos = useCallback(async (numeroIdentificacion: string) => {
+  const buscarDatosExternos = async (numeroIdentificacion: string) => {
     if (!numeroIdentificacion || numeroIdentificacion.length < 8) return;
 
     // Check cache first
@@ -154,19 +155,28 @@ export default function ClienteFormUnified({
       // apply cached result synchronously
       const { tipoEntidad, data } = cached;
       const fieldsToUpdate = new Set<string>();
-      if (tipoEntidad === 'PERSONA_NATURAL' && typeof data.nombres === 'string' && typeof data.apellidos === 'string') {
-        updateFormField('nombres', String(data.nombres));
-        updateFormField('apellidos', String(data.apellidos));
-        fieldsToUpdate.add('nombres');
-        fieldsToUpdate.add('apellidos');
-      } else if (tipoEntidad === 'PERSONA_JURIDICA' && typeof data.razonSocial === 'string') {
-        updateFormField('razonSocial', String(data.razonSocial));
-        fieldsToUpdate.add('razonSocial');
-        if (typeof data.direccion === 'string') {
-          updateFormField('direccion', String(data.direccion));
-          fieldsToUpdate.add('direccion');
+      
+      // Actualizar formData directamente
+      setFormData(prev => {
+        const updated = { ...prev };
+        
+        if (tipoEntidad === 'PERSONA_NATURAL' && typeof data.nombres === 'string' && typeof data.apellidos === 'string') {
+          updated.nombres = String(data.nombres);
+          updated.apellidos = String(data.apellidos);
+          fieldsToUpdate.add('nombres');
+          fieldsToUpdate.add('apellidos');
+        } else if (tipoEntidad === 'PERSONA_JURIDICA' && typeof data.razonSocial === 'string') {
+          updated.razonSocial = String(data.razonSocial);
+          fieldsToUpdate.add('razonSocial');
+          if (typeof data.direccion === 'string') {
+            updated.direccion = String(data.direccion);
+            fieldsToUpdate.add('direccion');
+          }
         }
-      }
+        
+        return updated;
+      });
+      
       setAutocompletedFields(fieldsToUpdate);
       setLookupSuccess(`Datos encontrados en ${tipoEntidad === 'PERSONA_NATURAL' ? 'RENIEC' : 'SUNAT'}`);
       return;
@@ -187,13 +197,13 @@ export default function ClienteFormUnified({
     // timeout for the fetch
     const timeout = setTimeout(() => controller.abort(), 8000);
 
-  try {
-    const tipoEntidad = determinarTipoEntidad(numeroIdentificacion);
+    try {
+      const tipoEntidad = determinarTipoEntidad(numeroIdentificacion);
 
-    // Use the clientes proxy which now mirrors proveedores behavior
-    const endpoint = `/api/clientes/ruc?ruc=${numeroIdentificacion}`;
+      // Use the clientes proxy which now mirrors proveedores behavior
+      const endpoint = `/api/clientes/ruc?ruc=${numeroIdentificacion}`;
 
-    const resp = await fetch(endpoint, { signal });
+      const resp = await fetch(endpoint, { signal });
       clearTimeout(timeout);
 
       if (!isMountedRef.current) return;
@@ -210,19 +220,27 @@ export default function ClienteFormUnified({
 
           const fieldsToUpdate = new Set<string>();
           const isDNI = tipoEntidad === 'PERSONA_NATURAL';
-          if (isDNI && payload['nombres'] && payload['apellidos']) {
-            updateFormField('nombres', String(payload['nombres']));
-            updateFormField('apellidos', String(payload['apellidos']));
-            fieldsToUpdate.add('nombres');
-            fieldsToUpdate.add('apellidos');
-          } else if (!isDNI && payload['razonSocial']) {
-            updateFormField('razonSocial', String(payload['razonSocial']));
-            fieldsToUpdate.add('razonSocial');
-            if (payload['direccion']) {
-              updateFormField('direccion', String(payload['direccion']));
-              fieldsToUpdate.add('direccion');
+          
+          // Actualizar formData directamente
+          setFormData(prev => {
+            const updated = { ...prev };
+            
+            if (isDNI && payload['nombres'] && payload['apellidos']) {
+              updated.nombres = String(payload['nombres']);
+              updated.apellidos = String(payload['apellidos']);
+              fieldsToUpdate.add('nombres');
+              fieldsToUpdate.add('apellidos');
+            } else if (!isDNI && payload['razonSocial']) {
+              updated.razonSocial = String(payload['razonSocial']);
+              fieldsToUpdate.add('razonSocial');
+              if (payload['direccion']) {
+                updated.direccion = String(payload['direccion']);
+                fieldsToUpdate.add('direccion');
+              }
             }
-          }
+            
+            return updated;
+          });
 
           setAutocompletedFields(fieldsToUpdate);
           setLookupSuccess(`Datos encontrados en ${isDNI ? 'RENIEC' : 'SUNAT'}`);
@@ -247,10 +265,10 @@ export default function ClienteFormUnified({
       if (isMountedRef.current) setLookupLoading(false);
       lookupControllerRef.current = null;
     }
-  }, [updateFormField, showWarning]);
+  };
 
   // Manejar cambio en número de identificación
-  const handleNumeroIdentificacionChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNumeroIdentificacionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const valor = e.target.value.replace(/\D/g, '').slice(0, 11);
     
     // Limpiar datos autocompletados cuando el usuario modifica el campo
@@ -259,8 +277,9 @@ export default function ClienteFormUnified({
       setLookupSuccess(null);
     }
     
-  updateFormField('numeroIdentificacion', valor);
-  actualizarTipoEntidad(valor);
+    // Actualizar formData directamente
+    setFormData(prev => ({ ...prev, numeroIdentificacion: valor }));
+    actualizarTipoEntidad(valor);
     
     // Validar en tiempo real
     const error = validateField('numeroIdentificacion', valor, formData);
@@ -287,7 +306,7 @@ export default function ClienteFormUnified({
       setAutocompletedFields(new Set());
       setLookupSuccess(null);
     }
-  }, [formData, updateFormField, actualizarTipoEntidad, validateField, clearFieldError, buscarDatosExternos]);
+  };
 
   // Manejar envío del formulario
   const handleSubmit = useCallback(async (e: React.FormEvent) => {

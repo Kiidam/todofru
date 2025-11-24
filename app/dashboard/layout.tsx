@@ -64,14 +64,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="w-full min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex-shrink-0`}>
+      <div className={`no-print fixed inset-y-0 left-0 z-50 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex-shrink-0`}>
         <Sidebar />
       </div>
 
       {/* Main content */}
       <div className="flex flex-col flex-1 w-full lg:pl-0">
         {/* Top header */}
-        <header className="bg-white shadow-sm border-b">
+        <header className="no-print bg-white shadow-sm border-b">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center">
@@ -110,7 +110,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setSidebarOpen(false)}>
+        <div className="no-print fixed inset-0 z-40 lg:hidden" onClick={() => setSidebarOpen(false)}>
           <div className="fixed inset-0 bg-gray-600 bg-opacity-75"></div>
         </div>
       )}

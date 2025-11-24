@@ -102,6 +102,15 @@ export default function LoginPage() {
           >
             {isLoading ? 'Iniciando...' : 'Iniciar Sesión'}
           </button>
+
+          <div className="text-center mt-4">
+            <a
+              href="/recuperar-cuenta"
+              className="text-sm text-green-600 hover:text-green-700"
+            >
+              ¿Olvidaste tu contraseña?
+            </a>
+          </div>
         </form>
 
       </div>

@@ -109,30 +109,33 @@ async function main() {
   const proveedorData = [
     {
       id: 'prov-001',
+      tipoEntidad: 'PERSONA_JURIDICA' as const,
       nombre: 'Mercado Mayorista Central Lima',
+      razonSocial: 'Mercado Mayorista Central Lima S.A.',
       numeroIdentificacion: '20123456789',
       telefono: '01-4567890',
       email: 'ventas@mercadocentral.pe',
       direccion: 'Av. Aviación 2085, San Luis',
-      
     },
     {
       id: 'prov-002',
+      tipoEntidad: 'PERSONA_JURIDICA' as const,
       nombre: 'Agrícola San José S.A.C.',
+      razonSocial: 'Agrícola San José S.A.C.',
       numeroIdentificacion: '20987654321',
       telefono: '01-9876543',
       email: 'compras@agricolasanjose.com',
       direccion: 'Km 35 Carretera Central, Huarochirí',
-      
     },
     {
       id: 'prov-003',
+      tipoEntidad: 'PERSONA_JURIDICA' as const,
       nombre: 'Frutícola Valle Verde',
+      razonSocial: 'Frutícola Valle Verde E.I.R.L.',
       numeroIdentificacion: '20555666777',
       telefono: '01-5556667',
       email: 'administracion@valleverde.pe',
       direccion: 'Av. Los Frutales 850, Cañete',
-      
     }
   ];
 
